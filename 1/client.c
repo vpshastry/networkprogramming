@@ -1,35 +1,29 @@
-#include <stdio.h>
-#include <fnmatch.h>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <unistd.h>
+#define _GNU_SOURCE
+#include <header.h>
 
-#define ValidIpAddressRegex "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
-#define ValidHostnameRegex "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$"
+#define ValidIpAddressRegex "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]).){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
+#define ValidHostnameRegex "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$"
 
-#define _True 1
-#define _False 0
-
-#define MAX_BUF_SIZE 1024
-
-#define SERVER_ADDR 127.0.0.1
+#define SERVER_ADDR "127.0.0.1"
 
 typedef union {
   struct in_addr inaddr;
   struct in6_addr in6addr;
-} in_addr_t;
-
-void
-log(level_t level, char *msg)
-{
-  perror (msg);
-}
+} my_in_addr_t;
 
 void *
 process_commandline(int argc, char *argv[])
 {
-  if (fnmatch(argv[1], ValidIpAddressRegex, NULL) != FNM_NOMATCH) {
+  my_in_addr_t inaddrt = {0, };
+  void *ip = &inaddrt.inaddr;
+  char *ip_str = NULL;
+  char *fqdn = NULL;
+  int v6;
+  struct hostent *hostentry = NULL;
+  struct hostent lhostent = {0,};
+  int i = 0;
+
+  if (fnmatch(argv[1], ValidIpAddressRegex, 0) != FNM_NOMATCH) {
     ip_str = argv[1];
     ip = &inaddrt.inaddr;
     if (strchr(ip, ':')) {
@@ -38,30 +32,30 @@ process_commandline(int argc, char *argv[])
     }
   }
 
-  if (!ip_str && fnmatch(argv[1], ValidHostnameRegex, NULL) != FNM_NOMATCH) {
+  if (!ip_str && fnmatch(argv[1], ValidHostnameRegex, 0) != FNM_NOMATCH) {
     fqdn = argv[1];
   }
 
   if (!ip_str && !fqdn) {
-    log (ERROR, "Argument 1 is neither an IP nor a FQDN");
-    return -1;
+    logit (ERROR, "Argument 1 is neither an IP nor a FQDN");
+    return NULL;
   }
 
   if (inet_pton(v6? AF_INET6 : AF_INET, ip_str, ip) != 1) {
-    log (ERROR, "Failed to convert the ip from string to in_addr/in6_addr");
-    return -1;
+    logit (ERROR, "Failed to convert the ip from string to in_addr/in6_addr");
+    return NULL;
   }
 
   if (ip) {
     if (!(hostentry = gethostbyaddr((const void *)ip,
-                                    sizeof(v6? struct in6_addr: struct in_addr),
+                                    v6? sizeof (struct in6_addr): sizeof (struct in_addr),
                                     v6? AF_INET : AF_INET6)))
-      log (ERROR, "Failed get host by addr");
+      logit (ERROR, "Failed get host by addr");
   } else {
     if (!(hostentry = gethostbyname(fqdn)))
-      log (ERROR, "Failed get host by name");
+      logit (ERROR, "Failed get host by name");
   }
-  memcpy (lhostent, hostentry, sizeof(struct hostent));
+  memcpy (&lhostent, hostentry, sizeof(struct hostent));
 
   printf ("The server host is:\nName: %s\nOther aliases: ", lhostent.h_name);
   for (i = 0; lhostent.h_aliases[i]; ++i)
@@ -76,10 +70,13 @@ handle_request(int choice)
 {
   int pipefd[2] = {0,};
   int ret = 0;
+  char *binary = NULL;
+  char buf[MAX_BUF_SIZE] = {0,};
+  int fd[2] = {-1,};
 
   if (!pipe2(pipefd, O_CLOEXEC) == -1) {
-    log (ERROR, "pipe creation failed");
-    return -1;
+    logit (ERROR, "pipe creation failed");
+    return;
   }
 
   switch (fork()) {
@@ -97,7 +94,7 @@ handle_request(int choice)
           break;
 
         default:
-          log (ERROR, "Invalid choice %d. Exiting...");
+          logit (ERROR, "Invalid choice %d. Exiting...");
           exit(-1);
       }
 
@@ -110,13 +107,14 @@ handle_request(int choice)
       close (fd[1]);
 
       while (read(pipefd[0], buf, MAX_BUF_SIZE) != 0 /* EOF */)
-        log(INFO, buf);
+        logit(INFO, buf);
 
       wait(NULL);
       close (pipefd[0]);
   }
 }
 
+int
 process()
 {
   int choice;
@@ -145,13 +143,9 @@ process()
 int
 main (int argc, char *argv[])
 {
-  char *ip_str = NULL;
-  char *fqdn = NULL;
-  in_addr_t inaddrt = {0, };
-  void *ip = &inaddrt.inaddr;
-  int v6;
-
   process_commandline (argc, argv);
 
   process();
+
+  return 0;
 }
