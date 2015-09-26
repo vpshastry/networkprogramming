@@ -26,24 +26,24 @@ CC = gcc
 
 LIBS = -lresolv -lsocket -lnsl -lpthread\
 	/home/courses/cse533/Stevens/unpv13e_solaris2.10/libunp.a\
-	
-FLAGS = -g -O2
+
+FLAGS = -g3 -O3
 
 CFLAGS = ${FLAGS} -I/home/courses/cse533/Stevens/unpv13e_solaris2.10/lib
 
-all: client server echo_cli time_cli 
+all: client server echo_cli time_cli
 
 
 time_cli: time_cli.o
 	${CC} ${FLAGS} -o time_cli time_cli.o ${LIBS}
 time_cli.o: time_cli.c
-	${CC} ${CFLAGS} -c time_cli.c
+	${CC} ${CFLAGS} -c time_cli.c header.h
 
 
 echo_cli: echo_cli.o
 	${CC} ${FLAGS} -o echo_cli echo_cli.o ${LIBS}
 echo_cli.o: echo_cli.c
-	${CC} ${CFLAGS} -c echo_cli.c
+	${CC} ${CFLAGS} -c echo_cli.c header.h
 
 
 # server uses the thread-safe version of readline.c
@@ -51,13 +51,13 @@ echo_cli.o: echo_cli.c
 server: tcpechotimesrv.o readline.o
 	${CC} ${FLAGS} -o server tcpechotimesrv.o readline.o ${LIBS}
 tcpechotimesrv.o: tcpechotimesrv.c
-	${CC} ${CFLAGS} -c tcpechotimesrv.c
+	${CC} ${CFLAGS} -c tcpechotimesrv.c header.h
 
 
 client: tcpechotimecli.o
 	${CC} ${FLAGS} -o client tcpechotimecli.o ${LIBS}
 tcpechotimecli.o: tcpechotimecli.c
-	${CC} ${CFLAGS} -c tcpechotimecli.c
+	${CC} ${CFLAGS} -c tcpechotimecli.c header.h
 
 
 # pick up the thread-safe version of readline.c from directory "threads"

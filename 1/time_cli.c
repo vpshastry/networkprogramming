@@ -32,16 +32,10 @@ main(int argc, char *argv[])
   }
 
   int n = -1;
-  recvbuf[MAX_BUF_SIZE] = 0;
-  write(clientsock, PING_MSG, strlen(PING_MSG));
-  if (read(clientsock, recvbuf, MAX_BUF_SIZE -1) < 0) {
-    logit (ERROR, "Read from the socket failed");
-    return -1;
+  while ( (n = read(clientsock, recvbuf, sizeof(recvbuf)-1)) > 0) {
+    recvbuf[n] = 0;
+    if(fputs(recvbuf, stdout) == EOF)
+      logit(ERROR, "Fputs error");
   }
-
-  if(fputs(recvbuf, stdout) == EOF)
-    logit(ERROR, "Fputs error");
-
-  close(clientsock);
   close(fd);
 }

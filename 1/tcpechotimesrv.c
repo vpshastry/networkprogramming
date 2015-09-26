@@ -1,5 +1,5 @@
 #define _XOPEN_SOURCE
-#include <header.h>
+#include "header.h"
 
 #define ECHO_REPLY "PONG"
 
@@ -44,11 +44,37 @@ get_server_socket(int port) {
 }
 
 void *
-echo_cli_service()
+echocli_serve_single_client(void *arg)
+{
+  char readbuf[MAX_BUF_SIZE] = {0,};
+  int fd = *(int *)arg;
+  free(arg);
+
+  if (read(fd, readbuf, MAX_BUF_SIZE) == EOF) {
+    logit(ERROR, "Client closed the connection");
+    goto close;
+  }
+
+  if (memcmp(readbuf, "PING", strlen("PING"))) {
+    logit (ERROR, "Received something else than ping");
+    goto close;
+  }
+
+  write(fd, ECHO_REPLY, strlen(ECHO_REPLY));
+
+close:
+  close(fd);
+}
+
+void *
+echo_cli_service(void *arg)
 {
   int serversock = -1;
   int fd;
-  char readbuf[MAX_BUF_SIZE] = {0,};
+  int *passfd = NULL;
+  int err = -1;
+  pthread_t threads[MAX_CLIENTS] = {0,};
+  int i = 0;
 
   if ((serversock = get_server_socket(SERVER_ECHO_PORT)) < 0) {
     logit (ERROR, "Couldn't get socket");
@@ -59,24 +85,23 @@ echo_cli_service()
   while (select(fd, NULL, NULL, NULL, NULL) >= 0) {
     if ((fd = accept(serversock, NULL, NULL)) < 0) {
       logit(ERROR, "Couldn't accept the connection from client");
-      goto close;
+      close(fd);
+      continue;
     }
 
-    if (read(fd, readbuf, MAX_BUF_SIZE) == EOF) {
-      logit(ERROR, "Client closed the connection");
-      goto close;
+    passfd = (int *)malloc(sizeof(fd));
+    *passfd = fd;
+    if ((err = pthread_create(&threads[i], NULL, &echocli_serve_single_client, passfd)) != 0) {
+      perror("Error creating echo cli");
+      continue;
     }
 
-    if (memcmp(readbuf, "PING", strlen("PING"))) {
-      logit (ERROR, "Received something else than ping");
-      goto close;
+    if ((err = pthread_detach(threads[i++])) != 0) {
+      perror("Error detaching thread echo cli");
+      return NULL;
     }
-
-    write(fd, ECHO_REPLY, strlen(ECHO_REPLY));
-
-close:
-    close(fd);
   }
+
 
   return NULL;
 }
@@ -114,6 +139,7 @@ timecli_serve_single_client(void *arg)
     memset(&tm, 0, sizeof(struct tm));
   }
 
+  return NULL;
 }
 
 void *
@@ -152,7 +178,7 @@ time_cli_service()
 
     if ((err = pthread_detach(threads[i++])) != 0) {
       perror("Error detaching thread echo cli");
-      return -1;
+      return NULL;
     }
 
     if (fcntl(serversock, F_SETFL, flags & (~O_NONBLOCK)) < 0) {
