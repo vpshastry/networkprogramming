@@ -1,51 +1,35 @@
 #define _GNU_SOURCE
 #include "header.h"
 
-#define ValidIpAddressRegex "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]).){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
-#define ValidHostnameRegex "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$"
-
-typedef union {
-  struct in_addr inaddr;
-  struct in6_addr in6addr;
-} my_in_addr_t;
-
 struct in_addr *
 process_commandline(int argc, char *argv[])
 {
   struct in_addr *inaddr = (struct in_addr *) malloc(sizeof(struct in_addr));
-  void *ip = NULL;
-  char *ip_str = NULL;
+  char *ip_str = argv[1];
   char *fqdn = NULL;
   struct hostent *hostentry = NULL;
   struct hostent lhostent = {0,};
   int i = 0;
 
-  if (fnmatch(argv[1], ValidIpAddressRegex, 0) != FNM_NOMATCH) {
-    ip_str = argv[1];
-    ip = &inaddr;
+  if (inet_pton(AF_INET, ip_str, inaddr) != 1) {
+    logit (ERROR, "I don't think passed argument is an IP, trying to resolve assuming as hostname");
+
+    if (!(hostentry = gethostbyname(ip_str))) {
+      logit (ERROR, "Passed argument is neither an IP nor a hostname");
+      return NULL;
+    }
   }
 
-  if (!ip_str && fnmatch(argv[1], ValidHostnameRegex, 0) != FNM_NOMATCH) {
-    fqdn = argv[1];
-  }
-
-  if (!ip_str && !fqdn) {
-    logit (ERROR, "Argument 1 is neither an IP nor a FQDN");
-    return NULL;
-  }
-
-  if (inet_pton(AF_INET, ip_str, ip) != 1) {
-    logit (ERROR, "Failed to convert the ip from string to in_addr/in6_addr");
-    return NULL;
-  }
-
-  if (ip) {
-    if (!(hostentry = gethostbyaddr((const void *)ip, sizeof (struct in6_addr),
+  if (!hostentry) {
+    if (!(hostentry = gethostbyaddr((const void *)inaddr, sizeof (struct in6_addr),
                                     AF_INET)))
       logit (ERROR, "Failed get host by addr");
+
   } else {
-    if (!(hostentry = gethostbyname(fqdn)))
-      logit (ERROR, "Failed get host by name");
+    if (inet_pton(AF_INET, hostentry->h_addr_list[0], inaddr) != 1) {
+      logit (ERROR, "Error converting hostentry to binary ip format");
+      return NULL;
+    }
   }
   memcpy (&lhostent, hostentry, sizeof(struct hostent));
 
@@ -56,7 +40,7 @@ process_commandline(int argc, char *argv[])
   for (i = 0; lhostent.h_addr_list[i]; ++i)
     printf ("%s, ", lhostent.h_addr_list[i]);
 
-  return ip;
+  return inaddr;
 }
 
 void
