@@ -93,13 +93,15 @@ handle_request(struct in_addr *ip, int choice)
     default:
       close (fd[1]);
 
-      while (read(pipefd[0], buf, MAX_BUF_SIZE) != 0 /* EOF */)
-        logit(INFO, buf);
-
       wait(NULL);
+      /*
+      while (read(pipefd[0], buf, MAX_BUF_SIZE) != 0 * EOF *)
+        logit(INFO, buf);
+        */
+
       close (pipefd[0]);
   }
-  close(pipefd[0]);
+  close(pipefd[1]);
 }
 
 int
@@ -109,8 +111,9 @@ process(struct in_addr *ip)
 
   while (42) {
     printf ("\n1. echo server\n2. time server\n3. Exit\nEnter your choice: ");
-    if (scanf ("%d", &choice) != 1) {
+    if (scanf ("%d", &choice) == -100) {
       logit (ERROR, "User input error to scanf");
+      fflush(stdin);
       continue;
     }
 
@@ -128,6 +131,7 @@ process(struct in_addr *ip)
         printf ("Invalid choice\n");
         break;
     }
+    fflush (stdin);
   }
 }
 
