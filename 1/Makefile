@@ -31,7 +31,7 @@ FLAGS = -g3 -O3
 
 CFLAGS = ${FLAGS} -I/home/courses/cse533/Stevens/unpv13e_solaris2.10/lib
 
-all: client server echo_cli time_cli
+all: client echo_cli time_cli server
 
 
 time_cli: time_cli.o
