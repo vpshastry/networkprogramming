@@ -118,6 +118,7 @@ timecli_serve_single_client(void *arg)
   char buf[MAX_BUF_SIZE] = {0,};
   int err;
   struct tm tm = {0,};
+  time_t     now;
 
   /* TODO: Look into this select function again */
   /*while (select (fd, NULL, NULL, NULL, tv) >= 0) { */
@@ -127,20 +128,24 @@ timecli_serve_single_client(void *arg)
       break;
     }
 
+    /*
     if ((err = gettimeofday(tv, NULL)) < 0) {
       perror ("failed to fetch time");
       memset (tv, 0, sizeof(*tv));
     }
 
     snprintf (buf, MAX_BUF_SIZE, "%lld", (long long)tv->tv_sec);
-    strptime (buf, "%s", &tm);
+    */
+    time(&now);
+    tm = *localtime(&now);
+    //strptime (buf, "%s", &tm);
     memset(buf, 0, MAX_BUF_SIZE);
     strftime (buf, MAX_BUF_SIZE,  "%b %d %H:%M %Y", &tm);
 
     if (EPIPE == write(fd, buf, strlen(buf)))
       return NULL;
 
-    tv->tv_sec += 5;
+    //tv->tv_sec += 5;
     memset(&tm, 0, sizeof(struct tm));
   }
 

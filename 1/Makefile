@@ -24,12 +24,12 @@
 
 CC = gcc
 
-LIBS = -lresolv -lsocket -lnsl -lpthread\
-	/home/courses/cse533/Stevens/unpv13e_solaris2.10/libunp.a\
+LIBS = -lresolv -lsocket -lnsl -lpthread
+	#/home/courses/cse533/Stevens/unpv13e_solaris2.10/libunp.a\
 
 FLAGS = -g3 -O3
 
-CFLAGS = ${FLAGS} -I/home/courses/cse533/Stevens/unpv13e_solaris2.10/lib
+CFLAGS = ${FLAGS} # -I/home/courses/cse533/Stevens/unpv13e_solaris2.10/lib
 
 all: client echo_cli time_cli server
 
