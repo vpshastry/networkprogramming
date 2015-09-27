@@ -32,7 +32,7 @@ main(int argc, char *argv[])
   }
 
   int n = -1;
-  while ( (n = read(clientsock, recvbuf, sizeof(recvbuf)-1)) > 0) {
+  while ((n = read(clientsock, recvbuf, sizeof(recvbuf)-1)) > 0) {
     recvbuf[n] = 0;
     if(fputs(recvbuf, stdout) == EOF)
       logit(ERROR, "Fputs error");

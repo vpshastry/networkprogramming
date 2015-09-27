@@ -111,31 +111,36 @@ timecli_serve_single_client(void *arg)
 {
   int fd = *(int *)arg;
   free(arg);
-  struct timeval tv = {0,};
+  struct timeval *tv = (struct timeval *) calloc (1, sizeof (struct timeval));
+  /*struct timeval tv;
+  memset (&tv, 0, sizeof(struct timeval)); */
   char readbuf[MAX_BUF_SIZE] = {0,};
   char buf[MAX_BUF_SIZE] = {0,};
   int err;
   struct tm tm = {0,};
 
   /* TODO: Look into this select function again */
-  while (select (fd, NULL, NULL, NULL, &tv) >= 0) {
+  /*while (select (fd, NULL, NULL, NULL, tv) >= 0) { */
+  while (sleep (10)) {
     if (read(fd, readbuf, MAX_BUF_SIZE) == EOF) {
       logit (0, "Client closed connection");
       break;
     }
 
-    if ((err = gettimeofday(&tv, NULL)) < 0) {
+    if ((err = gettimeofday(tv, NULL)) < 0) {
       perror ("failed to fetch time");
-      memset (&tv, 0, sizeof(tv));
+      memset (tv, 0, sizeof(*tv));
     }
 
-    snprintf (buf, MAX_BUF_SIZE, "%lld", (long long)tv.tv_sec);
+    snprintf (buf, MAX_BUF_SIZE, "%lld", (long long)tv->tv_sec);
     strptime (buf, "%s", &tm);
     memset(buf, 0, MAX_BUF_SIZE);
     strftime (buf, MAX_BUF_SIZE,  "%b %d %H:%M %Y", &tm);
 
-    write(fd, buf, strlen(buf));
-    tv.tv_sec += 5;
+    if (EPIPE == write(fd, buf, strlen(buf)))
+      return NULL;
+
+    tv->tv_sec += 5;
     memset(&tm, 0, sizeof(struct tm));
   }
 

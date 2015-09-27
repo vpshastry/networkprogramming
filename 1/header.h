@@ -1,4 +1,8 @@
+#ifndef _MY_HEADER_H
+#define _MY_HEADER_H
+/*
 #include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <fnmatch.h>
 #include <netdb.h>
@@ -14,6 +18,8 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+*/
+#include "unp.h"
 
 #define MAX_BUF_SIZE 1024
 #define MAX_ARRAY_SIZE 256
@@ -51,3 +57,4 @@ logit(level_t level, char *msg)
       printf("\n");
   }
 }
+#endif

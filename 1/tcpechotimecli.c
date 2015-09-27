@@ -59,7 +59,7 @@ handle_request(struct in_addr *ip, int choice)
     return;
   }
 
-  if (pipe2(pipefd, O_CLOEXEC) == -1) {
+  if (pipe(pipefd) == -1) {
     logit (ERROR, "pipe creation failed");
     return;
   }
@@ -99,6 +99,7 @@ handle_request(struct in_addr *ip, int choice)
       wait(NULL);
       close (pipefd[0]);
   }
+  close(pipefd[0]);
 }
 
 int
@@ -133,6 +134,11 @@ process(struct in_addr *ip)
 int
 main (int argc, char *argv[])
 {
+  if (argc != 2) {
+    printf("Usage: %s <server-addr>", argv[0]);
+    return 0;
+  }
+
   process(process_commandline (argc, argv));
 
   return 0;
