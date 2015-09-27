@@ -113,6 +113,7 @@ process(struct in_addr *ip)
     printf ("\n1. echo server\n2. time server\n3. Exit\nEnter your choice: ");
     if (scanf ("%d", &choice) == -100) {
       logit (ERROR, "User input error to scanf");
+      fflush(stdin);
       continue;
     }
 
