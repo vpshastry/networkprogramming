@@ -110,12 +110,16 @@ process(struct in_addr *ip)
   int choice;
 
   while (42) {
-    printf ("\n1. echo server\n2. time server\n3. Exit\nEnter your choice: ");
-    if (scanf ("%d", &choice) == -100) {
+    printf ("\n1. echo server\n2. time server\n3. Quit\nEnter your choice: ");
+    fflush(stdin);
+    while (getchar() != '\n');
+    int err = scanf("%d", &choice);
+    /*
+    if ((choice = getchar ()) == -100) {//("%c ", &choice) == -100) {
       logit (ERROR, "User input error to scanf");
-      fflush(stdin);
       continue;
     }
+    */
 
     switch (choice) {
       case 1:
