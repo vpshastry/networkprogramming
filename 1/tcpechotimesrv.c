@@ -18,8 +18,7 @@ get_server_socket(int port) {
   memset(&addr, 0, sizeof(struct sockaddr_in));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
-  inet_pton(AF_INET, INADDR_ANY, &addr.sin_addr);
-  //addr.sin_addr.s_addr = inet_addr("127.0.0.1");//inet_addr(INADDR_ANY);
+  addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
   if (setsockopt(serversock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) {
     logit(ERROR, "Set sock opt error");
@@ -197,7 +196,6 @@ time_cli_service(void *arg)
   return NULL;
 }
 
-/*
 static volatile int intrpt_received = 0;
 
 void
@@ -206,24 +204,7 @@ intrpthandler(int intrpt)
   printf("Received SIGINT, exiting\n");
   intrpt_received = 1;
 }
-*/
 
-int
-main()
-{
-  int err = 0;
-  pthread_t ourthreads[2] = {0,};
-
-  if ((err = pthread_create(&ourthreads[0], NULL, echo_cli_service, &err)) != 0) {
-    logit(ERROR, "Thread creation error");
-    return -1;
-  }
-
-  sleep (10);
-  return 0;
-}
-
-/*
 int
 main()
 {
@@ -232,9 +213,9 @@ main()
   pthread_t timecliID = {0,};
   pthread_attr_t attr = {0,};
 
-  //signal(SIGINT, intrpthandler);
+  signal(SIGINT, intrpthandler);
 
-  //err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
   logit(INFO, "Starting thread for echo cli service");
   if ((err = pthread_create(&echocliID, NULL, echo_cli_service, &err)) != 0) {
@@ -242,19 +223,18 @@ main()
     return -1;
   }
 
-*/
   /*
   if ((err = pthread_detach(echocliID)) != 0) {
     logit(ERROR, "Error detaching thread echo cli");
     return -1;
   }
+  */
 
   logit(INFO, "Starting thread for time cli service");
   if ((err = pthread_create(&timecliID, &attr, time_cli_service, &err)) != 0) {
     logit(ERROR, "Error creating echo cli");
     return -1;
   }
-  */
 
   /*
   if ((err = pthread_detach(timecliID)) != 0) {
@@ -263,10 +243,7 @@ main()
   }
   */
 
-  /*
-  while(!intrpt_received)*/
-/*
+  while(!intrpt_received)
     sleep (5);
   return 0;
 }
-*/
