@@ -36,13 +36,13 @@ all: client echo_cli time_cli server
 
 time_cli: time_cli.o
 	${CC} ${FLAGS} -o time_cli time_cli.o ${LIBS}
-time_cli.o: time_cli.c
+time_cli.o: time_cli.c header.h
 	${CC} ${CFLAGS} -c time_cli.c header.h
 
 
 echo_cli: echo_cli.o
 	${CC} ${FLAGS} -o echo_cli echo_cli.o ${LIBS}
-echo_cli.o: echo_cli.c
+echo_cli.o: echo_cli.c header.h
 	${CC} ${CFLAGS} -c echo_cli.c header.h
 
 
@@ -50,13 +50,13 @@ echo_cli.o: echo_cli.c
 
 server: tcpechotimesrv.o readline.o
 	${CC} ${FLAGS} -o server tcpechotimesrv.o readline.o ${LIBS}
-tcpechotimesrv.o: tcpechotimesrv.c
+tcpechotimesrv.o: tcpechotimesrv.c header.h
 	${CC} ${CFLAGS} -c tcpechotimesrv.c header.h
 
 
 client: tcpechotimecli.o
 	${CC} ${FLAGS} -o client tcpechotimecli.o ${LIBS}
-tcpechotimecli.o: tcpechotimecli.c
+tcpechotimecli.o: tcpechotimecli.c header.h
 	${CC} ${CFLAGS} -c tcpechotimecli.c header.h
 
 

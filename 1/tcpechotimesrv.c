@@ -1,4 +1,3 @@
-#define _XOPEN_SOURCE
 #include "header.h"
 
 #define ECHO_REPLY "PONG"
@@ -11,32 +10,34 @@ get_server_socket(int port) {
   int yes = 1;
 
   if ((serversock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    perror ("Socket error");
+    logit(ERROR, "Socket error");
     return -1;
   }
 
-  memset(&addr, 0, sizeof(addr));
+  printf ("port: %d\n", port);
+  memset(&addr, 0, sizeof(struct sockaddr_in));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
-  addr.sin_addr.s_addr = inet_addr(INADDR_ANY);
+  inet_pton(AF_INET, INADDR_ANY, &addr.sin_addr);
+  //addr.sin_addr.s_addr = inet_addr("127.0.0.1");//inet_addr(INADDR_ANY);
 
   if (setsockopt(serversock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) {
-    perror ("Set sock opt error");
+    logit(ERROR, "Set sock opt error");
     return -1;
   }
 
   if (bind (serversock, (struct sockaddr *)&addr, sizeof (struct sockaddr)) < 0) {
-    perror("bind error");
+    logit(ERROR, "bind error");
     return -1;
   }
 
   if (listen (serversock, 1024) < 0) {
-    perror ("listen failures");
+    logit(ERROR, "listen failures");
     return -1;
   }
 
   if ((flags = fcntl(serversock, F_GETFL, 0)) < 0) {
-    perror ("get fl error");
+    logit(ERROR, "get fl error");
     return -1;
   }
 
@@ -47,20 +48,16 @@ void *
 echocli_serve_single_client(void *arg)
 {
   char readbuf[MAX_BUF_SIZE] = {0,};
+  size_t readsize;
   int fd = *(int *)arg;
   free(arg);
 
-  if (read(fd, readbuf, MAX_BUF_SIZE) == EOF) {
+  if ((readsize = read(fd, readbuf, MAX_BUF_SIZE)) == EOF) {
     logit(ERROR, "Client closed the connection");
     goto close;
   }
 
-  if (memcmp(readbuf, "PING", strlen("PING"))) {
-    logit (ERROR, "Received something else than ping");
-    goto close;
-  }
-
-  write(fd, ECHO_REPLY, strlen(ECHO_REPLY));
+  write(fd, readbuf, readsize);
 
 close:
   close(fd);
@@ -73,7 +70,7 @@ echo_cli_service(void *arg)
   int fd;
   int *passfd = NULL;
   int err = -1;
-  pthread_t threads[MAX_CLIENTS] = {0,};
+  pthread_t mythreads[MAX_CLIENTS];
   int i = 0;
 
   if ((serversock = get_server_socket(SERVER_ECHO_PORT)) < 0) {
@@ -91,13 +88,13 @@ echo_cli_service(void *arg)
 
     passfd = (int *)malloc(sizeof(fd));
     *passfd = fd;
-    if ((err = pthread_create(&threads[i], NULL, &echocli_serve_single_client, passfd)) != 0) {
-      perror("Error creating echo cli");
+    if ((err = pthread_create(&mythreads[i], NULL, &echocli_serve_single_client, passfd)) != 0) {
+      logit(ERROR, "Error creating echo cli");
       continue;
     }
 
-    if ((err = pthread_detach(threads[i++])) != 0) {
-      perror("Error detaching thread echo cli");
+    if ((err = pthread_detach(mythreads[i++])) != 0) {
+      logit(ERROR, "Error detaching thread echo cli");
       return NULL;
     }
   }
@@ -130,7 +127,7 @@ timecli_serve_single_client(void *arg)
 
     /*
     if ((err = gettimeofday(tv, NULL)) < 0) {
-      perror ("failed to fetch time");
+      logit(ERROR, "failed to fetch time");
       memset (tv, 0, sizeof(*tv));
     }
 
@@ -153,7 +150,7 @@ timecli_serve_single_client(void *arg)
 }
 
 void *
-time_cli_service()
+time_cli_service(void *arg)
 {
   int serversock = -1;
   int flags = 0;
@@ -170,29 +167,29 @@ time_cli_service()
 
   while (select(serversock, NULL, NULL, NULL, NULL) >= 0) {
     if ((fd = accept(serversock, NULL, NULL)) < 0) {
-      perror("Accept error");
+      logit(ERROR, "Accept error");
       return NULL;
     }
 
     if (fcntl(serversock, F_SETFL, flags | O_NONBLOCK) < 0) {
-      perror ("setting to non blocking mode error");
+      logit(ERROR, "setting to non blocking mode error");
       return NULL;
     }
 
     passfd = (int *)malloc(sizeof(fd));
     *passfd = fd;
     if ((err = pthread_create(&threads[i], NULL, &timecli_serve_single_client, passfd)) != 0) {
-      perror("Error creating echo cli");
+      logit(ERROR, "Error creating echo cli");
       return NULL;
     }
 
     if ((err = pthread_detach(threads[i++])) != 0) {
-      perror("Error detaching thread echo cli");
+      logit(ERROR, "Error detaching thread echo cli");
       return NULL;
     }
 
     if (fcntl(serversock, F_SETFL, flags & (~O_NONBLOCK)) < 0) {
-      perror ("Setting to blocking mode failure");
+      logit(ERROR, "Setting to blocking mode failure");
       return NULL;
     }
   }
@@ -200,32 +197,76 @@ time_cli_service()
   return NULL;
 }
 
+/*
+static volatile int intrpt_received = 0;
+
+void
+intrpthandler(int intrpt)
+{
+  printf("Received SIGINT, exiting\n");
+  intrpt_received = 1;
+}
+*/
+
+int
+main()
+{
+  int err = 0;
+  pthread_t ourthreads[2] = {0,};
+
+  if ((err = pthread_create(&ourthreads[0], NULL, echo_cli_service, &err)) != 0) {
+    logit(ERROR, "Thread creation error");
+    return -1;
+  }
+
+  sleep (10);
+  return 0;
+}
+
+/*
 int
 main()
 {
   int err;
-  pthread_t echocliID, timecliID;
+  pthread_t echocliID = {0,};
+  pthread_t timecliID = {0,};
+  pthread_attr_t attr = {0,};
 
-  logit(0, "Starting thread for echo cli service");
-  if ((err = pthread_create(&echocliID, NULL, &echo_cli_service, NULL)) != 0) {
-    perror("Error creating echo cli");
+  //signal(SIGINT, intrpthandler);
+
+  //err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+  logit(INFO, "Starting thread for echo cli service");
+  if ((err = pthread_create(&echocliID, NULL, echo_cli_service, &err)) != 0) {
+    logit(ERROR, "Error creating echo cli");
     return -1;
   }
 
+*/
+  /*
   if ((err = pthread_detach(echocliID)) != 0) {
-    perror("Error detaching thread echo cli");
+    logit(ERROR, "Error detaching thread echo cli");
     return -1;
   }
 
-  logit(0, "Starting thread for time cli service");
-  if ((err = pthread_create(&timecliID, NULL, &time_cli_service, NULL)) != 0) {
-    perror("Error creating echo cli");
+  logit(INFO, "Starting thread for time cli service");
+  if ((err = pthread_create(&timecliID, &attr, time_cli_service, &err)) != 0) {
+    logit(ERROR, "Error creating echo cli");
     return -1;
   }
+  */
 
+  /*
   if ((err = pthread_detach(timecliID)) != 0) {
-    perror("Error detaching thread echo cli");
+    logit(ERROR, "Error detaching thread echo cli");
     return -1;
   }
+  */
 
+  /*
+  while(!intrpt_received)*/
+/*
+    sleep (5);
+  return 0;
 }
+*/

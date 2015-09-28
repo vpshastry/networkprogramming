@@ -1,5 +1,6 @@
 #ifndef _MY_HEADER_H
 #define _MY_HEADER_H
+/*
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -17,9 +18,8 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-/*
-#include "unp.h"
 */
+#include "unp.h"
 
 #define MAX_BUF_SIZE 1024
 #define MAX_ARRAY_SIZE 256
@@ -30,7 +30,7 @@
 #define _True 1
 #define _False 0
 
-#define MAX_CLIENTS 32
+#define MAX_CLIENTS 8
 
 #define SERVER_ADDR "127.0.0.1"
 
@@ -48,13 +48,14 @@ logit(level_t level, char *msg)
 {
   switch (level) {
     case ERROR:
-      perror (msg);
+      fprintf (stdout, "%s: %s", msg, strerror(errno));
+      fprintf(stdout, "\n");
       break;
     case NONE:
     case INFO:
     default:
-      printf ("%s", msg);
-      printf("\n");
+      fprintf (stdout, "%s", msg);
+      fprintf(stdout, "\n");
   }
 }
 #endif

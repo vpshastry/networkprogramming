@@ -44,11 +44,10 @@ process_commandline(int argc, char *argv[])
 }
 
 void
-handle_request(struct in_addr *ip, int choice)
+handle_request(struct in_addr *ip, char *binary)
 {
   int pipefd[2] = {0,};
   int ret = 0;
-  char *binary = NULL;
   char buf[MAX_BUF_SIZE] = {0,};
   int fd[2] = {-1,};
   char *ip_str = (char *) malloc (MAX_ARRAY_SIZE);
@@ -70,20 +69,6 @@ handle_request(struct in_addr *ip, int choice)
       if (dup2(pipefd[1], 1) < 0)
         logit (ERROR, "Dup2 failed");
 
-      switch (choice) {
-        case 1:
-          binary = "./echocli";
-          break;
-
-        case 2:
-          binary = "./timecli";
-          break;
-
-        default:
-          logit (ERROR, "Invalid choice %d. Exiting...");
-          exit(-1);
-      }
-
       snprintf (pipe_str, MAX_ARRAY_SIZE, "%d", pipefd[1]);
       execlp("xterm", "xterm", "-e", binary, ip_str, pipe_str, (char *) 0);
 
@@ -93,11 +78,10 @@ handle_request(struct in_addr *ip, int choice)
     default:
       close (fd[1]);
 
-      wait(NULL);
-      /*
-      while (read(pipefd[0], buf, MAX_BUF_SIZE) != 0 * EOF *)
+      while (read(pipefd[0], buf, MAX_BUF_SIZE) > 0)
         logit(INFO, buf);
-        */
+
+      wait(NULL);
 
       close (pipefd[0]);
   }
@@ -107,27 +91,37 @@ handle_request(struct in_addr *ip, int choice)
 int
 process(struct in_addr *ip)
 {
-  int choice;
+  char choice;
+  char *binary = NULL;
+  char line[MAX_BUF_SIZE] = {0,};
 
   while (42) {
-    printf ("\n1. echo server\n2. time server\n3. Quit\nEnter your choice: ");
+    printf ("\ne. echo server\nt. time server\nq. Quit\nEnter your choice: ");
     fflush(stdin);
-    while (getchar() != '\n');
-    int err = scanf("%d", &choice);
     /*
+    while ((choice == fgetc(stdin)) == EOF || choice == '\n');
+    fgets(line, sizeof line, stdin);
+    int isint = sscanf(line, "%d", &choice);
     if ((choice = getchar ()) == -100) {//("%c ", &choice) == -100) {
       logit (ERROR, "User input error to scanf");
       continue;
     }
     */
+    fflush (stdin);
+    scanf("%c", &choice);
 
     switch (choice) {
-      case 1:
-      case 2:
-        handle_request(ip, choice);
+      case 'e':
+        binary = "./echo_cli";
+        handle_request(ip, binary);
         break;
 
-      case 3:
+      case 't':
+        binary = "./time_cli";
+        handle_request(ip, binary);
+        break;
+
+      case 'q':
         printf ("Exiting...\n");
         exit(0);
 
@@ -135,7 +129,6 @@ process(struct in_addr *ip)
         printf ("Invalid choice\n");
         break;
     }
-    fflush (stdin);
   }
 }
 
