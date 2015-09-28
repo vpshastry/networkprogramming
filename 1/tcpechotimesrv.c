@@ -35,10 +35,10 @@ get_server_socket(int port) {
     return -1;
   }
 
-  if ((flags = fcntl(serversock, F_GETFL, 0)) < 0) {
+  /*if ((flags = fcntl(serversock, F_GETFL, 0)) < 0) {
     logit(ERROR, "get fl error");
     return -1;
-  }
+  }*/
 
   return 0;
 }
@@ -71,14 +71,26 @@ echo_cli_service(void *arg)
   int err = -1;
   pthread_t mythreads[MAX_CLIENTS];
   int i = 0;
+  pthread_attr_t attr = {0,};
+
+  if ((err = pthread_attr_init(&attr)) != 0) {
+    printf ("ERROR: %s. ", strerror(err));
+    logit(ERROR, "Attr init failed for pthread");
+    return NULL;
+  }
+
+  if ((err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED)) != 0) {
+    printf ("ERROR: %s. ", strerror(err));
+    logit(ERROR, "set detach state failed for pthread");
+    return NULL;
+  }
 
   if ((serversock = get_server_socket(SERVER_ECHO_PORT)) < 0) {
     logit (ERROR, "Couldn't get socket");
     return NULL;
   }
 
-  /* TODO: listen only for read on serversock */
-  while (select(fd, NULL, NULL, NULL, NULL) >= 0) {
+  while (42) {
     if ((fd = accept(serversock, NULL, NULL)) < 0) {
       logit(ERROR, "Couldn't accept the connection from client");
       close(fd);
@@ -87,17 +99,12 @@ echo_cli_service(void *arg)
 
     passfd = (int *)malloc(sizeof(fd));
     *passfd = fd;
-    if ((err = pthread_create(&mythreads[i], NULL, &echocli_serve_single_client, passfd)) != 0) {
+    if ((err = pthread_create(&mythreads[i], &attr, echocli_serve_single_client,
+                                    passfd)) != 0) {
       logit(ERROR, "Error creating echo cli");
       continue;
     }
-
-    if ((err = pthread_detach(mythreads[i++])) != 0) {
-      logit(ERROR, "Error detaching thread echo cli");
-      return NULL;
-    }
   }
-
 
   return NULL;
 }
@@ -215,10 +222,21 @@ main()
 
   signal(SIGINT, intrpthandler);
 
-  err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  if ((err = pthread_attr_init(&attr)) != 0) {
+    printf ("ERROR: %s. ", strerror(err));
+    logit(ERROR, "Attr init failed for pthread");
+    return -1;
+  }
+
+  if ((err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED)) != 0) {
+    printf ("ERROR: %s. ", strerror(err));
+    logit(ERROR, "set detach state failed for pthread");
+    return -1;
+  }
 
   logit(INFO, "Starting thread for echo cli service");
-  if ((err = pthread_create(&echocliID, NULL, echo_cli_service, &err)) != 0) {
+  if ((err = pthread_create(&echocliID, &attr, echo_cli_service, &err)) != 0) {
+    printf("ERROR: %s. ", strerror(err));
     logit(ERROR, "Error creating echo cli");
     return -1;
   }
