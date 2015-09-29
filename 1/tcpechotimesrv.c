@@ -2,6 +2,16 @@
 
 #define ECHO_REPLY "PONG"
 
+
+static volatile int intrpt_received = 0;
+
+void
+intrpthandler(int intrpt)
+{
+  printf("Received SIGINT, exiting\n");
+  intrpt_received = 1;
+}
+
 int
 get_server_socket(int port) {
   int flags = 0;
@@ -25,16 +35,6 @@ get_server_socket(int port) {
     return -1;
   }
 
-  if (bind (serversock, (struct sockaddr *)&addr, sizeof (struct sockaddr)) < 0) {
-    logit(ERROR, "bind error");
-    return -1;
-  }
-
-  if (listen (serversock, 1024) < 0) {
-    logit(ERROR, "listen failures");
-    return -1;
-  }
-
   if ((flags = fcntl(serversock, F_GETFL, 0)) < 0) {
     logit(ERROR, "get fl error");
     return -1;
@@ -45,7 +45,17 @@ get_server_socket(int port) {
     return -1;
   }
 
-  return 0;
+  if (bind (serversock, (struct sockaddr *)&addr, sizeof (struct sockaddr)) < 0) {
+    logit(ERROR, "bind error");
+    return -1;
+  }
+
+  if (listen (serversock, 1024) < 0) {
+    logit(ERROR, "listen failures");
+    return -1;
+  }
+
+  return serversock;
 }
 
 void *
@@ -117,24 +127,14 @@ timecli_serve_single_client(void *arg)
       break;
     }
 
-    /*
-    if ((err = gettimeofday(tv, NULL)) < 0) {
-      logit(ERROR, "failed to fetch time");
-      memset (tv, 0, sizeof(*tv));
-    }
-
-    snprintf (buf, MAX_BUF_SIZE, "%lld", (long long)tv->tv_sec);
-    */
     time(&now);
     tm = *localtime(&now);
-    //strptime (buf, "%s", &tm);
     memset(buf, 0, MAX_BUF_SIZE);
     strftime (buf, MAX_BUF_SIZE,  "%b %d %H:%M %Y", &tm);
 
     if (EPIPE == write(fd, buf, strlen(buf)))
       return NULL;
 
-    //tv->tv_sec += 5;
     memset(&tm, 0, sizeof(struct tm));
   }
 
@@ -182,15 +182,6 @@ time_cli_service(void *arg)
   }
 
   return NULL;
-}
-
-static volatile int intrpt_received = 0;
-
-void
-intrpthandler(int intrpt)
-{
-  printf("Received SIGINT, exiting\n");
-  intrpt_received = 1;
 }
 
 int

@@ -1,6 +1,15 @@
 #define _GNU_SOURCE
 #include "header.h"
 
+static volatile int sigchild_received = 0;
+
+void
+sigchildhanlder(int sigchild)
+{
+  printf("Received SIGCHLD\n");
+  sigchild_received = 1;
+}
+
 struct in_addr *
 process_commandline(int argc, char *argv[])
 {
@@ -58,6 +67,8 @@ handle_request(struct in_addr *ip, char *binary)
     return;
   }
 
+  signal(SIGINT, sigchildhanlder);
+
   if (pipe(pipefd) == -1) {
     logit (ERROR, "pipe creation failed");
     return;
@@ -77,15 +88,15 @@ handle_request(struct in_addr *ip, char *binary)
 
     default:
       close (fd[1]);
+      close(pipefd[1]);
 
-      while (read(pipefd[0], buf, MAX_BUF_SIZE) > 0)
+      while (!sigchild_received) {
+        read(pipefd[0], buf, MAX_BUF_SIZE);
         logit(INFO, buf);
-
-      wait(NULL);
+      }
 
       close (pipefd[0]);
   }
-  close(pipefd[1]);
 }
 
 int
