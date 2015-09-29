@@ -69,6 +69,7 @@ echo_cli_service(void *arg)
   int err = -1;
   int i = 0;
   fd_set read_set;
+  fd_set write_set;
 
   if ((serversock = get_server_socket(SERVER_ECHO_PORT)) < 0) {
     logit (ERROR, "Couldn't get socket");
@@ -96,9 +97,12 @@ echo_cli_service(void *arg)
       goto closeit;
     }
 
-    err = select(serversock+1, NULL, &read_set, NULL, NULL);
+    FD_ZERO(&write_set);
+    FD_SET(fd, &write_set);
+    err = select(fd+1, NULL, &write_set, NULL, NULL);
     logit(INFO, "Writing the same message back");
     write(fd, readbuf, readsize);
+    FD_CLR(fd, &write_set);
 
 closeit:
     close(fd);
