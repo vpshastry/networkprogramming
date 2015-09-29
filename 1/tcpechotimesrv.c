@@ -222,25 +222,11 @@ main()
     return -1;
   }
 
-  /*
-  if ((err = pthread_detach(echocliID)) != 0) {
-    logit(ERROR, "Error detaching thread echo cli");
-    return -1;
-  }
-  */
-
   logit(INFO, "Starting thread for time cli service");
   if ((err = pthread_create(&timecliID, &attr, time_cli_service, &err)) != 0) {
     logit(ERROR, "Error creating echo cli");
     return -1;
   }
-
-  /*
-  if ((err = pthread_detach(timecliID)) != 0) {
-    logit(ERROR, "Error detaching thread echo cli");
-    return -1;
-  }
-  */
 
   while(!intrpt_received)
     sleep (5);
