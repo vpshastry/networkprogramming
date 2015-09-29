@@ -8,15 +8,12 @@ main(int argc, char *argv[])
   char recvbuf [MAX_BUF_SIZE] = {0,};
   char *srvip = argv[1];
   int fd = atoi(argv[2]);
-  printf ("fd: %d\n", fd);
   int ret = -1;
   char err_msg[MAX_BUF_SIZE] = {0,};
-
-  printf("Waiting for you\n");
-  sleep(15);
+  char inputstr[MAX_BUF_SIZE] = {0,};
 
   /* TODO : Check it does redirect all the stdout to pipe */
-  if (dup2(fd, 1) < 0)
+  if (dup2(fd, 2) < 0)
     logit(ERROR, "Dup2 failed");
 
   if ((clientsock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -27,13 +24,14 @@ main(int argc, char *argv[])
 
   memset (&server_addr, 0, sizeof (struct sockaddr_in));
   server_addr.sin_family = AF_INET;
-  server_addr.sin_port = SERVER_TIME_PORT;
+  server_addr.sin_port = SERVER_ECHO_PORT;
   if (inet_pton(AF_INET, srvip, &server_addr.sin_addr) <= 0) {
     logit(ERROR, "inet_pton error");
     ret = -1;
     goto sockerror;
   }
 
+  logit(INFO, "Waiting on connect...");
   if (connect(clientsock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     logit(ERROR, "Failed to connect to socket");
     ret = -1;
@@ -42,7 +40,13 @@ main(int argc, char *argv[])
 
   int n = -1;
   recvbuf[MAX_BUF_SIZE] = 0;
-  write(clientsock, PING_MSG, strlen(PING_MSG));
+  printf("Enter the echo string: ");
+  scanf("%s", inputstr);
+
+  logit(INFO, "Writing the message on wire");
+  write(clientsock, inputstr, MAX_BUF_SIZE);
+
+  logit(INFO, "Trying to read from wire");
   if (read(clientsock, recvbuf, MAX_BUF_SIZE -1) < 0) {
     logit (ERROR, "Read from the socket failed");
     ret = -1;

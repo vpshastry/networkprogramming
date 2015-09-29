@@ -35,75 +35,61 @@ get_server_socket(int port) {
     return -1;
   }
 
-  /*if ((flags = fcntl(serversock, F_GETFL, 0)) < 0) {
+  if ((flags = fcntl(serversock, F_GETFL, 0)) < 0) {
     logit(ERROR, "get fl error");
     return -1;
-  }*/
+  }
+
+  if (fcntl(serversock, F_SETFL, flags | O_NONBLOCK) < 0) {
+    logit(ERROR, "setting to non blocking mode error");
+    return -1;
+  }
 
   return 0;
 }
 
 void *
-echocli_serve_single_client(void *arg)
+echo_cli_service(void *arg)
 {
   char readbuf[MAX_BUF_SIZE] = {0,};
   size_t readsize;
-  int fd = *(int *)arg;
-  free(arg);
-
-  if ((readsize = read(fd, readbuf, MAX_BUF_SIZE)) == EOF) {
-    logit(ERROR, "Client closed the connection");
-    goto close;
-  }
-
-  write(fd, readbuf, readsize);
-
-close:
-  close(fd);
-}
-
-void *
-echo_cli_service(void *arg)
-{
   int serversock = -1;
   int fd;
   int *passfd = NULL;
   int err = -1;
-  pthread_t mythreads[MAX_CLIENTS];
   int i = 0;
-  pthread_attr_t attr = {0,};
-
-  if ((err = pthread_attr_init(&attr)) != 0) {
-    printf ("ERROR: %s. ", strerror(err));
-    logit(ERROR, "Attr init failed for pthread");
-    return NULL;
-  }
-
-  if ((err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED)) != 0) {
-    printf ("ERROR: %s. ", strerror(err));
-    logit(ERROR, "set detach state failed for pthread");
-    return NULL;
-  }
+  fd_set read_set;
 
   if ((serversock = get_server_socket(SERVER_ECHO_PORT)) < 0) {
     logit (ERROR, "Couldn't get socket");
     return NULL;
   }
 
-  while (42) {
+  FD_ZERO(&read_set);
+  FD_SET(serversock, &read_set);
+  while (ANSWER_TO_THE_LIFE) {
+    logit(INFO, "Waiting on select");
+    err = select(serversock+1, &read_set, NULL, NULL, NULL);
+
+    logit(INFO, "Waiting on accept");
     if ((fd = accept(serversock, NULL, NULL)) < 0) {
       logit(ERROR, "Couldn't accept the connection from client");
       close(fd);
+      read(serversock, readbuf, MAX_BUF_SIZE);
       continue;
     }
 
-    passfd = (int *)malloc(sizeof(fd));
-    *passfd = fd;
-    if ((err = pthread_create(&mythreads[i], &attr, echocli_serve_single_client,
-                                    passfd)) != 0) {
-      logit(ERROR, "Error creating echo cli");
-      continue;
+    logit(INFO, "Waiting on read");
+    if ((readsize = read(fd, readbuf, MAX_BUF_SIZE)) == EOF) {
+      logit(ERROR, "Client closed the connection");
+      goto closeit;
     }
+
+    logit(INFO, "Writing the same message back");
+    write(fd, readbuf, readsize);
+
+closeit:
+    close(fd);
   }
 
   return NULL;
@@ -174,12 +160,7 @@ time_cli_service(void *arg)
   while (select(serversock, NULL, NULL, NULL, NULL) >= 0) {
     if ((fd = accept(serversock, NULL, NULL)) < 0) {
       logit(ERROR, "Accept error");
-      return NULL;
-    }
-
-    if (fcntl(serversock, F_SETFL, flags | O_NONBLOCK) < 0) {
-      logit(ERROR, "setting to non blocking mode error");
-      return NULL;
+      continue;
     }
 
     passfd = (int *)malloc(sizeof(fd));

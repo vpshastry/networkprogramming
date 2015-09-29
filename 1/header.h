@@ -32,6 +32,8 @@
 
 #define MAX_CLIENTS 8
 
+#define ANSWER_TO_THE_LIFE 42
+
 #define SERVER_ADDR "127.0.0.1"
 
 #define PING_MSG "PING"
@@ -48,8 +50,8 @@ logit(level_t level, char *msg)
 {
   switch (level) {
     case ERROR:
-      fprintf (stdout, "%s: %s", msg, strerror(errno));
-      fprintf(stdout, "\n");
+      fprintf (stderr, "%s: %s", msg, strerror(errno));
+      fprintf(stderr, "\n");
       break;
     case NONE:
     case INFO:
