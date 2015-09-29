@@ -4,6 +4,14 @@
 static volatile int sigchild_received = 0;
 
 void
+intrpthandler(int intrpt)
+{
+  printf("Received SIGINT, exiting\n");
+  exit(0);
+}
+
+
+void
 sigchildhanlder(int sigchild)
 {
   printf("Received SIGCHLD\n");
@@ -105,22 +113,28 @@ process(struct in_addr *ip)
   char choice;
   char *binary = NULL;
   char line[MAX_BUF_SIZE] = {0,};
+  char c;
 
   while (42) {
     printf ("\ne. echo server\nt. time server\nq. Quit\nEnter your choice: ");
     fflush(stdin);
+    scanf("%c", &choice);
     /*
-    while ((choice == fgetc(stdin)) == EOF || choice == '\n');
-    fgets(line, sizeof line, stdin);
-    int isint = sscanf(line, "%d", &choice);
-    if ((choice = getchar ()) == -100) {//("%c ", &choice) == -100) {
-      logit (ERROR, "User input error to scanf");
-      continue;
+    if (scanf("%c", &choice) == 0) {
+      printf("Err. . .\n");
+      do {
+        c = getchar();
+      }
+      while (!isalpha(c));
+      ungetc(c, stdin);
+      printf ("Please enter your choice again: ");
+      scanf("%c", &choice);
     }
     */
-    fflush (stdin);
+    while((c = getchar()) != '\n' && c != EOF);
     scanf("%c", &choice);
 
+    printf ("Choice: %c\n", choice);
     switch (choice) {
       case 'e':
         binary = "./echo_cli";
@@ -150,6 +164,8 @@ main (int argc, char *argv[])
     printf("Usage: %s <server-addr>", argv[0]);
     return 0;
   }
+
+  signal(SIGINT, intrpthandler);
 
   process(process_commandline (argc, argv));
 

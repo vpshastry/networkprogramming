@@ -89,12 +89,14 @@ echo_cli_service(void *arg)
       continue;
     }
 
+    err = select(serversock+1, &read_set, NULL, NULL, NULL);
     logit(INFO, "Waiting on read");
     if ((readsize = read(fd, readbuf, MAX_BUF_SIZE)) == EOF) {
       logit(ERROR, "Client closed the connection");
       goto closeit;
     }
 
+    err = select(serversock+1, NULL, &read_set, NULL, NULL);
     logit(INFO, "Writing the same message back");
     write(fd, readbuf, readsize);
 
