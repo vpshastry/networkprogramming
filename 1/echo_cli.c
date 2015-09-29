@@ -1,65 +1,68 @@
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <arpa/inet.h>
+#include <errno.h>
+
 #include "header.h"
 
-int
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-  int clientsock = 0;
-  struct sockaddr_in server_addr = {0,};
-  char recvbuf [MAX_BUF_SIZE] = {0,};
-  char *srvip = argv[1];
-  int fd = atoi(argv[2]);
-  int ret = -1;
-  char err_msg[MAX_BUF_SIZE] = {0,};
-  char inputstr[MAX_BUF_SIZE] = {0,};
+  int sockfd = 0, n = 0;
+  char recvBuff[1024];
+  struct sockaddr_in serv_addr;
 
-  /* TODO : Check it does redirect all the stdout to pipe */
-  if (dup2(fd, 2) < 0)
-    logit(ERROR, "Dup2 failed");
-
-  if ((clientsock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    logit(ERROR, "Coudln't get socket");
-    ret = -1;
-    goto errBforesockcreation;
+  if(argc != 2)
+  {
+    printf("\n Usage: %s <ip of server> \n",argv[0]);
+    return 1;
   }
 
-  memset (&server_addr, 0, sizeof (struct sockaddr_in));
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_port = SERVER_ECHO_PORT;
-  if (inet_pton(AF_INET, srvip, &server_addr.sin_addr) <= 0) {
-    logit(ERROR, "inet_pton error");
-    ret = -1;
-    goto sockerror;
+  memset(recvBuff, '0',sizeof(recvBuff));
+  if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+  {
+    printf("\n Error : Could not create socket \n");
+    return 1;
   }
 
-  logit(INFO, "Waiting on connect...");
-  if (connect(clientsock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-    logit(ERROR, "Failed to connect to socket");
-    ret = -1;
-    goto sockerror;
+  memset(&serv_addr, '0', sizeof(serv_addr));
+
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_port = htons(ECHO_PORT);
+
+  if(inet_pton(AF_INET, argv[1], &serv_addr.sin_addr)<=0)
+  {
+    printf("\n inet_pton error occured\n");
+    return 1;
   }
 
-  int n = -1;
-  recvbuf[MAX_BUF_SIZE] = 0;
-  printf("Enter the echo string: ");
-  scanf("%s", inputstr);
-
-  logit(INFO, "Writing the message on wire");
-  write(clientsock, inputstr, MAX_BUF_SIZE);
-
-  logit(INFO, "Trying to read from wire");
-  if (read(clientsock, recvbuf, MAX_BUF_SIZE -1) < 0) {
-    logit (ERROR, "Read from the socket failed");
-    ret = -1;
-    goto sockerror;
+  printf ("Waiting on connect\n");
+  if( connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+  {
+    printf("\n Error : Connect Failed: %s \n", strerror(errno));
+    return 1;
   }
 
-  if(fputs(recvbuf, stdout) == EOF)
-    logit(ERROR, "Fputs error");
+  printf ("Waiting on read\n");
+  while ( (n = read(sockfd, recvBuff, sizeof(recvBuff)-1)) > 0)
+  {
+    recvBuff[n] = 0;
+    if(fputs(recvBuff, stdout) == EOF)
+    {
+      printf("\n Error : Fputs error\n");
+    }
+  }
 
-  ret = 0;
-sockerror:
-  close(clientsock);
-errBforesockcreation:
-  close(fd);
-  return ret;
+  if(n < 0)
+  {
+    printf("\n Read error \n");
+  }
+
+  return 0;
 }
