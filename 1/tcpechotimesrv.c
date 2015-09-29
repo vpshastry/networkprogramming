@@ -51,7 +51,7 @@ get_server_sock(int port)
 {
   int listenfd = 0;
   struct sockaddr_in serv_addr;
-  int one;
+  int one = 1;
   int err;
 
   listenfd = socket(AF_INET, SOCK_STREAM, 0);
