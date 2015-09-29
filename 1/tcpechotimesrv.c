@@ -244,6 +244,5 @@ int main(int argc, char *argv[])
     fprintf (stderr, "Thread creation for echo cli service failed: %s\n",
              strerror(err));
 
-  while (!sigint_recvd)
-    sleep(0.5);
+  pthread_exit(NULL);
 }

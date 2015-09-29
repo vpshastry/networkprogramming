@@ -1,2 +1,3 @@
 #define ECHO_PORT 51476
 #define TIME_PORT 51477
+#define MAX_BUF_SIZE 1024

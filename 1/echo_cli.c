@@ -21,11 +21,15 @@ int main(int argc, char *argv[])
   int ret = 0;
   int err = 0;
 
-  if(argc != 2) {
-    printf("Usage: %s <ip-of-server>\n", argv[0]);
+  if(argc != 3) {
+    printf("Usage: %s <ip-of-server> <pipe>\n", argv[0]);
     ret = 1;
     goto out;
   }
+
+  int pipefd = atoi(argv[2]);
+  if (dup2(pipefd, 2) < 0)
+    fprintf (stderr, "dup2 failed: %s\n", strerror(errno));
 
   memset(readbuf, '0',sizeof(readbuf));
   memset(&serv_addr, '0', sizeof(serv_addr));
@@ -80,5 +84,6 @@ out:
   if (sockfd != -1)
     close(sockfd);
 
+  sleep(2);
   return ret;
 }
