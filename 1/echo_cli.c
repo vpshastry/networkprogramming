@@ -31,8 +31,7 @@ int main(int argc, char *argv[])
   if (dup2(pipefd, 2) < 0)
     fprintf (stderr, "dup2 failed: %s\n", strerror(errno));
 
-  memset(readbuf, '0',sizeof(readbuf));
-  memset(&serv_addr, '0', sizeof(serv_addr));
+  memset(&serv_addr, 0, sizeof(serv_addr));
 
   if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
     fprintf(stderr, "Could not create socket: %s\n", strerror(errno));
@@ -57,28 +56,39 @@ int main(int argc, char *argv[])
     goto out;
   }
 
-  printf ("Enter the string to send: ");
-  fgets (readbuf, 1024, stdin);
-  if ((err = write(sockfd, readbuf, strlen(readbuf)+1)) <= 0) {
-    fprintf (stderr, "Write failure: %s\n", strerror(errno));
-    ret = 1;
-    goto out;
-  }
+  while (42) {
+    memset(readbuf, 0, sizeof(readbuf));
+    printf ("Enter the string to send: ");
+    fgets (readbuf, 1024, stdin);
+    printf ("Writing to socket\n");
+    if ((err = write(sockfd, readbuf, strlen(readbuf)+1)) <= 0) {
+      fprintf (stderr, "Write failure: %s\n", strerror(errno));
+      ret = 1;
+      goto out;
+    }
 
-  if((err = read(sockfd, readbuf, sizeof(readbuf))) <= 0) {
-    fprintf (stderr, "Read failure: %s\n", strerror(errno));
-    ret = 1;
-    goto out;
-  }
-  readbuf[err] = '\0';
+    printf ("Waiting for read\n");
+    do {
+      memset(readbuf, 0, sizeof(readbuf));
+      if((err = read(sockfd, readbuf, sizeof(readbuf))) <= 0) {
+        fprintf (stderr, "Read failure: %s\n", strerror(errno));
+        ret = 1;
+        goto out;
+      }
+      readbuf[err] = '\0';
+    } while (err < 500);
 
-  printf ("Received: ");
-  if (fputs(readbuf, stdout) == EOF) {
-    fprintf (stderr, "Fputs error: %s\n", strerror(errno));
-    ret = 1;
-    goto out;
+    printf ("Received: err: %d, %s", err, readbuf);
+    /*
+    if (fputs(readbuf, stdout) == EOF) {
+      fprintf (stderr, "Fputs error: %s\n", strerror(errno));
+      printf ("ERRORRRRRRRRRRRRRRRRRRRRRRR\n");
+      ret = 1;
+      goto out;
+    }
+    */
+    printf ("\n");
   }
-  printf ("\n");
 
 out:
   if (sockfd != -1)

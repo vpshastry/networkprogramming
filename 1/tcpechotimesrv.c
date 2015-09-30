@@ -46,7 +46,7 @@ get_server_sock(int port)
   int err;
 
   listenfd = socket(AF_INET, SOCK_STREAM, 0);
-  memset(&serv_addr, '0', sizeof(serv_addr));
+  memset(&serv_addr, 0, sizeof(serv_addr));
 
   if ((err = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one))) != 0)
     fprintf (stderr, "Error setting REUSEADDR: %s\n", strerror(err));
@@ -79,39 +79,45 @@ echo_cli_serve_single_client(void *arg)
   char readbuf[1025];
   int err;
 
-  FD_ZERO(&otherrset);
-  FD_ZERO(&wset);
-  memset(readbuf, '0', sizeof(readbuf));
 
-  printf ("Waiting for read on socket\n");
-  FD_SET(connfd, &otherrset);
-  if ((err = select(connfd +1, &otherrset, NULL, NULL, NULL)) < 0) {
-    fprintf (stderr, "Error on select: %s\n", strerror (errno));
-    goto clear;
-  }
+  while (42) {
+    FD_ZERO(&otherrset);
+    FD_ZERO(&wset);
+    printf ("Waiting for read on socket\n");
+    FD_SET(connfd, &otherrset);
+    if ((err = select(connfd +1, &otherrset, NULL, NULL, NULL)) < 0) {
+      fprintf (stderr, "Error on select: %s\n", strerror (errno));
+      goto clear;
+    }
 
-  while ((err = read(connfd, readbuf, sizeof(readbuf))) <= 0 && errno == EAGAIN);
-  if (err <= 0) {
-    fprintf (stderr, "Error reading from socket: %s\n", strerror(errno));
-    goto clear;
-  }
+    memset(readbuf, 0, sizeof(readbuf));
 
-  FD_SET(connfd, &wset);
-  if ((err = select(connfd +1, NULL, &wset, NULL, NULL)) < 0) {
-    fprintf (stderr, "Error on select: %s\n", strerror (errno));
-    goto clear;
-  }
+    while ((err = read(connfd, readbuf, sizeof(readbuf))) <= 0 && errno == EAGAIN);
+    if (err <= 0) {
+      fprintf (stderr, "Error reading from socket: %s\n", strerror(errno));
+      goto clear;
+    }
+    printf ("Recieved: %s\n", readbuf);
 
-  while ((err = write(connfd, readbuf, sizeof(readbuf))) < 0 && errno == EAGAIN);
-  if (err < 0) {
-    fprintf (stderr, "Write failure: %s\n", strerror(errno));
-    goto clear;
+    FD_SET(connfd, &wset);
+    if ((err = select(connfd +1, NULL, &wset, NULL, NULL)) < 0) {
+      fprintf (stderr, "Error on select: %s\n", strerror (errno));
+      goto clear;
+    }
+
+    printf ("Writing: %s\n", readbuf);
+    while ((err = write(connfd, readbuf, sizeof(readbuf))) < 0 && errno == EAGAIN);
+    if (err < 0) {
+      fprintf (stderr, "Write failure: %s\n", strerror(errno));
+      goto clear;
+    }
+    printf ("Written client data back to socket\n");
+
+    FD_CLR(connfd, &wset);
+    FD_CLR(connfd, &otherrset);
   }
-  printf ("Written client data back to socket\n");
 
 clear:
-  FD_CLR(connfd, &wset);
-  FD_CLR(connfd, &otherrset);
   close (connfd);
 }
 
@@ -126,11 +132,9 @@ time_cli_serve_single_client(void *arg)
   struct timeval tv = {5, 0};
   int err;
 
-  memset(sendBuff, '0', sizeof(sendBuff));
+  memset(sendBuff, 0, sizeof(sendBuff));
 
   while (42) {
-    printf ("Waiting for 5 seconds\n");
-
     FD_ZERO(&waitset);
     FD_SET(connfd, &waitset);
     if (select(connfd+1, &waitset, NULL, NULL, &tv) != 0) {

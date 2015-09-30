@@ -104,6 +104,7 @@ handle_request(struct in_addr *ip, char *binary)
     default:
       close (pipefd[1]);
 
+      printf ("Printing...\n");
       while (!sigchild_received) {
         if (read(pipefd[0], buf, 1024) <= 0) {
           fprintf (stderr, "Error reading pipe: %s\n", strerror(errno));
