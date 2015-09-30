@@ -5,11 +5,13 @@
 #include <errno.h>
 
 static volatile int sigchild_received = 0;
+static volatile int childpid = -1;
 
 void
 intrpthandler(int intrpt)
 {
   printf("Received SIGINT, exiting\n");
+  kill(childpid, SIGINT);
   exit(0);
 }
 
@@ -86,7 +88,7 @@ handle_request(struct in_addr *ip, char *binary)
     return;
   }
 
-  switch (fork()) {
+  switch ((childpid = fork())) {
     case 0:
       close (pipefd[0]);
       if (dup2(pipefd[1], 1) < 0)
