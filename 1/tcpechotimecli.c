@@ -11,7 +11,7 @@ void
 intrpthandler(int intrpt)
 {
   printf("Received SIGINT, exiting\n");
-  kill(childpid, SIGINT);
+  kill(childpid, SIGKILL);
   exit(0);
 }
 
@@ -31,6 +31,7 @@ process_commandline(int argc, char *argv[])
   struct hostent lhostent = {0,};
   int i = 0;
   int err;
+  struct in_addr **addrlist;
 
   if ((err = inet_pton(AF_INET, ip_str, inaddr)) != 1) {
     if (err != 0) {
@@ -50,10 +51,7 @@ process_commandline(int argc, char *argv[])
       fprintf (stderr, "Failed get host by addr\n");
 
   } else {
-    if (inet_pton(AF_INET, hostentry->h_addr_list[0], inaddr) != 1) {
-      fprintf (stderr, "Error converting hostentry to binary ip format\n");
-      return NULL;
-    }
+    inaddr = (struct in_addr *)hostentry->h_addr_list[0];
   }
   memcpy (&lhostent, hostentry, sizeof(struct hostent));
 
@@ -61,8 +59,10 @@ process_commandline(int argc, char *argv[])
   for (i = 0; lhostent.h_aliases[i]; ++i)
     printf ("%s, ", lhostent.h_aliases[i]);
   printf ("\nIP addresses: ");
-  for (i = 0; lhostent.h_addr_list[i]; ++i)
-    printf ("%s, ", lhostent.h_addr_list[i]);
+  addrlist = (struct in_addr **) lhostent.h_addr_list;
+  for (i = 0; addrlist[i]; ++i)
+    printf ("%s, ", inet_ntoa(*addrlist[i]));
+  printf ("\n");
 
   return inaddr;
 }

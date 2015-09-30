@@ -129,7 +129,7 @@ time_cli_serve_single_client(void *arg)
   memset(sendBuff, '0', sizeof(sendBuff));
 
   while (42) {
-    printf ("Waiting for 5 mins\n");
+    printf ("Waiting for 5 seconds\n");
 
     FD_ZERO(&waitset);
     FD_SET(connfd, &waitset);
