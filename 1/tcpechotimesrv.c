@@ -15,7 +15,6 @@
 #include "header.h"
 
 static volatile int sigpipe_recvd = 0;
-static volatile int sigint_recvd = 0;
 
 void
 sigpipehandler(int arg)
@@ -29,7 +28,7 @@ void
 siginthandler(int arg)
 {
   printf ("SIGINT received.\n");
-  sigint_recvd = 1;
+  exit(0);
 }
 
 void
@@ -80,21 +79,65 @@ get_server_sock(int port)
 }
 
 void *
-echo_cli_server(void *arg /* Currently NULL */)
+echo_cli_serve_single_client(void *arg)
 {
-  int listenfd = 0;
-  int connfd = 0;
-  struct timeval tv = {1, 0};
-  fd_set rset;
+  int connfd = (int)arg;
   fd_set otherrset;
   fd_set wset;
   char readbuf[1025];
   int err;
 
-  FD_ZERO(&rset);
   FD_ZERO(&otherrset);
   FD_ZERO(&wset);
   memset(readbuf, '0', sizeof(readbuf));
+
+  printf ("Waiting for read on socket\n");
+  FD_SET(connfd, &otherrset);
+  if ((err = select(connfd +1, &otherrset, NULL, NULL, NULL)) < 0) {
+    fprintf (stderr, "Error on select: %s\n", strerror (errno));
+    goto clear;
+  }
+
+  if ((err = read(connfd, readbuf, sizeof(readbuf))) <= 0) {
+    fprintf (stderr, "Error reading from socket: %s\n", strerror(errno));
+    goto clear;
+  }
+
+  FD_SET(connfd, &wset);
+  if ((err = select(connfd +1, NULL, &wset, NULL, NULL)) < 0) {
+    fprintf (stderr, "Error on select: %s\n", strerror (errno));
+    goto clear;
+  }
+
+  if ((err = write(connfd, readbuf, sizeof(readbuf))) < 0) {
+    fprintf (stderr, "Write failure: %s\n", strerror(errno));
+    goto clear;
+  }
+  printf ("Written client data back to socket\n");
+
+clear:
+  FD_CLR(connfd, &wset);
+  FD_CLR(connfd, &otherrset);
+  close (connfd);
+}
+
+void *
+echo_cli_server(void *arg /* Currently NULL */)
+{
+  int listenfd = 0;
+  int connfd = 0;
+  fd_set rset;
+  int err;
+  int i = -1;
+  pthread_t clients[MAX_CLIENTS] = {0,};
+  pthread_attr_t attr;
+  int maxfd = -1;
+
+  FD_ZERO(&rset);
+  pthread_attr_init(&attr);
+
+  if ((err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED)))
+    fprintf (stderr, "Failed to set detachable thread: %s\n", strerror(err));
 
   if ((listenfd = get_server_sock(ECHO_PORT)) == -1) {
     fprintf (stderr, "Failed to get fd\n");
@@ -102,7 +145,7 @@ echo_cli_server(void *arg /* Currently NULL */)
   }
 
   FD_SET(listenfd, &rset);
-  while(42) {
+  while (42) {
     printf ("Waiting on select for clients...\n");
     if ((err = select(listenfd+1, &rset, NULL, NULL, NULL)) < 0) {
       fprintf (stderr, "Error on select: %s\n", strerror (errno));
@@ -115,35 +158,60 @@ echo_cli_server(void *arg /* Currently NULL */)
     }
     printf ("Accepted client\n");
 
-    printf ("Waiting for read on socket\n");
-    FD_SET(connfd, &otherrset);
-    if ((err = select(connfd +1, &otherrset, NULL, NULL, NULL)) < 0) {
-      fprintf (stderr, "Error on select: %s\n", strerror (errno));
-      goto clear;
+    if ((err = pthread_create(&clients[++i], &attr,
+                              echo_cli_serve_single_client, (void *)connfd))) {
+      fprintf (stderr, "Thread creation for echo cli service failed: %s\n",
+               strerror(err));
+      close(connfd);
+    }
+    connfd = -1;
+  }
+clear:
+  if (listenfd != -1)
+    close(listenfd);
+  if (connfd != -1)
+    close(connfd);
+  return NULL;
+}
+
+void *
+time_cli_serve_single_client(void *arg)
+{
+  int connfd = (int)arg;
+  fd_set waitset;
+  char sendBuff[1024];
+  time_t ticks;
+  fd_set wset;
+  struct timeval tv = {5, 0};
+
+  FD_ZERO(&wset);
+  FD_ZERO(&waitset);
+  memset(sendBuff, '0', sizeof(sendBuff));
+
+  FD_SET(connfd, &waitset);
+  while (42) {
+    if (select(connfd +1, &waitset, NULL, NULL, &tv) != 0) {
+      printf ("Closing the connection with client\n");
+      close(connfd);
+      break;
     }
 
-    if ((err = read(connfd, readbuf, sizeof(readbuf))) <= 0) {
-      fprintf (stderr, "Error reading from socket: %s\n", strerror(errno));
-      goto clear;
-    }
+    ticks = time(NULL);
+    snprintf(sendBuff, sizeof(sendBuff), "%.24s\r\n", ctime(&ticks));
 
     FD_SET(connfd, &wset);
-    if ((err = select(connfd +1, NULL, &wset, NULL, NULL)) < 0) {
-      fprintf (stderr, "Error on select: %s\n", strerror (errno));
-      goto clear;
-    }
-
-    if ((err = write(connfd, readbuf, sizeof(readbuf))) < 0) {
+    select(connfd+1, NULL, &wset, NULL, NULL);
+    if (write(connfd, sendBuff, strlen(sendBuff)) < 0) {
       fprintf (stderr, "Write failure: %s\n", strerror(errno));
-      goto clear;
+      close(connfd);
+      break;
     }
-    printf ("Written client data back to socket\n");
-
-clear:
     FD_CLR(connfd, &wset);
-    FD_CLR(connfd, &otherrset);
-    close (connfd);
   }
+
+  printf ("Closing connection with the client\n");
+  close(connfd);
+  return NULL;
 }
 
 void *
@@ -153,17 +221,15 @@ time_cli_server(void *arg /* Currently NULL */)
   int connfd = -1;
   int err;
   fd_set rset;
-  fd_set wset;
-  fd_set waitset;
-  struct timeval tv = {5, 0};
-  char sendBuff[1025];
-  time_t ticks;
+  pthread_t clients[MAX_CLIENTS] = {0,};
+  int i = -1;
+  pthread_attr_t attr;
 
   FD_ZERO(&rset);
-  FD_ZERO(&wset);
-  FD_ZERO(&waitset);
+  pthread_attr_init(&attr);
 
-  memset(sendBuff, '0', sizeof(sendBuff));
+  if ((err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED)))
+    fprintf (stderr, "Failed to set detachable thread: %s\n", strerror(err));
 
   if ((listenfd = get_server_sock(TIME_PORT)) == -1) {
     fprintf (stderr, "Failed to get fd\n");
@@ -185,29 +251,11 @@ time_cli_server(void *arg /* Currently NULL */)
 
     printf ("Accepted client\n");
 
-    FD_SET(connfd, &waitset);
-    while (42) {
-      if (select(connfd +1, &waitset, NULL, NULL, &tv) != 0) {
-        printf ("Closing the connection with client\n");
-        close(connfd);
-        break;
-      }
-
-      ticks = time(NULL);
-      snprintf(sendBuff, sizeof(sendBuff), "%.24s\r\n", ctime(&ticks));
-
-      FD_SET(connfd, &wset);
-      select(connfd+1, NULL, &wset, NULL, NULL);
-      if (write(connfd, sendBuff, strlen(sendBuff)) < 0) {
-        fprintf (stderr, "Write failure: %s\n", strerror(errno));
-        close(connfd);
-        break;
-      }
-      FD_CLR(connfd, &wset);
+    if ((err = pthread_create(&clients[++i], &attr, time_cli_serve_single_client, (void *)connfd))) {
+      fprintf (stderr, "Thread creation for time cli service failed: %s\n",
+               strerror(err));
+      close(connfd);
     }
-
-    printf ("Closing connection with the client\n");
-    close(connfd);
     connfd = -1;
   }
 
