@@ -160,10 +160,8 @@ serve(void *arg /* Currently NULL */)
   int connfd = -1;
   int err;
   fd_set rset;
-  pthread_t clients[MAX_CLIENTS] = {0,};
   int i = 0;
   int j = 0;
-  int curclnt = -1;
   pthread_attr_t attr;
   int maxfd = -1;
 
@@ -216,7 +214,7 @@ serve(void *arg /* Currently NULL */)
 
         printf ("Accepted client\n");
 
-        if ((err = pthread_create(&clients[++curclnt], &attr, services[i].server, (void *)connfd))) {
+        if ((err = pthread_create(NULL, &attr, services[i].server, (void *)connfd))) {
           fprintf (stderr, "Thread creation for time cli service failed: %s\n",
                    strerror(err));
           close(connfd);

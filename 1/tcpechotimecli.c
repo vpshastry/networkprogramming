@@ -92,10 +92,6 @@ handle_request(struct in_addr *ip, char *binary)
   switch ((childpid = fork())) {
     case 0:
       close (pipefd[0]);
-      /*
-      if (dup2(pipefd[1], 1) < 0)
-        fprintf (stderr, "dup2 failed: %s\n", strerror(errno));
-        */
 
       snprintf (pipe_str, 1024, "%d", pipefd[1]);
       execlp("xterm", "xterm", "-e", binary, ip_str, pipe_str, (char *)0);
