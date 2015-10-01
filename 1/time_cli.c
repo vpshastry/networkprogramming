@@ -1,41 +1,78 @@
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <arpa/inet.h>
+#include <errno.h>
+
 #include "header.h"
 
-int
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-  int clientsock = 0;
-  struct sockaddr_in server_addr = {0,};
-  char recvbuf [MAX_BUF_SIZE] = {0,};
-  char *srvip = argv[1];
-  int fd = atoi(argv[2]);
+  int sockfd = -1;
+  int n = 0;
+  char readbuf[1024];
+  struct sockaddr_in serv_addr;
+  int ret = 0;
+  int err = 0;
 
-  /* TODO : Check it does redirect all the stdout to pipe */
-  if (dup2(fd, 1) < 0)
-    logit(ERROR, "Dup2 failed");
-
-  if ((clientsock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    logit(ERROR, "Coudln't get socket");
-    return -1;
+  if(argc != 3) {
+    INFO("Usage: %s <ip-of-server> <pipe>\n", argv[0]);
+    ret = 1;
+    goto out;
   }
 
-  memset (&server_addr, 0, sizeof (struct sockaddr_in));
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_port = SERVER_TIME_PORT;
-  if (inet_pton(AF_INET, srvip, &server_addr.sin_addr) <= 0) {
-    logit(ERROR, "inet_pton error");
-    return -1;
+  int pipefd = atoi(argv[2]);
+
+  memset(readbuf, '0',sizeof(readbuf));
+  memset(&serv_addr, '0', sizeof(serv_addr));
+
+  if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    ERR( "Could not create socket: %s\n", strerror(errno));
+    ret = 1;
+    goto out;
   }
 
-  if (connect(clientsock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-    logit(ERROR, "Failed to connect to socket");
-    return -1;
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_port = htons(TIME_PORT);
+
+  if((err = inet_pton(AF_INET, argv[1], &serv_addr.sin_addr)) <= 0) {
+    ERR( "Error inet_pton\n");
+    ret = 1;
+    goto out;
   }
 
-  int n = -1;
-  while ((n = read(clientsock, recvbuf, sizeof(recvbuf)-1)) > 0) {
-    recvbuf[n] = 0;
-    if(fputs(recvbuf, stdout) == EOF)
-      logit(ERROR, "Fputs error");
+  FDWRITE(pipefd, "Trying to connect\n");
+  if((err = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)))
+            < 0) {
+    ERR( "Connect Failed: %s\n", strerror(errno));
+    ret = 1;
+    goto out;
   }
-  close(fd);
+  FDWRITE(pipefd, "Connected to server\n");
+
+  while ((n = read(sockfd, readbuf, sizeof(readbuf)-1)) > 0) {
+    readbuf[n] = 0;
+    FDWRITE(pipefd, "Received time from server\n");
+    if (fputs(readbuf, stderr) == EOF) {
+      ERR ( "Fputs error: %s\n", strerror(errno));
+      ret = 1;
+      goto out;
+    }
+  }
+  if (n < 0) {
+    ERR( "Read error: %s\n", strerror(errno));
+  }
+
+out:
+  if (sockfd != -1)
+    close(sockfd);
+
+  sleep(2);
+  return ret;
 }

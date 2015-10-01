@@ -1,0 +1,51 @@
+Course: CSE 533 - Network Programming
+Assignment 1
+Submitted by: Varun Shastry
+SBU ID: 109951476
+
+Description:
+The program creates a inetd like application and an echo server. This
+is run over threads instead of child processes in case of inetd. There
+is a CLI process which infinitely waits for user input and executes
+the corresponding client process related to the services in a new
+xterm. In a nutshell this is an excersize to familiarize with basic
+socket programming, threads, forks, execs, non-blocking sockets and
+few other network calls.
+
+Design:
+The design is explained in the question (question/a1-spec.pdf) and
+the implemented code follows the exact design.
+
+Implementation:
+- Files:
+  - tcpechotimecli.c: This file infintely waits for the user input
+                      and executes the corresponding service in a
+                      new process. It also gets the associated
+                      hostnames and addresses for the server address
+                      or hostname passed as argument.
+  - tcpechotimesrv.c: This is the server which listens to both the
+                      time and echo services. When there is a new
+                      client connection request it creates a new
+                      thread and makes the new thread handle it.
+          Time: Time server sends the current time every 5 seconds.
+          Echo: Echo server replies the same message as received from
+                the client.
+  - echo_cli.c: This file contains the socket client code to connect
+                to echo server. It sends message input from xterm and
+                prints the message from server.
+  - time_cli.c: This file contains the socket client code to connect
+                to time server. After connection it just prints the
+                message received from the time server.
+
+- How to run:
+  - Just run make to compile all the source code.
+  - Start the server by running binary "server".
+  - Start the client in other terminal by running binary "client".
+  - And choose from the interactive terminal provided from the
+    client binary.
+
+Citations:
+http://www.thegeekstuff.com/2011/12/c-socket-programming/
+http://developerweb.net/viewtopic.php?id=3000
+http://stackoverflow.com/*
+Beej's guide to network programming

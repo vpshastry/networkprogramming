@@ -1,231 +1,250 @@
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <time.h>
+#include <signal.h>
+#include <pthread.h>
+#include <fcntl.h>
+
 #include "header.h"
 
-#define ECHO_REPLY "PONG"
-
-
-static volatile int intrpt_received = 0;
+static volatile int sigpipe_recvd = 0;
 
 void
-intrpthandler(int intrpt)
+siginthandler(int arg)
 {
-  printf("Received SIGINT, exiting\n");
-  intrpt_received = 1;
+  printf ("SIGINT received.\n");
+  exit(0);
 }
 
 int
-get_server_socket(int port) {
-  int flags = 0;
-  int serversock = -1;
-  struct sockaddr_in addr;
-  int yes = 1;
-
-  if ((serversock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    logit(ERROR, "Socket error");
-    return -1;
-  }
-
-  printf ("port: %d\n", port);
-  memset(&addr, 0, sizeof(struct sockaddr_in));
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons(port);
-  addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-  if (setsockopt(serversock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) {
-    logit(ERROR, "Set sock opt error");
-    return -1;
-  }
-
-  if ((flags = fcntl(serversock, F_GETFL, 0)) < 0) {
-    logit(ERROR, "get fl error");
-    return -1;
-  }
-
-  if (fcntl(serversock, F_SETFL, flags | O_NONBLOCK) < 0) {
-    logit(ERROR, "setting to non blocking mode error");
-    return -1;
-  }
-
-  if (bind (serversock, (struct sockaddr *)&addr, sizeof (struct sockaddr)) < 0) {
-    logit(ERROR, "bind error");
-    return -1;
-  }
-
-  if (listen (serversock, 1024) < 0) {
-    logit(ERROR, "listen failures");
-    return -1;
-  }
-
-  return serversock;
-}
-
-void *
-echo_cli_service(void *arg)
+get_server_sock(int port)
 {
-  char readbuf[MAX_BUF_SIZE] = {0,};
-  size_t readsize;
-  int serversock = -1;
-  int fd;
-  int *passfd = NULL;
-  int err = -1;
-  int i = 0;
-  fd_set read_set;
-  fd_set write_set;
-
-  if ((serversock = get_server_socket(SERVER_ECHO_PORT)) < 0) {
-    logit (ERROR, "Couldn't get socket");
-    return NULL;
-  }
-
-  FD_ZERO(&read_set);
-  FD_SET(serversock, &read_set);
-  while (ANSWER_TO_THE_LIFE) {
-    logit(INFO, "Waiting on select");
-    err = select(serversock+1, &read_set, NULL, NULL, NULL);
-
-    logit(INFO, "Waiting on accept");
-    if ((fd = accept(serversock, NULL, NULL)) < 0) {
-      logit(ERROR, "Couldn't accept the connection from client");
-      close(fd);
-      read(serversock, readbuf, MAX_BUF_SIZE);
-      continue;
-    }
-
-    err = select(serversock+1, &read_set, NULL, NULL, NULL);
-    logit(INFO, "Waiting on read");
-    if ((readsize = read(fd, readbuf, MAX_BUF_SIZE)) == EOF) {
-      logit(ERROR, "Client closed the connection");
-      goto closeit;
-    }
-
-    FD_ZERO(&write_set);
-    FD_SET(fd, &write_set);
-    err = select(fd+1, NULL, &write_set, NULL, NULL);
-    logit(INFO, "Writing the same message back");
-    write(fd, readbuf, readsize);
-    FD_CLR(fd, &write_set);
-
-closeit:
-    close(fd);
-  }
-
-  return NULL;
-}
-
-void *
-timecli_serve_single_client(void *arg)
-{
-  int fd = *(int *)arg;
-  free(arg);
-  struct timeval *tv = (struct timeval *) calloc (1, sizeof (struct timeval));
-  /*struct timeval tv;
-  memset (&tv, 0, sizeof(struct timeval)); */
-  char readbuf[MAX_BUF_SIZE] = {0,};
-  char buf[MAX_BUF_SIZE] = {0,};
+  int listenfd = 0;
+  struct sockaddr_in serv_addr;
+  int one = 1;
   int err;
-  struct tm tm = {0,};
-  time_t     now;
 
-  /* TODO: Look into this select function again */
-  /*while (select (fd, NULL, NULL, NULL, tv) >= 0) { */
-  while (sleep (10)) {
-    if (read(fd, readbuf, MAX_BUF_SIZE) == EOF) {
-      logit (0, "Client closed connection");
-      break;
-    }
+  listenfd = socket(AF_INET, SOCK_STREAM, 0);
+  memset(&serv_addr, 0, sizeof(serv_addr));
 
-    time(&now);
-    tm = *localtime(&now);
-    memset(buf, 0, MAX_BUF_SIZE);
-    strftime (buf, MAX_BUF_SIZE,  "%b %d %H:%M %Y", &tm);
+  if ((err = setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one))) != 0)
+    fprintf (stderr, "Error setting REUSEADDR: %s\n", strerror(err));
 
-    if (EPIPE == write(fd, buf, strlen(buf)))
-      return NULL;
+  serv_addr.sin_family = AF_INET;
+  serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  serv_addr.sin_port = htons(port);
 
-    memset(&tm, 0, sizeof(struct tm));
+  set_nonblocking(listenfd);
+
+  if ((err = bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr))) != 0) {
+    fprintf (stderr, "Error binding port and address: %s\n", strerror(errno));
+    return -1;
   }
 
-  return NULL;
+  if ((err = listen(listenfd, 10)) != 0) {
+    fprintf (stderr, "Error listening on socket: %s\n", strerror(errno));
+    return -1;
+  }
+
+  return listenfd;
 }
 
 void *
-time_cli_service(void *arg)
+echo_cli_serve_single_client(void *arg)
 {
-  int serversock = -1;
-  int flags = 0;
-  int fd = -1;
-  int err = -1;
-  int i = 0;
-  pthread_t threads[MAX_CLIENTS] = {0,};
-  int *passfd = NULL;
+  int connfd = (int)arg;
+  fd_set otherrset;
+  fd_set wset;
+  char readbuf[1025];
+  int err;
 
-  if ((serversock = get_server_socket(SERVER_TIME_PORT)) < 0) {
-    logit (ERROR, "Couldn't get socket");
-    return NULL;
+  set_nonblocking(connfd);
+
+  while (42) {
+    FD_ZERO(&otherrset);
+    FD_ZERO(&wset);
+    printf ("Waiting for read on socket\n");
+    memset(readbuf, 0, sizeof(readbuf));
+
+    FD_SET(connfd, &otherrset);
+    if ((err = select(connfd +1, &otherrset, NULL, NULL, NULL)) < 0) {
+      fprintf (stderr, "Error on select: %s\n", strerror (errno));
+      goto clear;
+    }
+
+    while ((err = read(connfd, readbuf, sizeof(readbuf))) <= 0 && errno == EAGAIN);
+    if (err <= 0) {
+      fprintf (stderr, "Error reading from socket: %s\n", strerror(errno));
+      goto clear;
+    }
+
+    /*
+    FD_SET(connfd, &wset);
+    if ((err = select(connfd +1, NULL, &wset, NULL, NULL)) < 0) {
+      fprintf (stderr, "Error on select: %s\n", strerror (errno));
+      goto clear;
+    }
+    */
+
+    while ((err = write(connfd, readbuf, strlen(readbuf))) < 0 && errno == EAGAIN);
+    if (err < 0) {
+      fprintf (stderr, "Write failure: %s\n", strerror(errno));
+      goto clear;
+    }
+    printf ("Written client data back to socket\n");
+
+    //FD_CLR(connfd, &wset);
+    FD_CLR(connfd, &otherrset);
   }
 
-  while (select(serversock, NULL, NULL, NULL, NULL) >= 0) {
-    if ((fd = accept(serversock, NULL, NULL)) < 0) {
-      logit(ERROR, "Accept error");
-      continue;
+clear:
+  close (connfd);
+}
+
+void *
+time_cli_serve_single_client(void *arg)
+{
+  int connfd = (int)arg;
+  fd_set waitset;
+  char sendBuff[1024];
+  time_t ticks;
+  fd_set wset;
+  struct timeval tv = {5, 0};
+  int err;
+
+  memset(sendBuff, 0, sizeof(sendBuff));
+
+  while (42) {
+    FD_ZERO(&waitset);
+    FD_SET(connfd, &waitset);
+    if (select(connfd+1, &waitset, NULL, NULL, &tv) != 0) {
+      fprintf (stderr, "Select failed: %s\n", strerror(errno));
+      goto out;
     }
 
-    passfd = (int *)malloc(sizeof(fd));
-    *passfd = fd;
-    if ((err = pthread_create(&threads[i], NULL, &timecli_serve_single_client, passfd)) != 0) {
-      logit(ERROR, "Error creating echo cli");
-      return NULL;
+    ticks = time(NULL);
+    snprintf(sendBuff, sizeof(sendBuff), "%.24s\r\n", ctime(&ticks));
+
+    FD_ZERO(&wset);
+    FD_SET(connfd, &wset);
+    if (select(connfd+1, NULL, &wset, NULL, &tv) < 0) {
+      fprintf (stderr, "Select failed: %s\n", strerror(errno));
+      goto out;
     }
 
-    if ((err = pthread_detach(threads[i++])) != 0) {
-      logit(ERROR, "Error detaching thread echo cli");
-      return NULL;
+    while ((err = write(connfd, sendBuff, strlen(sendBuff))) < 0 && errno == EAGAIN);
+    if (err < 0) {
+      fprintf (stderr, "Write failure: %s\n", strerror(errno));
+      goto out;
     }
-
-    if (fcntl(serversock, F_SETFL, flags & (~O_NONBLOCK)) < 0) {
-      logit(ERROR, "Setting to blocking mode failure");
-      return NULL;
-    }
+    FD_CLR(connfd, &wset);
+    FD_CLR(connfd, &waitset);
   }
 
+out:
+  printf ("Closing connection with the client\n");
+  close(connfd);
   return NULL;
 }
 
-int
-main()
+void
+serve(void *arg /* Currently NULL */)
 {
+  int connfd = -1;
   int err;
-  pthread_t echocliID = {0,};
-  pthread_t timecliID = {0,};
-  pthread_attr_t attr = {0,};
+  fd_set rset;
+  int i = 0;
+  int j = 0;
+  pthread_attr_t attr;
+  int maxfd = -1;
 
-  signal(SIGINT, intrpthandler);
+  struct {
+    int fd;
+    void *(*server)(void *);
+    int port;
+    char *name;
+  } services[2] = {
+    { .fd = -1, .port = ECHO_PORT, .server = echo_cli_serve_single_client, .name = "ECHO" },
+    { .fd = -1, .port = TIME_PORT, .server = time_cli_serve_single_client, .name = "TIME" }
+  };
 
-  if ((err = pthread_attr_init(&attr)) != 0) {
-    printf ("ERROR: %s. ", strerror(err));
-    logit(ERROR, "Attr init failed for pthread");
-    return -1;
+  FD_ZERO(&rset);
+  pthread_attr_init(&attr);
+
+  if ((err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED)))
+    fprintf (stderr, "Failed to set detachable thread: %s\n", strerror(err));
+
+  for (i = 0; i < 2; i++) {
+    if ((services[i].fd = get_server_sock(services[i].port)) == -1) {
+      fprintf (stderr, "Failed to get fd\n");
+      return;
+    }
   }
 
-  if ((err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED)) != 0) {
-    printf ("ERROR: %s. ", strerror(err));
-    logit(ERROR, "set detach state failed for pthread");
-    return -1;
+  while (42) {
+    maxfd = -1;
+    FD_ZERO(&rset);
+    for (i = 0; i < 2; i++) {
+      FD_SET(services[i].fd, &rset);
+      maxfd = (services[i].fd > maxfd)? services[i].fd: maxfd;
+    }
+
+    printf ("Waiting on select for clients...\n");
+    if ((err = select(maxfd+1, &rset, NULL, NULL, NULL)) < 0) {
+      fprintf (stderr, "Error on select: %s\n", strerror (errno));
+      goto out;
+    }
+
+    for (i = 0; i < 2; i++) {
+      if (FD_ISSET(services[i].fd, &rset)) {
+        printf ("Client connected to %s service\n", services[i].name);
+
+        while ((connfd = accept(services[i].fd, (struct sockaddr*)NULL, NULL)) < 0 && errno == EAGAIN);
+        if (connfd < 0) {
+          fprintf (stderr, "Connection accept error: %s\n", strerror(errno));
+          break;
+        }
+
+        printf ("Accepted client\n");
+
+        if ((err = pthread_create(NULL, &attr, services[i].server, (void *)connfd))) {
+          fprintf (stderr, "Thread creation for time cli service failed: %s\n",
+                   strerror(err));
+          close(connfd);
+        }
+        connfd = -1;
+      }
+    }
+
+    for (i = 0; i < 2; i++)
+      FD_CLR(services[i].fd, &rset);
   }
 
-  logit(INFO, "Starting thread for echo cli service");
-  if ((err = pthread_create(&echocliID, &attr, echo_cli_service, &err)) != 0) {
-    printf("ERROR: %s. ", strerror(err));
-    logit(ERROR, "Error creating echo cli");
-    return -1;
-  }
+out:
+  for (i = 0; i < 2; i++)
+    if (services[i].fd != -1)
+      close(services[i].fd);
 
-  logit(INFO, "Starting thread for time cli service");
-  if ((err = pthread_create(&timecliID, &attr, time_cli_service, &err)) != 0) {
-    logit(ERROR, "Error creating echo cli");
-    return -1;
-  }
+  if (connfd != -1)
+    close (connfd);
 
-  while(!intrpt_received)
-    sleep (5);
+  return;
+}
+
+int main(int argc, char *argv[])
+{
+  signal(SIGINT, siginthandler);
+
+  serve(NULL);
+
+  fflush(stdout);
+  sleep(1);
   return 0;
 }

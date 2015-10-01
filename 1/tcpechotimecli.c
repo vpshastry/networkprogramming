@@ -1,20 +1,23 @@
-#define _GNU_SOURCE
+#include <stdio.h>
+#include <netdb.h>
 #include "header.h"
+#include <signal.h>
+#include <errno.h>
 
 static volatile int sigchild_received = 0;
+static volatile int childpid = -1;
 
 void
 intrpthandler(int intrpt)
 {
   printf("Received SIGINT, exiting\n");
+  kill(childpid, SIGKILL);
   exit(0);
 }
 
-
 void
-sigchildhanlder(int sigchild)
+sigchildhanlder(int intrpt)
 {
-  printf("Received SIGCHLD\n");
   sigchild_received = 1;
 }
 
@@ -27,12 +30,17 @@ process_commandline(int argc, char *argv[])
   struct hostent *hostentry = NULL;
   struct hostent lhostent = {0,};
   int i = 0;
+  int err;
+  struct in_addr **addrlist;
 
-  if (inet_pton(AF_INET, ip_str, inaddr) != 1) {
-    logit (ERROR, "I don't think passed argument is an IP, trying to resolve assuming as hostname");
+  if ((err = inet_pton(AF_INET, ip_str, inaddr)) != 1) {
+    if (err != 0) {
+      fprintf (stderr, "inet pton error\n");
+      return NULL;
+    }
 
     if (!(hostentry = gethostbyname(ip_str))) {
-      logit (ERROR, "Passed argument is neither an IP nor a hostname");
+      fprintf (stderr, "Passed argument is neither an IP nor a hostname\n");
       return NULL;
     }
   }
@@ -40,13 +48,10 @@ process_commandline(int argc, char *argv[])
   if (!hostentry) {
     if (!(hostentry = gethostbyaddr((const void *)inaddr, sizeof (struct in6_addr),
                                     AF_INET)))
-      logit (ERROR, "Failed get host by addr");
+      fprintf (stderr, "Failed get host by addr\n");
 
   } else {
-    if (inet_pton(AF_INET, hostentry->h_addr_list[0], inaddr) != 1) {
-      logit (ERROR, "Error converting hostentry to binary ip format");
-      return NULL;
-    }
+    inaddr = (struct in_addr *)hostentry->h_addr_list[0];
   }
   memcpy (&lhostent, hostentry, sizeof(struct hostent));
 
@@ -54,8 +59,10 @@ process_commandline(int argc, char *argv[])
   for (i = 0; lhostent.h_aliases[i]; ++i)
     printf ("%s, ", lhostent.h_aliases[i]);
   printf ("\nIP addresses: ");
-  for (i = 0; lhostent.h_addr_list[i]; ++i)
-    printf ("%s, ", lhostent.h_addr_list[i]);
+  addrlist = (struct in_addr **) lhostent.h_addr_list;
+  for (i = 0; addrlist[i]; ++i)
+    printf ("%s, ", inet_ntoa(*addrlist[i]));
+  printf ("\n");
 
   return inaddr;
 }
@@ -66,108 +73,103 @@ handle_request(struct in_addr *ip, char *binary)
   int pipefd[2] = {0,};
   int ret = 0;
   char buf[MAX_BUF_SIZE] = {0,};
-  int fd[2] = {-1,};
-  char *ip_str = (char *) malloc (MAX_ARRAY_SIZE);
-  char *pipe_str = (char *) malloc (MAX_ARRAY_SIZE);
+  char *ip_str = (char *) malloc(1024);
+  char *pipe_str = (char *) malloc (1024);
+  fd_set rset;
 
-  if (!inet_ntop(AF_INET, ip, ip_str, MAX_ARRAY_SIZE)) {
-    logit (ERROR, "binary to text conversion of IP failed");
+  if (!inet_ntop(AF_INET, ip, ip_str, 1024)) {
+    fprintf (stderr, "Binary to str ip conversion failed\n");
     return;
   }
 
-  signal(SIGINT, sigchildhanlder);
+  signal(SIGCHLD, sigchildhanlder);
 
   if (pipe(pipefd) == -1) {
-    logit (ERROR, "pipe creation failed");
+    fprintf (stderr, "Pipe creation failed: %s\n", strerror(errno));
     return;
   }
 
-  switch (fork()) {
+  switch ((childpid = fork())) {
     case 0:
-      close(pipefd[0]);
-      if (dup2(pipefd[1], 1) < 0)
-        logit (ERROR, "Dup2 failed");
+      close (pipefd[0]);
 
-      snprintf (pipe_str, MAX_ARRAY_SIZE, "%d", pipefd[1]);
-      execlp("xterm", "xterm", "-e", binary, ip_str, pipe_str, (char *) 0);
+      snprintf (pipe_str, 1024, "%d", pipefd[1]);
+      execlp("xterm", "xterm", "-e", binary, ip_str, pipe_str, (char *)0);
 
     case -1:
-      // Error
+      fprintf (stderr, "Error forking child: %s\n", strerror(errno));
+      break;
 
     default:
-      close (fd[1]);
-      close(pipefd[1]);
+      close (pipefd[1]);
 
-      while (!sigchild_received) {
-        read(pipefd[0], buf, MAX_BUF_SIZE);
-        logit(INFO, buf);
+      memset(buf, 0, sizeof(buf));
+      while (!sigchild_received && read(pipefd[0], buf, sizeof(buf)) > 0) {
+        printf (buf);
+        memset(buf, 0, sizeof(buf));
       }
+      sigchild_received = 0;
+      wait(NULL);
 
-      close (pipefd[0]);
+      close(pipefd[0]);
   }
+  free(ip_str);
+  free(pipe_str);
 }
 
-int
-process(struct in_addr *ip)
+void
+handle_input(struct in_addr *ip)
 {
-  char choice;
-  char *binary = NULL;
-  char line[MAX_BUF_SIZE] = {0,};
-  char c;
+  int choice;
+  int i = 0;
+  int j;
+  char readbuf[1024] = {0,};
 
-  while (42) {
-    printf ("\ne. echo server\nt. time server\nq. Quit\nEnter your choice: ");
+  while (++i < 100) {
+    printf ("1. Echo server\n2. Time server\n3. Quit\nEnter your choice: ");
     fflush(stdin);
-    scanf("%c", &choice);
-    /*
-    if (scanf("%c", &choice) == 0) {
-      printf("Err. . .\n");
-      do {
-        c = getchar();
-      }
-      while (!isalpha(c));
-      ungetc(c, stdin);
-      printf ("Please enter your choice again: ");
-      scanf("%c", &choice);
+    if (fgets(readbuf, 1024, stdin) != readbuf) {
+      fprintf (stderr, "Error inputting\n");
+      continue;
     }
-    */
-    while((c = getchar()) != '\n' && c != EOF);
-    scanf("%c", &choice);
+    readbuf[1] = '\0';
+    sscanf(readbuf, "%d", &choice);
+    printf ("Your choice: %d\n", choice);
+    if (!isdigit(choice+48))
+      choice = 4;
 
-    printf ("Choice: %c\n", choice);
-    switch (choice) {
-      case 'e':
-        binary = "./echo_cli";
-        handle_request(ip, binary);
+    switch(choice) {
+      case 1:
+        printf ("Running echo cli. All input to this terminal will be ignored\n");
+        handle_request(ip, "./echo_cli");
         break;
 
-      case 't':
-        binary = "./time_cli";
-        handle_request(ip, binary);
+      case 2:
+        printf ("Running time cli. All input to this terminal will be ignored\n");
+        handle_request(ip, "./time_cli");
         break;
 
-      case 'q':
+      case 3:
         printf ("Exiting...\n");
         exit(0);
 
       default:
-        printf ("Invalid choice\n");
-        break;
+        printf ("Wrong choice, try again\n");
     }
   }
 }
 
 int
-main (int argc, char *argv[])
+main(int argc, char *argv[])
 {
   if (argc != 2) {
-    printf("Usage: %s <server-addr>", argv[0]);
+    printf("Usage: %s <server-address>", argv[0]);
     return 0;
   }
 
   signal(SIGINT, intrpthandler);
 
-  process(process_commandline (argc, argv));
+  handle_input(process_commandline(argc, argv));
 
   return 0;
 }
