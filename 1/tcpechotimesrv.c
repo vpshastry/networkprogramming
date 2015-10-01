@@ -85,14 +85,6 @@ echo_cli_serve_single_client(void *arg)
       goto clear;
     }
 
-    /*
-    FD_SET(connfd, &wset);
-    if ((err = select(connfd +1, NULL, &wset, NULL, NULL)) < 0) {
-      fprintf (stderr, "Error on select: %s\n", strerror (errno));
-      goto clear;
-    }
-    */
-
     while ((err = write(connfd, readbuf, strlen(readbuf))) < 0 && errno == EAGAIN);
     if (err < 0) {
       fprintf (stderr, "Write failure: %s\n", strerror(errno));
@@ -100,7 +92,6 @@ echo_cli_serve_single_client(void *arg)
     }
     printf ("Written client data back to socket\n");
 
-    //FD_CLR(connfd, &wset);
     FD_CLR(connfd, &otherrset);
   }
 
