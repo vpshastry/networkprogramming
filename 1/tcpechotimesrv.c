@@ -23,6 +23,12 @@ siginthandler(int arg)
   exit(0);
 }
 
+void
+sigpipehanlder(int arg)
+{
+  printf ("Handling SIGPIPE signal\n");
+}
+
 int
 get_server_sock(int port)
 {
@@ -232,6 +238,7 @@ out:
 int main(int argc, char *argv[])
 {
   signal(SIGINT, siginthandler);
+  signal(SIGPIPE, sigpipehanlder);
 
   serve(NULL);
 

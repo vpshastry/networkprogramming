@@ -21,6 +21,12 @@ sigchildhanlder(int intrpt)
   sigchild_received = 1;
 }
 
+void
+sigpipehandler(int intrpt)
+{
+  printf ("Handling SIGPIPE signal\n");
+}
+
 struct in_addr *
 process_commandline(int argc, char *argv[])
 {
@@ -168,6 +174,8 @@ main(int argc, char *argv[])
   }
 
   signal(SIGINT, intrpthandler);
+  signal(SIGPIPE, sigpipehandler);
+  signal(SIGCHLD, sigchildhanlder);
 
   handle_input(process_commandline(argc, argv));
 
