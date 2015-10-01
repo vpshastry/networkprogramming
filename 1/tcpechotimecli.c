@@ -75,6 +75,7 @@ handle_request(struct in_addr *ip, char *binary)
   char buf[MAX_BUF_SIZE] = {0,};
   char *ip_str = (char *) malloc(1024);
   char *pipe_str = (char *) malloc (1024);
+  fd_set rset;
 
   if (!inet_ntop(AF_INET, ip, ip_str, 1024)) {
     fprintf (stderr, "Binary to str ip conversion failed\n");
@@ -91,8 +92,10 @@ handle_request(struct in_addr *ip, char *binary)
   switch ((childpid = fork())) {
     case 0:
       close (pipefd[0]);
+      /*
       if (dup2(pipefd[1], 1) < 0)
         fprintf (stderr, "dup2 failed: %s\n", strerror(errno));
+        */
 
       snprintf (pipe_str, 1024, "%d", pipefd[1]);
       execlp("xterm", "xterm", "-e", binary, ip_str, pipe_str, (char *)0);
@@ -104,13 +107,10 @@ handle_request(struct in_addr *ip, char *binary)
     default:
       close (pipefd[1]);
 
-      printf ("Printing...\n");
-      while (!sigchild_received) {
-        if (read(pipefd[0], buf, 1024) <= 0) {
-          fprintf (stderr, "Error reading pipe: %s\n", strerror(errno));
-          break;
-        }
+      memset(buf, 0, sizeof(buf));
+      while (!sigchild_received && read(pipefd[0], buf, sizeof(buf)) > 0) {
         printf (buf);
+        memset(buf, 0, sizeof(buf));
       }
       sigchild_received = 0;
       wait(NULL);

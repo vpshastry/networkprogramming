@@ -23,20 +23,6 @@ siginthandler(int arg)
   exit(0);
 }
 
-void
-set_nonblocking(int listenfd)
-{
-  int flags;
-
-  if ((flags = fcntl(listenfd, F_GETFL, 0)) < 0) {
-    fprintf (stderr, "Error getfl\n");
-    return;
-  }
-
-  if (fcntl(listenfd, F_SETFL, flags | O_NONBLOCK) < 0)
-    fprintf (stderr, "Error setting to NONblock mode\n");
-}
-
 int
 get_server_sock(int port)
 {
@@ -79,41 +65,42 @@ echo_cli_serve_single_client(void *arg)
   char readbuf[1025];
   int err;
 
+  set_nonblocking(connfd);
 
   while (42) {
     FD_ZERO(&otherrset);
     FD_ZERO(&wset);
     printf ("Waiting for read on socket\n");
+    memset(readbuf, 0, sizeof(readbuf));
+
     FD_SET(connfd, &otherrset);
     if ((err = select(connfd +1, &otherrset, NULL, NULL, NULL)) < 0) {
       fprintf (stderr, "Error on select: %s\n", strerror (errno));
       goto clear;
     }
 
-    memset(readbuf, 0, sizeof(readbuf));
-
     while ((err = read(connfd, readbuf, sizeof(readbuf))) <= 0 && errno == EAGAIN);
     if (err <= 0) {
       fprintf (stderr, "Error reading from socket: %s\n", strerror(errno));
       goto clear;
     }
-    printf ("Recieved: %s\n", readbuf);
 
+    /*
     FD_SET(connfd, &wset);
     if ((err = select(connfd +1, NULL, &wset, NULL, NULL)) < 0) {
       fprintf (stderr, "Error on select: %s\n", strerror (errno));
       goto clear;
     }
+    */
 
-    printf ("Writing: %s\n", readbuf);
-    while ((err = write(connfd, readbuf, sizeof(readbuf))) < 0 && errno == EAGAIN);
+    while ((err = write(connfd, readbuf, strlen(readbuf))) < 0 && errno == EAGAIN);
     if (err < 0) {
       fprintf (stderr, "Write failure: %s\n", strerror(errno));
       goto clear;
     }
     printf ("Written client data back to socket\n");
 
-    FD_CLR(connfd, &wset);
+    //FD_CLR(connfd, &wset);
     FD_CLR(connfd, &otherrset);
   }
 

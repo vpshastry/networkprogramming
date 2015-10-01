@@ -17,24 +17,24 @@ int main(int argc, char *argv[])
   int sockfd = -1;
   int n = 0;
   char readbuf[1024];
+  char inbuf[1024];
+  char *msg;
   struct sockaddr_in serv_addr;
   int ret = 0;
   int err = 0;
 
+  int pipefd = atoi(argv[2]);
+
   if(argc != 3) {
-    printf("Usage: %s <ip-of-server> <pipe>\n", argv[0]);
+    INFO("Usage: %s <ip-of-server> <pipe>\n", argv[0]);
     ret = 1;
     goto out;
   }
 
-  int pipefd = atoi(argv[2]);
-  if (dup2(pipefd, 2) < 0)
-    fprintf (stderr, "dup2 failed: %s\n", strerror(errno));
-
   memset(&serv_addr, 0, sizeof(serv_addr));
 
   if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    fprintf(stderr, "Could not create socket: %s\n", strerror(errno));
+    ERR( "Could not create socket: %s\n", strerror(errno));
     ret = 1;
     goto out;
   }
@@ -43,51 +43,47 @@ int main(int argc, char *argv[])
   serv_addr.sin_port = htons(ECHO_PORT);
 
   if((err = inet_pton(AF_INET, argv[1], &serv_addr.sin_addr)) <= 0) {
-    fprintf(stderr, "Error inet_pton\n");
+    ERR( "Error inet_pton\n");
     ret = 1;
     goto out;
   }
 
-  printf ("Waiting on connect\n");
+  msg = "Trying to connect\n";
+  write(pipefd, msg, strlen(msg));
   if((err = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)))
                     < 0) {
-    fprintf(stderr, "Connect Failed: %s\n", strerror(errno));
+    ERR( "Connect Failed: %s\n", strerror(errno));
     ret = 1;
     goto out;
   }
+  FDWRITE(pipefd, "Connected to server\n");
 
   while (42) {
+    memset(inbuf, 0, sizeof(inbuf));
+    fgets (inbuf, 1024, stdin);
+
+    FDWRITE(pipefd, "Wrote message on to socket\n");
+    if ((err = write(sockfd, inbuf, strlen(inbuf))) <= 0) {
+      ERR ( "Write failure: %s\n", strerror(errno));
+      ret = 1;
+      goto out;
+    }
+
     memset(readbuf, 0, sizeof(readbuf));
-    printf ("Enter the string to send: ");
-    fgets (readbuf, 1024, stdin);
-    printf ("Writing to socket\n");
-    if ((err = write(sockfd, readbuf, strlen(readbuf)+1)) <= 0) {
-      fprintf (stderr, "Write failure: %s\n", strerror(errno));
+    if((err = read(sockfd, readbuf, sizeof(readbuf))) <= 0) {
+      ERR ( "Read failure: %s\n", strerror(errno));
       ret = 1;
       goto out;
     }
+    readbuf[err] = '\0';
+    FDWRITE(pipefd, "Received message from server\n");
 
-    printf ("Waiting for read\n");
-    do {
-      memset(readbuf, 0, sizeof(readbuf));
-      if((err = read(sockfd, readbuf, sizeof(readbuf))) <= 0) {
-        fprintf (stderr, "Read failure: %s\n", strerror(errno));
-        ret = 1;
-        goto out;
-      }
-      readbuf[err] = '\0';
-    } while (err < 500);
-
-    printf ("Received: err: %d, %s", err, readbuf);
-    /*
-    if (fputs(readbuf, stdout) == EOF) {
-      fprintf (stderr, "Fputs error: %s\n", strerror(errno));
-      printf ("ERRORRRRRRRRRRRRRRRRRRRRRRR\n");
+    if (fputs(readbuf, stderr) == EOF) {
+      ERR ("Fputs error: %s\n", strerror(errno));
       ret = 1;
       goto out;
     }
-    */
-    printf ("\n");
+    INFO ("\n");
   }
 
 out:
