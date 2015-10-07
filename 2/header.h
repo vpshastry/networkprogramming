@@ -14,6 +14,7 @@
 #include <time.h>
 
 #include "unp.h"
+#include "unpifi.h"
 
 #define INFO(arg, params ...)         \
   do {                                \
@@ -27,3 +28,5 @@
 
 float readfloatarg(int fd);
 int readuintarg(int fd);
+char * readipstr(int fd);
+struct in_addr * readip(int fd);
