@@ -36,6 +36,7 @@ readargsfromfile(input_t *input)
   return 0;
 }
 
+/*
 int
 mod_get_ifi_info(interface_info_t *ii)
 {
@@ -83,6 +84,7 @@ listen(interface_info_t *ii, int length)
   if (select(maxfd +1, &rset, NULL, NULL, NULL) < 0) {
   }
 }
+*/
 
 int
 main(int argc, char *argv[]) {
@@ -99,8 +101,10 @@ main(int argc, char *argv[]) {
     return -1;
   }
 
+  /*
   if (mod_get_ifi_info(ii) < 0) {
     ERR(NULL, "Failed to get ifi infos\n");
     return -1;
   }
+  */
 }
