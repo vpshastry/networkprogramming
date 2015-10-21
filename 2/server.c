@@ -1,70 +1,76 @@
 #include "header.h"
 
-typedef struct {
-  int portnumber;
-  int maxslidewindowsize;
-} input_t;
+extern struct ifi_info *Get_ifi_info_plus(int family, int doaliases);
+extern        void      free_ifi_info_plus(struct ifi_info *ifihead);
 
 typedef struct {
   int sockfd;
-  struct sockaddr_in ip;
-  struct sockaddr_in netmask;
-  struct sockaddr_in subnet;
+  struct sockaddr_in *ip;
+  struct sockaddr_in *netmask;
+  struct in_addr subnet;
 } interface_info_t;
 
+void build_inferface_info(interface_info_t *ii, size_t *interface_info_len) {
+	int                 sockfd;
+	int curii = 0;
+	const int           on = 1;
+	struct ifi_info     *ifi, *ifihead;
+	struct sockaddr_in  *sa, cliaddr, wildaddr;
+
+	for (ifihead = ifi = Get_ifi_info_plus(AF_INET, 1);
+		 ifi != NULL; ifi = ifi->ifi_next) {
+
+			/*4bind unicast address */
+		ii[curii].sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
+		Setsockopt(ii[curii].sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
+		ii[curii].ip = (struct sockaddr_in *) ifi->ifi_addr;
+		ii[curii].netmask = (struct sockaddr_in *) ifi->ifi_ntmaddr;
+		//ii[curii].subnet = (struct sockaddr_in *) ifi->ifi_addr;
+		ii[curii].subnet.s_addr = ii[curii].ip->sin_addr.s_addr & ii[curii].netmask->sin_addr.s_addr;
+		ii[curii].ip->sin_family = AF_INET;
+		ii[curii].ip->sin_port = htons(SERV_PORT);
+		Bind(ii[curii].sockfd, (SA *) ii[curii].ip, sizeof(*(ii[curii].ip)));
+		//printf("bound %s\n", Sock_ntop((SA *) ii[curii].ip, sizeof(*(ii[curii].ip))));
+		curii++;
+	}
+	*interface_info_len = curii;
+	return;
+}
+
 int
-readargsfromfile(input_t *input)
+readargsfromfile(unsigned int *portnumber, unsigned int *maxslidewindowsize)
 {
   FILE *fd;
-
+  char line[512];
+  int line1, line2;
   if (!(fd = fopen("server.in", "r"))) {
-    ERR(NULL, "Opening file failed: %s\n", strerror(errno));
+    err_sys("Opening file failed"); // err_sys prints errno's explaination as well.
     return -1;
   }
-
-
-  if ((input->portnumber = readuintarg((int)fd)) == -1) {
-    ERR(NULL, "Failed reading port number\n");
-    return -1;
-  }
-
-  if ((input->maxslidewindowsize = readuintarg((int)fd)) == -1) {
-    ERR(NULL, "Failed reading max slide window size\n");
-    return -1;
-  }
-
+  fgets(line, 512, fd);
+  sscanf(line, "%d", portnumber);
+  fgets(line, 512, fd);
+  sscanf(line, "%d", maxslidewindowsize);
   return 0;
+}
+void print_interface_info(interface_info_t *ii, size_t interface_info_len) {
+	
+	int i;
+	char str[INET_ADDRSTRLEN];
+	for (i = 0; i < interface_info_len; i++) {
+		//printf("fd:%d\n", ii[i].sockfd);
+		printf("IP addr: %s\n",
+                        Sock_ntop_host((SA *)ii[i].ip, sizeof(*(ii[i].ip))));
+		printf("Network Mask: %s\n",
+                        Sock_ntop_host((SA *)ii[i].netmask, sizeof(*(ii[i].netmask))));
+		
+		printf("Subnet Address: %s\n\n",
+                        Inet_ntop(AF_INET, &ii[i].subnet, str, INET_ADDRSTRLEN));
+	}
 }
 
 /*
-int
-mod_get_ifi_info(interface_info_t *ii)
-{
-  const int on = 1;
-  pid_t	pid;
-  int curi = -1;
-  struct ifi_info *ifi;
-  struct ifi_info *ifihead;
-  struct sockaddr_in *sa, cliaddr, wildaddr;
-
-  for (ifihead = ifi = Get_ifi_info(AF_INET, 1);
-      ifi != NULL; ifi = ifi->next) {
-
-    ii[++curi].sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
-
-    Setsockopt(ii[curi].sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-
-    sa = (struct sockaddr_in *) ifi->ifi_addr;
-    memcpy (ii[curi].ip, ifi->ifi_addr, sizeof(struct sockaddr_in));
-    sa->sin_family = AF_INET;
-    sa->sin_port = htons(SERV_PORT);
-    Bind(ii[curi].sockfd, (SA *) sa, sizeof(*sa));
-    printf("bound %s\n", Sock_ntop((SA *) sa, sizeof(*sa)));
-  }
-
-  return curi;
-}
-
 int
 listen(interface_info_t *ii, int length)
 {
@@ -88,23 +94,17 @@ listen(interface_info_t *ii, int length)
 
 int
 main(int argc, char *argv[]) {
-  input_t input;
-  interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
-
-  if (argc > 0) {
-    ERR(NULL, "Usage: %s\n", argv[0]);
-    return 0;
-  }
-
-  if (readargsfromfile(&input) == -1) {
-    ERR(NULL, "Read/parse error from the input file\n");
-    return -1;
-  }
-
-  /*
-  if (mod_get_ifi_info(ii) < 0) {
-    ERR(NULL, "Failed to get ifi infos\n");
-    return -1;
-  }
-  */
+	
+	unsigned int portnumber;
+	unsigned int maxslidewindowsize;
+	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
+	size_t interface_info_len;
+	if (readargsfromfile(&portnumber, &maxslidewindowsize) == -1) {
+		err_quit("Read/parse error from server.in file");
+		return -1;
+	}
+	printf("port num: %d\nmaxslidewinsize:%d\n\n", portnumber, maxslidewindowsize);
+	build_inferface_info(ii, &interface_info_len);
+	print_interface_info(ii, interface_info_len);
+	return 0;
 }

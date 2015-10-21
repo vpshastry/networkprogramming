@@ -1,0 +1,43 @@
+README
+Network Programming Fall 2015, Assignment 2 - Stony Brook University.
+Authors: <Aashray Arora. SBU ID: 109940382, NETID: aaarora> and <Varun Shastry. SBU ID: TODO(@varun), NETID: TODO(@varun)>
+
+Included:
+All header files(.h)
+All source files (.c)
+this README
+Makefile
+
+------------------
+User Documentation
+------------------
+All the source files can be compiled using the "make" command.
+The Makefile uses the required libraries and compiles the programs.
+
+Run the server using the server executatble as shown below:
+
+./server
+
+Run the client using the client executable as shown below:
+
+./client
+
+Make sure you have the server running before you call a service on the client.
+
+---------------------
+System Documentation
+---------------------
+There are two parts to this system. The server and the client.
+....
+....
+
+To ensure only unicast addresses are bound:
+	- Section 22.6 has code that first binds unicast address. We do this same way. 
+	- Then it attemps to bind Broadcast address and wildcard address. We do not do this.
+Array of structures:
+	- We have defined a structure called "interface_info_t". We have defined an array "ii" of this structure.
+	- This structure contains fields for sockfd, IP address, netmask and subnet address.
+	- As we bind each interface in build_inferface_info() we save the details in this array of structs.
+	- We do a "bit-wise and" on the IP address and netmask to get the subnet address and store as a in_addr type. See code for details.
+	- We then call print_interface_info() to print the contents of this array for stucts as mentioned in the assignment spec.
+

@@ -11,7 +11,7 @@ typedef struct {
   long mean; // In milliseconds
 } input_t;
 
-int
+/*int
 readargsfromfile(input_t *input)
 {
   int fd;
@@ -21,7 +21,7 @@ readargsfromfile(input_t *input)
     ERR(NULL, "Opening file failed: %s\n", strerror(errno));
     return -1;
   }
-  fd = (int)fp;
+  fd = (int)fp;*/
 
   /*
   TODO: Can't call without moving the fd back to original
@@ -31,7 +31,7 @@ readargsfromfile(input_t *input)
     return -1;
   }
   */
-
+/*
   if (!(input->ip = readip(fd))) {
     ERR(NULL, "Failed reading/converting ip\n");
     return -1;
@@ -68,7 +68,7 @@ readargsfromfile(input_t *input)
   }
 
   return 0;
-}
+}*/
 
 int
 main(int argc, char *argv[]) {
@@ -78,9 +78,11 @@ main(int argc, char *argv[]) {
     ERR(NULL, "Usage: %s\n", argv[0]);
     return 0;
   }
-
+/*
   if (readargsfromfile(&input) == -1) {
     ERR(NULL, "Failed to read from file\n");
     return -1;
   }
+*/
+	return 0;
 }

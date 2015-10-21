@@ -1,10 +1,7 @@
 # This is a sample Makefile which compiles source files named:
-# - tcpechotimeserv.c
-# - tcpechotimecliv.c
-# - time_cli.c
-# - echo_cli.c
-# and creating executables: "server", "client", "time_cli"
-# and "echo_cli", respectively.
+# - server.c
+# - client.c
+# and creating executables: "server", "client".
 #
 # It uses various standard libraries, and the copy of Stevens'
 # library "libunp.a" in ~cse533/Stevens/unpv13e_solaris2.10 .
@@ -27,19 +24,25 @@ CC = gcc
 LIBS = -lresolv -lsocket -lnsl -lpthread\
 	/home/courses/cse533/Stevens/unpv13e_solaris2.10/libunp.a\
 
-FLAGS = -g3 -O3
+FLAGS = -g -O2
 
 CFLAGS = ${FLAGS} -I/home/courses/cse533/Stevens/unpv13e_solaris2.10/lib
 
-all: client server
+all: get_ifi_info_plus.o prifinfo_plus.o client server
+	${CC} -o prifinfo_plus prifinfo_plus.o get_ifi_info_plus.o ${LIBS}
+
+get_ifi_info_plus.o: get_ifi_info_plus.c
+	${CC} ${CFLAGS} -c get_ifi_info_plus.c
+
+prifinfo_plus.o: prifinfo_plus.c
+	${CC} ${CFLAGS} -c prifinfo_plus.c
 
 
-# server uses the thread-safe version of readline.c
 header.o: header.h header.c
 	${CC} ${CFLAGS} -c header.c header.h
 
-server: server.o readline.o header.o
-	${CC} ${FLAGS} -o server server.o readline.o header.o ${LIBS}
+server: server.o readline.o header.o 
+	${CC} ${FLAGS} -o server server.o readline.o header.o get_ifi_info_plus.o ${LIBS}
 server.o: server.c header.o
 	${CC} ${CFLAGS} -c server.c header.h
 
@@ -57,5 +60,5 @@ readline.o: /home/courses/cse533/Stevens/unpv13e_solaris2.10/threads/readline.c
 
 
 clean:
-	rm server server.o client client.o readline.o
+	rm server server.o client client.o readline.o header.o get_ifi_info_plus.o header.h.gch prifinfo_plus prifinfo_plus.o get_ifi_info_plus.o
 
