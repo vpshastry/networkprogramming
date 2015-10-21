@@ -1,43 +1,5 @@
 #include "header.h"
 
-extern struct ifi_info *Get_ifi_info_plus(int family, int doaliases);
-extern        void      free_ifi_info_plus(struct ifi_info *ifihead);
-
-typedef struct {
-  int sockfd;
-  struct sockaddr_in *ip;
-  struct sockaddr_in *netmask;
-  struct in_addr subnet;
-} interface_info_t;
-
-void build_inferface_info(interface_info_t *ii, size_t *interface_info_len) {
-	int                 sockfd;
-	int curii = 0;
-	const int           on = 1;
-	struct ifi_info     *ifi, *ifihead;
-	struct sockaddr_in  *sa, cliaddr, wildaddr;
-
-	for (ifihead = ifi = Get_ifi_info_plus(AF_INET, 1);
-		 ifi != NULL; ifi = ifi->ifi_next) {
-
-			/*4bind unicast address */
-		ii[curii].sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
-		Setsockopt(ii[curii].sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-
-		ii[curii].ip = (struct sockaddr_in *) ifi->ifi_addr;
-		ii[curii].netmask = (struct sockaddr_in *) ifi->ifi_ntmaddr;
-		//ii[curii].subnet = (struct sockaddr_in *) ifi->ifi_addr;
-		ii[curii].subnet.s_addr = ii[curii].ip->sin_addr.s_addr & ii[curii].netmask->sin_addr.s_addr;
-		ii[curii].ip->sin_family = AF_INET;
-		ii[curii].ip->sin_port = htons(SERV_PORT);
-		Bind(ii[curii].sockfd, (SA *) ii[curii].ip, sizeof(*(ii[curii].ip)));
-		//printf("bound %s\n", Sock_ntop((SA *) ii[curii].ip, sizeof(*(ii[curii].ip))));
-		curii++;
-	}
-	*interface_info_len = curii;
-	return;
-}
-
 int
 readargsfromfile(unsigned int *portnumber, unsigned int *maxslidewindowsize)
 {
@@ -52,21 +14,6 @@ readargsfromfile(unsigned int *portnumber, unsigned int *maxslidewindowsize)
   fgets(line, 512, fd);
   sscanf(line, "%d", maxslidewindowsize);
   return 0;
-}
-void print_interface_info(interface_info_t *ii, size_t interface_info_len) {
-	
-	int i;
-	char str[INET_ADDRSTRLEN];
-	for (i = 0; i < interface_info_len; i++) {
-		//printf("fd:%d\n", ii[i].sockfd);
-		printf("IP addr: %s\n",
-                        Sock_ntop_host((SA *)ii[i].ip, sizeof(*(ii[i].ip))));
-		printf("Network Mask: %s\n",
-                        Sock_ntop_host((SA *)ii[i].netmask, sizeof(*(ii[i].netmask))));
-		
-		printf("Subnet Address: %s\n\n",
-                        Inet_ntop(AF_INET, &ii[i].subnet, str, INET_ADDRSTRLEN));
-	}
 }
 
 /*
@@ -103,7 +50,7 @@ main(int argc, char *argv[]) {
 		return -1;
 	}
 	printf("port num: %d\nmaxslidewinsize:%d\n\n", portnumber, maxslidewindowsize);
-	build_inferface_info(ii, &interface_info_len);
+	build_inferface_info(ii, &interface_info_len, 1);
 	print_interface_info(ii, interface_info_len);
 	return 0;
 }

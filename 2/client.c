@@ -48,9 +48,12 @@ readargsfromfile(input_t *input)
 }
 
 int
-main(int argc, char *argv[]) {
-	
+main(int argc, char *argv[]) {	
 	input_t input = {0,};
+	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
+	size_t interface_info_len;
 	readargsfromfile(&input);
+ 	build_inferface_info(ii, &interface_info_len, 0);
+  	print_interface_info(ii, interface_info_len);
     return 0;
   }

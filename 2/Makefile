@@ -38,19 +38,19 @@ prifinfo_plus.o: prifinfo_plus.c
 	${CC} ${CFLAGS} -c prifinfo_plus.c
 
 
-header.o: header.h header.c
-	${CC} ${CFLAGS} -c header.c header.h
+#header.o: header.h header.c
+#${CC} ${CFLAGS} -c header.c
 
-server: server.o readline.o header.o 
-	${CC} ${FLAGS} -o server server.o readline.o header.o get_ifi_info_plus.o ${LIBS}
-server.o: server.c header.o
-	${CC} ${CFLAGS} -c server.c header.h
+server: server.o readline.o
+	${CC} ${FLAGS} -o server server.o readline.o get_ifi_info_plus.o header.o ${LIBS}
+server.o: server.c
+	${CC} ${CFLAGS} -c server.c header.c
 
 
-client: client.o header.o
-	${CC} ${FLAGS} -o client client.o header.o ${LIBS}
-client.o: client.c header.o
-	${CC} ${CFLAGS} -c client.c header.h
+client: client.o
+	${CC} ${FLAGS} -o client client.o get_ifi_info_plus.o header.o ${LIBS}
+client.o: client.c
+	${CC} ${CFLAGS} -c client.c header.c
 
 
 # pick up the thread-safe version of readline.c from directory "threads"
@@ -60,5 +60,5 @@ readline.o: /home/courses/cse533/Stevens/unpv13e_solaris2.10/threads/readline.c
 
 
 clean:
-	rm server server.o client client.o readline.o header.o header.h.gch prifinfo_plus prifinfo_plus.o get_ifi_info_plus.o
+	rm server server.o client client.o readline.o header.o prifinfo_plus prifinfo_plus.o get_ifi_info_plus.o
 
