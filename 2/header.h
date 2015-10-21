@@ -16,6 +16,9 @@
 #include "unp.h"
 #include "unpifi.h"
 
+#define MAX_SOCKETS 64
+#define MAX_INTERFACE_INFO 16
+
 #define INFO(arg, params ...)         \
   do {                                \
     fprintf (stdout, params);         \
@@ -26,7 +29,11 @@
     fprintf (stderr, params);         \
   } while (0)
 
+char * getnextline(int fd);
 float readfloatarg(int fd);
 int readuintarg(int fd);
 char * readipstr(int fd);
 struct in_addr * readip(int fd);
+
+// In server.c
+int mod_get_ifi_info(int *sockfd);

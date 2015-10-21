@@ -1,6 +1,6 @@
 #include "header.h"
 
-typdef struct {
+typedef struct {
   struct in_addr *ip;
   char *ipstr;
   int portnumber;
@@ -12,7 +12,7 @@ typdef struct {
 } input_t;
 
 int
-readargsfromfile()
+readargsfromfile(input_t *input)
 {
   int fd;
   FILE *fp;
@@ -23,10 +23,14 @@ readargsfromfile()
   }
   fd = (int)fp;
 
+  /*
+  TODO: Can't call without moving the fd back to original
+  position.
   if (!(input->ipstr = readipstr(fd))) {
     ERR(NULL, "Failed reading ip\n");
     return -1;
   }
+  */
 
   if (!(input->ip = readip(fd))) {
     ERR(NULL, "Failed reading/converting ip\n");
