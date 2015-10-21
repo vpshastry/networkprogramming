@@ -1,88 +1,56 @@
 #include "header.h"
 
 typedef struct {
-  struct in_addr *ip;
-  char *ipstr;
-  int portnumber;
-  char *filename;
-  int recslidewindowsize; // In # of datagrams
+  char server_ip[100];
+  unsigned int portnumber;
+  char filename[100000];
+  unsigned int recvslidewindowsize; // In # of datagrams
   unsigned int seedvalue;
-  float prob;
-  long mean; // In milliseconds
+  float p; // probability
+  unsigned long mean; // In milliseconds
 } input_t;
 
-/*int
+int
 readargsfromfile(input_t *input)
 {
-  int fd;
-  FILE *fp;
-
-  if (!(fp = fopen("client.in", "r"))) {
-    ERR(NULL, "Opening file failed: %s\n", strerror(errno));
+  FILE *fd;
+  char line[512], ip[512];
+  int i;
+  if (!(fd = fopen("client.in", "r"))) {
+    err_sys("Opening file failed"); // err_sys prints errno's explaination as well.
     return -1;
   }
-  fd = (int)fp;*/
-
-  /*
-  TODO: Can't call without moving the fd back to original
-  position.
-  if (!(input->ipstr = readipstr(fd))) {
-    ERR(NULL, "Failed reading ip\n");
-    return -1;
+  fgets(line, 512, fd);
+  sscanf(line, "%s", input->server_ip);
+  printf("%s\n", input->server_ip);
+  fgets(line, 512, fd);
+  sscanf(line, "%u", &input->portnumber);
+  printf("%u\n", input->portnumber);
+  fgets(line, 512, fd);
+  sscanf(line, "%s", input->filename);
+  printf("%s\n", input->filename);
+  fgets(line, 512, fd);
+  sscanf(line, "%u", &input->recvslidewindowsize);
+  printf("%u\n", input->recvslidewindowsize);
+  fgets(line, 512, fd);
+  sscanf(line, "%u", &input->seedvalue);
+  printf("%u\n", input->seedvalue);
+  fgets(line, 512, fd);
+  sscanf(line, "%f", &input->p);
+  if (input->p > 1.0 || input->p < 0.0) {
+	  err_quit("Probability has to be between 0.0 and 1.0, fix client.in and try again.");
   }
-  */
-/*
-  if (!(input->ip = readip(fd))) {
-    ERR(NULL, "Failed reading/converting ip\n");
-    return -1;
-  }
-
-  if ((input->portnumber = readuintarg(fd)) == -1) {
-    ERR(NULL, "Failed reading port number\n");
-    return -1;
-  }
-
-  if (!(input->filename = getnextline(fd))) {
-    ERR(NULL, "Error reading file name\n");
-    return -1;
-  }
-
-  if ((input->recslidewindowsize = readuintarg(fd)) == -1) {
-    ERR(NULL, "Failed reading max slide window size\n");
-    return -1;
-  }
-
-  if ((input->seedvalue = readuintarg(fd)) == -1) {
-    ERR(NULL, "Failed reading seed value\n");
-    return -1;
-  }
-
-  if ((input->prob = readfloatarg(fd)) == -1) {
-    ERR(NULL, "Error reading probability of datagram loss\n");
-    return -1;
-  }
-
-  if ((input->mean = readuintarg(fd)) == -1) {
-    ERR(NULL, "Error reading mean\n");
-    return -1;
-  }
-
+  printf("%f\n", input->p);
+  fgets(line, 512, fd);
+  sscanf(line, "%lu", &input->mean);
+  printf("%lu\n", input->mean);
   return 0;
-}*/
+}
 
 int
 main(int argc, char *argv[]) {
-  input_t input = {0,};
-
-  if (argc > 0) {
-    ERR(NULL, "Usage: %s\n", argv[0]);
+	
+	input_t input = {0,};
+	readargsfromfile(&input);
     return 0;
   }
-/*
-  if (readargsfromfile(&input) == -1) {
-    ERR(NULL, "Failed to read from file\n");
-    return -1;
-  }
-*/
-	return 0;
-}

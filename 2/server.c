@@ -43,7 +43,6 @@ readargsfromfile(unsigned int *portnumber, unsigned int *maxslidewindowsize)
 {
   FILE *fd;
   char line[512];
-  int line1, line2;
   if (!(fd = fopen("server.in", "r"))) {
     err_sys("Opening file failed"); // err_sys prints errno's explaination as well.
     return -1;
