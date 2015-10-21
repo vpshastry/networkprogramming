@@ -1,12 +1,27 @@
 #include "header.h"
 
+int
+mygetline(char *s, int lim, FILE *fd)
+{
+  int c, i;
+  for (i = 0; i<lim-1 && (c=fgetc(fd))!=EOF && c!='\n'; ++i)
+    s[i] = c;
+
+  if (c == '\n') {
+    s[i] = c;
+    ++i;
+  }
+  s[i]='\0';
+  return i;
+}
+
 char *
 getnextline(int fd)
 {
-  char *line;
-  int len = 0;
+  char *line = calloc(MAX_LINE_SIZE, sizeof(char));
+  int len;
 
-  if ((read = getline(&line, &len, (FILE *)fd)) == -1) {
+  if ((len = mygetline(line, MAX_LINE_SIZE, (FILE *)fd)) == -1) {
     ERR(NULL, "Error reading the line\n");
     return NULL;
   }
@@ -21,7 +36,6 @@ readuintarg(int fd)
   long num;
 
   if (!(curline = getnextline(fd))) {
-    ERR();
     return -1;
   }
   if ((num = strtol(curline, &tmp, 10)) == LONG_MAX || num == LONG_MIN) {
@@ -42,12 +56,14 @@ readfloatarg(int fd)
 {
   char *curline;
   char *tmp;
+  float num;
 
   if (!(curline = getnextline(fd))) {
-    ERR();
     return -1;
   }
-  if ((num = strtof(curline, &tmp)) == HUGE_VAL || num == HUGE_VAL) {
+  errno = 0;
+  num = strtof(curline, &tmp);
+  if (errno != 0) {
     ERR(NULL, "Port number out of range\n");
     return -1;
   }
@@ -69,7 +85,6 @@ readip(int fd)
   struct in_addr *inaddr = (struct in_addr *) calloc(1, sizeof (struct in_addr));
 
   if (!(curline = getnextline(fd))) {
-    ERR();
     free(inaddr);
     return NULL;
   }
@@ -94,7 +109,6 @@ readipstr(int fd)
   struct in_addr *inaddr = (struct in_addr *) calloc(1, sizeof (struct in_addr));
 
   if (!(curline = getnextline(fd))) {
-    ERR();
     free(inaddr);
     return NULL;
   }

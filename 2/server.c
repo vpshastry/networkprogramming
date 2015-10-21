@@ -13,7 +13,7 @@ typedef struct {
 } interface_info_t;
 
 int
-readargsfromfile()
+readargsfromfile(input_t *input)
 {
   FILE *fd;
 

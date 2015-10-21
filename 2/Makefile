@@ -35,17 +35,17 @@ all: client server
 
 
 # server uses the thread-safe version of readline.c
-header.o:
+header.o: header.h header.c
 	${CC} ${CFLAGS} -c header.c header.h
 
-server: server.o readline.o
-	${CC} ${FLAGS} -o server server.o readline.o ${LIBS}
+server: server.o readline.o header.o
+	${CC} ${FLAGS} -o server server.o readline.o header.o ${LIBS}
 server.o: server.c header.o
 	${CC} ${CFLAGS} -c server.c header.h
 
 
-client: client.o
-	${CC} ${FLAGS} -o client client.o ${LIBS}
+client: client.o header.o
+	${CC} ${FLAGS} -o client client.o header.o ${LIBS}
 client.o: client.c header.o
 	${CC} ${CFLAGS} -c client.c header.h
 

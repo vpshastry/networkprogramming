@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -18,6 +19,7 @@
 
 #define MAX_SOCKETS 64
 #define MAX_INTERFACE_INFO 16
+#define MAX_LINE_SIZE 1024
 
 #define INFO(arg, params ...)         \
   do {                                \
@@ -36,4 +38,4 @@ char * readipstr(int fd);
 struct in_addr * readip(int fd);
 
 // In server.c
-int mod_get_ifi_info(int *sockfd);
+//int mod_get_ifi_info(int *sockfd);
