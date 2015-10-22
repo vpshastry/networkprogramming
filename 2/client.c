@@ -94,13 +94,13 @@ int
 main(int argc, char *argv[]) {	
 	input_t input = {0,};
 	struct sockaddr_in servaddr, clientaddr, client_bind, serv_connect;
-	socklen_t len;
 	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
 	size_t interface_info_len;
-	char str[INET_ADDRSTRLEN];
-	int is_local, sockfd, serv_sock_fd;
+	char str[INET_ADDRSTRLEN + 1], recvline[MAXLINE + 1];
+	int n, is_local, sockfd, serv_sock_fd;
 	const int do_not_route = 1, on = 1;
 
+	socklen_t len = sizeof(clientaddr);
 	readargsfromfile(&input);
 	
 	bzero(&servaddr, sizeof(servaddr));
@@ -140,9 +140,12 @@ main(int argc, char *argv[]) {
 	len = sizeof(serv_connect);
 	Getpeername(serv_sock_fd, (SA*) &serv_connect, &len);
 	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
-
+	len = sizeof(clientaddr);
+	printf("\nIPclient connected, protocol Address:%s\n", Sock_ntop((SA*) &clientaddr, len));
 	// Send the filename
 	Write(serv_sock_fd, input.filename, strlen(input.filename));
-
+	//n = Read(serv_sock_fd, recvline, MAXLINE);
+	//recvline[n] = 0;
+	//Fputs(recvline, stdout);
 	return 0;
 }
