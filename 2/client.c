@@ -48,9 +48,9 @@ readargsfromfile(input_t *input)
   return 0;
 }
 
-void set_ip_server_and_ip_client(struct sockaddr_in *servaddr, struct sockaddr_in *clientaddr, interface_info_t *ii, size_t interface_info_len) {
+void set_ip_server_and_ip_client(struct sockaddr_in *servaddr, struct sockaddr_in *clientaddr, interface_info_t *ii, size_t interface_info_len, int *is_local) {
 
-	int i, is_local;
+	int i;
 	struct in_addr client_ip;
 	//struct sockaddr_in netmask;
 	struct in_addr temp, netmask, longest_prefix;
@@ -69,23 +69,23 @@ void set_ip_server_and_ip_client(struct sockaddr_in *servaddr, struct sockaddr_i
 	// Not on same host, check if they are on same subnet now.
 	
 	inet_pton(AF_INET, "0.0.0.0", &longest_prefix);
-	is_local = 0;
+	*is_local = 0;
 	for (i = 0; i < interface_info_len; i++) {
 		client_ip = ii[i].ip->sin_addr;
 		netmask = ii[i].netmask->sin_addr;
 		if ((servaddr->sin_addr.s_addr & netmask.s_addr) == (client_ip.s_addr & netmask.s_addr)) {
-				is_local = 1;
+				*is_local = 1;
 				if (netmask.s_addr > longest_prefix.s_addr) {
 					longest_prefix.s_addr = netmask.s_addr;
 					clientaddr->sin_addr = client_ip;
 				}
 		}
 	}
-	if (is_local == 1) {
+	if (*is_local == 1) {
 		printf("Client and Server are on same subnet\n");
 	}
 	else {
-		printf("Client and Server are not local");
+		printf("Client and Server are not local\n");
 		clientaddr->sin_addr = ii[i-1].ip->sin_addr; // is this correct. What about loopback, is that valid for clientIP? TODO(@aashray)
 	}
 }
@@ -93,10 +93,14 @@ void set_ip_server_and_ip_client(struct sockaddr_in *servaddr, struct sockaddr_i
 int
 main(int argc, char *argv[]) {	
 	input_t input = {0,};
-	struct sockaddr_in servaddr, clientaddr;
+	struct sockaddr_in servaddr, clientaddr, client_bind, serv_connect;
+	socklen_t len;
 	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
 	size_t interface_info_len;
 	char str[INET_ADDRSTRLEN];
+	int is_local, sockfd, serv_sock_fd;
+	const int do_not_route = 1, on = 1;
+
 	readargsfromfile(&input);
 	
 	bzero(&servaddr, sizeof(servaddr));
@@ -109,10 +113,33 @@ main(int argc, char *argv[]) {
 		err_quit("client.in does not cotain a valid server IP. Please correct and try again.");
 	}
 	
-	set_ip_server_and_ip_client(&servaddr, &clientaddr, ii, interface_info_len);
+	set_ip_server_and_ip_client(&servaddr, &clientaddr, ii, interface_info_len, &is_local);
 	
 	printf("IPclient:%s\n", Inet_ntop(AF_INET, &clientaddr.sin_addr, str, INET_ADDRSTRLEN));
 	printf("IPserver:%s\n", Inet_ntop(AF_INET, &servaddr.sin_addr, str, INET_ADDRSTRLEN));
-    
+
+	sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
+	if (is_local == 1)
+		Setsockopt(sockfd, SOL_SOCKET, SO_DONTROUTE, &do_not_route, sizeof(do_not_route));
+	Setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+	clientaddr.sin_family = AF_INET;
+	clientaddr.sin_port = htons(0);
+	
+	Bind(sockfd, (SA *) &clientaddr, sizeof(clientaddr));
+    len = sizeof(client_bind);
+	Getsockname(sockfd, (SA*) &client_bind, &len);
+	printf("\nIPclient bound, protocol Address:%s\n", Sock_ntop((SA*) &client_bind, len));
+
+	// Connect to IPserver.
+	serv_sock_fd = Socket(AF_INET, SOCK_DGRAM, 0);
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_port = htons(40383);
+	Connect(serv_sock_fd, (SA*) &servaddr, sizeof(servaddr));
+
+	// Getpeername
+	len = sizeof(serv_connect);
+	Getpeername(serv_sock_fd, (SA*) &serv_connect, &len);
+	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
+
 	return 0;
 }
