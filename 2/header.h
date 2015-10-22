@@ -12,20 +12,5 @@ typedef struct {
 
 void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int bind);
 void print_interface_info(interface_info_t *ii, size_t interface_info_len); 
-#define INFO(arg, params ...)         \
-  do {                                \
-    fprintf (stdout, params);         \
-  } while (0)
-
-#define ERR(arg, params ...)         \
-  do {                                \
-    fprintf (stderr, params);         \
-  } while (0)
 
 #define MAX_INTERFACE_INFO 16
-
-//char * readipstr(int fd);
-//struct in_addr * readip(int fd);
-
-// In server.c
-//int mod_get_ifi_info(int *sockfd);
