@@ -126,9 +126,9 @@ main(int argc, char *argv[]) {
 	clientaddr.sin_port = htons(0);
 	
 	Bind(sockfd, (SA *) &clientaddr, sizeof(clientaddr));
-    len = sizeof(client_bind);
-	Getsockname(sockfd, (SA*) &client_bind, &len);
-	printf("\nIPclient bound, protocol Address:%s\n", Sock_ntop((SA*) &client_bind, len));
+    len = sizeof(clientaddr);
+	Getsockname(sockfd, (SA*) &clientaddr, &len);
+	printf("\nIPclient bound, protocol Address:%s\n", Sock_ntop((SA*) &clientaddr, len));
 
 	// Connect to IPserver.
 	serv_sock_fd = Socket(AF_INET, SOCK_DGRAM, 0);
@@ -140,6 +140,9 @@ main(int argc, char *argv[]) {
 	len = sizeof(serv_connect);
 	Getpeername(serv_sock_fd, (SA*) &serv_connect, &len);
 	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
+
+	// Send the filename
+	Write(serv_sock_fd, input.filename, strlen(input.filename));
 
 	return 0;
 }
