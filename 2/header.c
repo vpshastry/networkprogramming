@@ -19,7 +19,7 @@ void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int 
 		//ii[curii].subnet = (struct sockaddr_in *) ifi->ifi_addr;
 		ii[curii].subnet.s_addr = ii[curii].ip->sin_addr.s_addr & ii[curii].netmask->sin_addr.s_addr;
 		ii[curii].ip->sin_family = AF_INET;
-		ii[curii].ip->sin_port = htons(SERV_PORT);
+		ii[curii].ip->sin_port = htons(40383);
 		if (bind == 1) Bind(ii[curii].sockfd, (SA *) ii[curii].ip, sizeof(*(ii[curii].ip)));
 		//printf("bound %s\n", Sock_ntop((SA *) ii[curii].ip, sizeof(*(ii[curii].ip))));
 		curii++;
@@ -44,50 +44,8 @@ void print_interface_info(interface_info_t *ii, size_t interface_info_len) {
 	}
 }
 
-/*struct in_addr *
-readip(int fd)
-{
-  char *curline;
-  char *tmp;
-  int err;
-  struct in_addr *inaddr = (struct in_addr *) calloc(1, sizeof (struct in_addr));
-
-  if (!(curline = getnextline(fd))) {
-    free(inaddr);
-    return NULL;
-  }
-
-  if ((err = inet_pton(AF_INET, curline, inaddr)) != 1) {
-    ERR(NULL, "String is not an IP: %s\n", curline);
-    free(curline);
-    free(inaddr);
-    return NULL;
-  }
-
-  free(curline);
-  return inaddr;
+int compare_ips(struct in_addr a, struct in_addr b) {
+	if (a.s_addr == b.s_addr) return 1;
+	else return 0;
 }
 
-char *
-readipstr(int fd)
-{
-  char *curline;
-  char *tmp;
-  int err;
-  struct in_addr *inaddr = (struct in_addr *) calloc(1, sizeof (struct in_addr));
-
-  if (!(curline = getnextline(fd))) {
-    free(inaddr);
-    return NULL;
-  }
-
-  if ((err = inet_pton(AF_INET, curline, inaddr)) != 1) {
-    ERR(NULL, "String is not an IP: %s\n", curline);
-    free(curline);
-    free(inaddr);
-    return NULL;
-  }
-
-  free(inaddr);
-  return curline;
-}*/

@@ -16,27 +16,44 @@ readargsfromfile(unsigned int *portnumber, unsigned int *maxslidewindowsize)
   return 0;
 }
 
-/*
-int
-listen(interface_info_t *ii, int length)
-{
-  int i = 0;
-  fd_set rset;
-  int maxfd = -100;
-
-  FD_ZERO(rset);
-  for (i = 0; i <= length; i++) {
-    FD_SET(ii[i].sockfd, &rset);
-
-    if (ii[i].sockfd > maxfd)
-      maxfd = ii[i].sockfd;
-  }
-
-  // TODO: Listen.
-  if (select(maxfd +1, &rset, NULL, NULL, NULL) < 0) {
-  }
+void build_fd_set(fd_set *rset, interface_info_t *ii, size_t interface_info_len, int *maxfdp1) {
+	int i, maxfd = 0;
+	FD_ZERO(rset);
+	for (i = 0; i < interface_info_len; i++) {
+		FD_SET(ii[i].sockfd, rset);
+		if (ii[i].sockfd > maxfd) maxfd = ii[i].sockfd;
+	}
+	*maxfdp1 = maxfd + 1;
+	
+	printf("built fd_set, now going into select loop...\n");
 }
-*/
+
+int find_if_client_local(struct sockaddr_in servaddr, struct sockaddr_in clientaddr, interface_info_t *ii, size_t interface_info_len, struct sockaddr_in recv_netmask) {
+
+// return 1 -> loopback;
+// return 2 -> local;
+// else return 3.
+
+    int i;
+    struct in_addr client_ip;
+    //struct sockaddr_in netmask;
+    struct in_addr temp, netmask, longest_prefix;
+    char str[INET_ADDRSTRLEN];
+	
+	inet_pton(AF_INET, "127.0.0.1", &temp);
+
+    if (compare_ips(servaddr.sin_addr, temp) == 1) {
+		return 1;
+    }
+
+    // Not on same host, check if they are on same subnet now.
+
+	netmask = recv_netmask.sin_addr;
+    if ((servaddr.sin_addr.s_addr & netmask.s_addr) == (clientaddr.sin_addr.s_addr & netmask.s_addr)) {
+		return 2;
+	}
+	return 3;              
+}
 
 int
 main(int argc, char *argv[]) {
@@ -45,12 +62,58 @@ main(int argc, char *argv[]) {
 	unsigned int maxslidewindowsize;
 	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
 	size_t interface_info_len;
+	fd_set rset, mainset;
+	int maxfdp1, i, n, mysockfd, is_local, pid;
+	char str[INET_ADDRSTRLEN], msg[MAXLINE];
+	struct sockaddr_in cliaddr, my_recv_addr, my_recv_netmask;
+	socklen_t len = sizeof(cliaddr);
+
+	bzero(&cliaddr, sizeof(cliaddr));
+	bzero(&my_recv_addr, sizeof(my_recv_addr));
+
+	//cliaddr = Malloc(sizeof(*(ii[0].ip)));
+
 	if (readargsfromfile(&portnumber, &maxslidewindowsize) == -1) {
 		err_quit("Read/parse error from server.in file");
 		return -1;
 	}
 	printf("port num: %d\nmaxslidewinsize:%d\n\n", portnumber, maxslidewindowsize);
+	
 	build_inferface_info(ii, &interface_info_len, 1);
 	print_interface_info(ii, interface_info_len);
+	
+	build_fd_set(&mainset, ii, interface_info_len, &maxfdp1);
+	//printf("maxfdp1=%d", maxfdp1);
+	for ( ; ; ) {
+		rset = mainset;
+		Select(maxfdp1, &rset, NULL, NULL, NULL);
+		for (i = 0; i < interface_info_len; i++) {
+			if (FD_ISSET(ii[i].sockfd, &rset)) {
+				printf("Data recieved on %s\n", Sock_ntop((SA*) (ii[i].ip), sizeof(*(ii[i].ip))));
+				mysockfd = ii[i].sockfd;
+				my_recv_addr = *(ii[i].ip);
+				my_recv_netmask = *(ii[i].netmask);
+				n = Recvfrom(ii[i].sockfd, msg, MAXLINE, 0, (SA*) &cliaddr, &len);
+				printf("Data recieved from: %s\n", Sock_ntop((SA*) &cliaddr, len));
+				printf("Data:%s\n", msg);
+				//Sendto(ii[i].sockfd, msg, n, 0,(SA*) &cliaddr, len);
+				if (pid = Fork() == 0) {
+					// Child
+					// CLose all other sockets.
+					for (i = 0; i < interface_info_len; i++)
+						if (ii[i].sockfd != mysockfd) close(ii[i].sockfd);
+					// Find out if client is loopback or local or not.
+					is_local = find_if_client_local(my_recv_addr, cliaddr, ii, interface_info_len, my_recv_netmask);
+					if (is_local < 3)
+						printf("Client host is local\n");
+					else printf("Client host is not local\n");
+					exit(0);// exit child
+				}
+			}
+		}
+
+
+	}
+	
 	return 0;
 }
