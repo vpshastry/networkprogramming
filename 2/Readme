@@ -1,6 +1,6 @@
 README
 Network Programming Fall 2015, Assignment 2 - Stony Brook University.
-Authors: <Aashray Arora. SBU ID: 109940382, NETID: aaarora> and <Varun Shastry. SBU ID: TODO(@varun), NETID: TODO(@varun)>
+Authors: <Aashray Arora. SBU ID: 109940382, NETID: aaarora> and <Varun Shastry. SBU ID: 109951476, NETID: vshastry>
 
 Included:
 All header files(.h)
@@ -32,7 +32,7 @@ There are two parts to this system. The server and the client.
 ....
 
 To ensure only unicast addresses are bound:
-	- Section 22.6 has code that first binds unicast address. We do this same way. 
+	- Section 22.6 has code that first binds unicast address. We do this same way.
 	- Then it attemps to bind Broadcast address and wildcard address. We do not do this.
 Array of structures:
 	- We have defined a structure called "interface_info_t". We have defined an array "ii" of this structure.
