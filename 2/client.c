@@ -97,7 +97,7 @@ main(int argc, char *argv[]) {
 	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
 	size_t interface_info_len;
 	char str[INET_ADDRSTRLEN + 1], recvline[MAXLINE + 1];
-	int n, is_local, sockfd, serv_sock_fd;
+	int n, is_local, sockfd, serv_sock_fd, temp_port;
 	const int do_not_route = 1, on = 1;
 
 	socklen_t len = sizeof(clientaddr);
@@ -144,8 +144,17 @@ main(int argc, char *argv[]) {
 	printf("\nIPclient connected, protocol Address:%s\n", Sock_ntop((SA*) &clientaddr, len));
 	// Send the filename
 	Write(serv_sock_fd, input.filename, strlen(input.filename));
-	//n = Read(serv_sock_fd, recvline, MAXLINE);
-	//recvline[n] = 0;
-	//Fputs(recvline, stdout);
+	n = Read(serv_sock_fd, recvline, MAXLINE);
+	Fputs(recvline, stdout);
+	//bzero(&servaddr, sizeof(serv_connect));
+	//Sock_pton(recvline, &servaddr);
+	sscanf(recvline, "%d", &temp_port);
+	servaddr.sin_port = htons(temp_port);
+	Connect(serv_sock_fd, (SA*) &servaddr, sizeof(servaddr));
+	bzero(&serv_connect, sizeof(serv_connect));
+	len = sizeof(serv_connect);
+	Getpeername(serv_sock_fd, (SA*) &serv_connect, &len);
+	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
+
 	return 0;
 }

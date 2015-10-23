@@ -63,12 +63,14 @@ main(int argc, char *argv[]) {
 	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
 	size_t interface_info_len;
 	fd_set rset, mainset;
-	int maxfdp1, i, n, mysockfd, is_local, pid;
+	int maxfdp1, i, n, mysockfd, is_local, pid, client_sockfd, temp_port;
+	const int do_not_route = 1, on = 1;
 	char str[INET_ADDRSTRLEN], msg[MAXLINE];
-	struct sockaddr_in cliaddr, my_recv_addr, my_recv_netmask;
+	struct sockaddr_in cliaddr, my_recv_addr, my_recv_netmask, cli_conn;
 	socklen_t len = sizeof(cliaddr);
 
 	bzero(&cliaddr, sizeof(cliaddr));
+	bzero(&cli_conn, sizeof(cli_conn));
 	bzero(&my_recv_addr, sizeof(my_recv_addr));
 
 	//cliaddr = Malloc(sizeof(*(ii[0].ip)));
@@ -107,6 +109,28 @@ main(int argc, char *argv[]) {
 					if (is_local < 3)
 						printf("Client host is local\n");
 					else printf("Client host is not local\n");
+
+					// Create UDP socket to handle file transfer with this client."connection socket"
+					client_sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
+ 					if (is_local < 3)
+     					Setsockopt(client_sockfd, SOL_SOCKET, SO_DONTROUTE, &do_not_route, sizeof(do_not_route));
+ 					Setsockopt(client_sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+					cli_conn.sin_addr = my_recv_addr.sin_addr;
+ 					cli_conn.sin_family = AF_INET;
+ 					cli_conn.sin_port = htons(0);
+					Bind(client_sockfd, (SA *) &cli_conn, sizeof(cli_conn));
+					len = sizeof(cli_conn);
+					Getsockname(client_sockfd, (SA*) &cli_conn, &len);
+					printf("\nConnection socket bound, protocol Address:%s\n", Sock_ntop((SA*) &cli_conn, len));
+					Connect(client_sockfd, (SA*) &cli_conn, sizeof(cli_conn));
+
+					/*len = sizeof(cliaddr);
+					Getpeername(client_sockfd, (SA*) &cliaddr, &len);
+					printf("\nServer child connected to client, protocol Address:%s\n", Sock_ntop((SA*) &cliaddr, len));*/
+					temp_port = ntohs(cli_conn.sin_port);
+					sprintf(msg, "%d", temp_port);
+					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);					
+	
 					exit(0);// exit child
 				}
 			}
