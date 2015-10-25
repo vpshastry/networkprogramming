@@ -182,7 +182,16 @@ main(int argc, char *argv[]) {
 	iovrecv[0].iov_len = sizeof(struct hdr);
 	iovrecv[1].iov_base = inbuff;
 	iovrecv[1].iov_len = inbytes;
-        while (printf("Waiting %s\n", "wait") && (n = Recvmsg(serv_sock_fd, &msgrecv, 0)) < sizeof(struct hdr)) {
+        printf ("Waiting\n");
+        size_t sie = sizeof(servaddr);
+        //n = recvfrom(serv_sock_fd, inbuff, inbytes, 0, (SA *)&servaddr, &sie);
+        Write(serv_sock_fd, "Hello!!", strlen("Hello!!"));
+
+        n = Read(serv_sock_fd, inbuff, inbytes);
+        inbuff[n] = '\0';
+        printf ("%s\n", inbuff);
+        while ((n = Recvmsg(serv_sock_fd, &msgrecv, 0)) > 0) {
+          printf ("Wait is over\n");
           sendhdr.seq = recvhdr.seq;
           Sendmsg(serv_sock_fd, &msgsend, 0);
           inbuff[n] = 0;

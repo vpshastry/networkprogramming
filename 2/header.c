@@ -19,7 +19,7 @@ void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int 
 		//ii[curii].subnet = (struct sockaddr_in *) ifi->ifi_addr;
 		ii[curii].subnet.s_addr = ii[curii].ip->sin_addr.s_addr & ii[curii].netmask->sin_addr.s_addr;
 		ii[curii].ip->sin_family = AF_INET;
-		ii[curii].ip->sin_port = htons(40383);
+		ii[curii].ip->sin_port = htons(51476);
 		if (bind == 1) Bind(ii[curii].sockfd, (SA *) ii[curii].ip, sizeof(*(ii[curii].ip)));
 		//printf("bound %s\n", Sock_ntop((SA *) ii[curii].ip, sizeof(*(ii[curii].ip))));
 		curii++;
@@ -29,7 +29,7 @@ void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int 
 }
 
 void print_interface_info(interface_info_t *ii, size_t interface_info_len) {
-	
+
 	int i;
 	char str[INET_ADDRSTRLEN];
 	for (i = 0; i < interface_info_len; i++) {
@@ -38,7 +38,7 @@ void print_interface_info(interface_info_t *ii, size_t interface_info_len) {
                         Sock_ntop_host((SA *)ii[i].ip, sizeof(*(ii[i].ip))));
 		printf("Network Mask: %s\n",
                         Sock_ntop_host((SA *)ii[i].netmask, sizeof(*(ii[i].netmask))));
-		
+
 		printf("Subnet Address: %s\n\n",
                         Inet_ntop(AF_INET, &ii[i].subnet, str, INET_ADDRSTRLEN));
 	}

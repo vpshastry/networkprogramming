@@ -135,6 +135,11 @@ main(int argc, char *argv[]) {
 					sprintf(msg, "%d", temp_port);
 					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);
 
+                                        char mybuf[100] = {0,};
+                                        n = Read(client_sockfd, &mybuf, 100);
+                                        mybuf[n] = '\0';
+                                        printf ("%s\n", mybuf);
+
                                         if (access(filename, F_OK | R_OK)) {
                                           printf ("File not accessible\n");
                                           exit(0);
@@ -150,7 +155,7 @@ main(int argc, char *argv[]) {
                                         char buf[1024];
                                         char inbuf[1024];
                                         while ((n = read(filefd, buf, 512)) != EOF) {
-                                          n = Dg_send_recv(filefd, buf, 512, inbuf, 10, (SA *) &cliaddr, sizeof(cliaddr));
+                                          n = Dg_send_recv(client_sockfd, buf, 512, inbuf, 10, (SA *) &cli_conn, sizeof(cli_conn));
                                           inbuf[n] = '\0';
                                           printf ("Received: %s\n", inbuf);
                                         }

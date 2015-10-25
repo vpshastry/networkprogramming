@@ -58,7 +58,9 @@ sendagain:
 	fprintf(stderr, "send %4d: ", sendhdr.seq);
 #endif
 	sendhdr.ts = rtt_ts(&rttinfo);
+        printf ("Writing: Message: %s\n", outbuff);
 	Sendmsg(fd, &msgsend, 0);
+        ((char *)outbuff)[outbytes] = '\0';
 
 	alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
 #ifdef	RTT_DEBUG
