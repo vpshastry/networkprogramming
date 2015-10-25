@@ -24,7 +24,7 @@ void build_fd_set(fd_set *rset, interface_info_t *ii, size_t interface_info_len,
 		if (ii[i].sockfd > maxfd) maxfd = ii[i].sockfd;
 	}
 	*maxfdp1 = maxfd + 1;
-	
+
 	printf("built fd_set, now going into select loop...\n");
 }
 
@@ -39,7 +39,7 @@ int find_if_client_local(struct sockaddr_in servaddr, struct sockaddr_in clienta
     //struct sockaddr_in netmask;
     struct in_addr temp, netmask, longest_prefix;
     char str[INET_ADDRSTRLEN];
-	
+
 	inet_pton(AF_INET, "127.0.0.1", &temp);
 
     if (compare_ips(servaddr.sin_addr, temp) == 1) {
@@ -52,12 +52,12 @@ int find_if_client_local(struct sockaddr_in servaddr, struct sockaddr_in clienta
     if ((servaddr.sin_addr.s_addr & netmask.s_addr) == (clientaddr.sin_addr.s_addr & netmask.s_addr)) {
 		return 2;
 	}
-	return 3;              
+	return 3;
 }
 
 int
 main(int argc, char *argv[]) {
-	
+
 	unsigned int portnumber;
 	unsigned int maxslidewindowsize;
 	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
@@ -80,10 +80,10 @@ main(int argc, char *argv[]) {
 		return -1;
 	}
 	printf("port num: %d\nmaxslidewinsize:%d\n\n", portnumber, maxslidewindowsize);
-	
+
 	build_inferface_info(ii, &interface_info_len, 1);
 	print_interface_info(ii, interface_info_len);
-	
+
 	build_fd_set(&mainset, ii, interface_info_len, &maxfdp1);
 	//printf("maxfdp1=%d", maxfdp1);
 	for ( ; ; ) {
@@ -99,7 +99,7 @@ main(int argc, char *argv[]) {
 				printf("Data recieved from: %s\n", Sock_ntop((SA*) &cliaddr, len));
 				printf("Data:%s\n", msg);
 				//Sendto(ii[i].sockfd, msg, n, 0,(SA*) &cliaddr, len);
-				if (pid = Fork() == 0) {
+				if ((pid = Fork()) == 0) {
 					// Child
 					// CLose all other sockets.
 					for (i = 0; i < interface_info_len; i++)
@@ -129,8 +129,8 @@ main(int argc, char *argv[]) {
 					printf("\nServer child connected to client, protocol Address:%s\n", Sock_ntop((SA*) &cliaddr, len));*/
 					temp_port = ntohs(cli_conn.sin_port);
 					sprintf(msg, "%d", temp_port);
-					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);					
-	
+					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);
+
 					exit(0);// exit child
 				}
 			}
@@ -138,6 +138,6 @@ main(int argc, char *argv[]) {
 
 
 	}
-	
+
 	return 0;
 }

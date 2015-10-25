@@ -67,7 +67,7 @@ void set_ip_server_and_ip_client(struct sockaddr_in *servaddr, struct sockaddr_i
 		}
 	}
 	// Not on same host, check if they are on same subnet now.
-	
+
 	inet_pton(AF_INET, "0.0.0.0", &longest_prefix);
 	*is_local = 0;
 	for (i = 0; i < interface_info_len; i++) {
@@ -91,7 +91,7 @@ void set_ip_server_and_ip_client(struct sockaddr_in *servaddr, struct sockaddr_i
 }
 
 int
-main(int argc, char *argv[]) {	
+main(int argc, char *argv[]) {
 	input_t input = {0,};
 	struct sockaddr_in servaddr, clientaddr, client_bind, serv_connect;
 	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
@@ -102,19 +102,19 @@ main(int argc, char *argv[]) {
 
 	socklen_t len = sizeof(clientaddr);
 	readargsfromfile(&input);
-	
+
 	bzero(&servaddr, sizeof(servaddr));
 	bzero(&clientaddr, sizeof(clientaddr));
-	
+
 	build_inferface_info(ii, &interface_info_len, 0);
   	print_interface_info(ii, interface_info_len);
 
 	if(inet_pton(AF_INET, input.server_ip, &servaddr.sin_addr) != 1){
 		err_quit("client.in does not cotain a valid server IP. Please correct and try again.");
 	}
-	
+
 	set_ip_server_and_ip_client(&servaddr, &clientaddr, ii, interface_info_len, &is_local);
-	
+
 	printf("IPclient:%s\n", Inet_ntop(AF_INET, &clientaddr.sin_addr, str, INET_ADDRSTRLEN));
 	printf("IPserver:%s\n", Inet_ntop(AF_INET, &servaddr.sin_addr, str, INET_ADDRSTRLEN));
 
@@ -124,7 +124,7 @@ main(int argc, char *argv[]) {
 	Setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 	clientaddr.sin_family = AF_INET;
 	clientaddr.sin_port = htons(0);
-	
+
 	Bind(sockfd, (SA *) &clientaddr, sizeof(clientaddr));
     len = sizeof(clientaddr);
 	Getsockname(sockfd, (SA*) &clientaddr, &len);
@@ -133,7 +133,7 @@ main(int argc, char *argv[]) {
 	// Connect to IPserver.
 	serv_sock_fd = Socket(AF_INET, SOCK_DGRAM, 0);
 	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(40383);
+	servaddr.sin_port = htons(input.portnumber);
 	Connect(serv_sock_fd, (SA*) &servaddr, sizeof(servaddr));
 
 	// Getpeername
