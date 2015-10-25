@@ -40,11 +40,14 @@ prifinfo_plus.o: prifinfo_plus.c
 rtt.o: rtt.c unprtt.h
 	${CC} ${CFLAGS} -c rtt.c unprtt.h
 
+dg_send_recv.o: dg_send_recv.c
+	${CC} ${CFLAGS} -c dg_send_recv.c header.h
+
 #header.o: header.h header.c
 #${CC} ${CFLAGS} -c header.c
 
-server: server.o readline.o
-	${CC} ${FLAGS} -o server server.o readline.o get_ifi_info_plus.o header.o ${LIBS}
+server: server.o readline.o dg_send_recv.o
+	${CC} ${FLAGS} -o server server.o readline.o get_ifi_info_plus.o header.o dg_send_recv.o ${LIBS}
 server.o: server.c
 	${CC} ${CFLAGS} -c server.c header.c
 

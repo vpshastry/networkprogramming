@@ -2,7 +2,7 @@
 
 /* Mallocs a new header variable. Caller has to free it. */
 seq_header_t *
-get_header(char *buffer)
+get_header_from_buff(char *buffer)
 {
   seq_header_t *header = calloc(1, sizeof(seq_header_t));
   memcpy(header, buffer, sizeof(seq_header_t));

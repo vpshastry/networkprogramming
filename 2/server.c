@@ -68,6 +68,7 @@ main(int argc, char *argv[]) {
 	char str[INET_ADDRSTRLEN], msg[MAXLINE];
 	struct sockaddr_in cliaddr, my_recv_addr, my_recv_netmask, cli_conn;
 	socklen_t len = sizeof(cliaddr);
+        char filename[4096] = {0,};
 
 	bzero(&cliaddr, sizeof(cliaddr));
 	bzero(&cli_conn, sizeof(cli_conn));
@@ -97,6 +98,9 @@ main(int argc, char *argv[]) {
 				my_recv_netmask = *(ii[i].netmask);
 				n = Recvfrom(ii[i].sockfd, msg, MAXLINE, 0, (SA*) &cliaddr, &len);
 				printf("Data recieved from: %s\n", Sock_ntop((SA*) &cliaddr, len));
+                                memcpy(filename, msg, 4096);
+                                if (strchr(filename, '\n'))
+                                *strchr(filename, '\n') = '\0';
 				printf("Data:%s\n", msg);
 				//Sendto(ii[i].sockfd, msg, n, 0,(SA*) &cliaddr, len);
 				if ((pid = Fork()) == 0) {
@@ -130,6 +134,26 @@ main(int argc, char *argv[]) {
 					temp_port = ntohs(cli_conn.sin_port);
 					sprintf(msg, "%d", temp_port);
 					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);
+
+                                        if (access(filename, F_OK | R_OK)) {
+                                          printf ("File not accessible\n");
+                                          exit(0);
+                                        }
+
+                                        int filefd;
+                                        if ((filefd = open(filename, O_RDONLY)) < 0) {
+                                          printf ("opening file failed\n");
+                                          exit(0);
+                                        }
+
+                                        printf ("File opened\n");
+                                        char buf[1024];
+                                        char inbuf[1024];
+                                        while ((n = read(filefd, buf, 512)) != EOF) {
+                                          n = Dg_send_recv(filefd, buf, 512, inbuf, 10, (SA *) &cliaddr, sizeof(cliaddr));
+                                          inbuf[n] = '\0';
+                                          printf ("Received: %s\n", inbuf);
+                                        }
 
 					exit(0);// exit child
 				}

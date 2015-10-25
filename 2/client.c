@@ -156,5 +156,37 @@ main(int argc, char *argv[]) {
 	Getpeername(serv_sock_fd, (SA*) &serv_connect, &len);
 	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
 
+        static struct msghdr	msgsend, msgrecv;
+	struct iovec	iovsend[2], iovrecv[2];
+        char *outbuff = "done!";
+        size_t outbytes = strlen(outbuff);
+        char inbuff[4096];
+        int inbytes = 4096;
+        static struct hdr {
+          uint32_t	seq;	/* sequence # */
+          uint32_t	ts;		/* timestamp when sent */
+        } sendhdr, recvhdr;
+	msgsend.msg_name = (SA*)&servaddr;
+	msgsend.msg_namelen = sizeof(servaddr);
+	msgsend.msg_iov = iovsend;
+	msgsend.msg_iovlen = 2;
+	iovsend[0].iov_base = (void *)&sendhdr;
+	iovsend[0].iov_len = sizeof(struct hdr);
+	iovsend[1].iov_base = outbuff;
+	iovsend[1].iov_len = outbytes;
+	msgrecv.msg_name = NULL;
+	msgrecv.msg_namelen = 0;
+	msgrecv.msg_iov = iovrecv;
+	msgrecv.msg_iovlen = 2;
+	iovrecv[0].iov_base = (void *)&recvhdr;
+	iovrecv[0].iov_len = sizeof(struct hdr);
+	iovrecv[1].iov_base = inbuff;
+	iovrecv[1].iov_len = inbytes;
+        while (printf("Waiting %s\n", "wait") && (n = Recvmsg(serv_sock_fd, &msgrecv, 0)) < sizeof(struct hdr)) {
+          sendhdr.seq = recvhdr.seq;
+          Sendmsg(serv_sock_fd, &msgsend, 0);
+          inbuff[n] = 0;
+          printf ("%s\n", inbuff);
+        }
 	return 0;
 }

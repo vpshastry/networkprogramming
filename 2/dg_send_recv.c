@@ -30,22 +30,22 @@ dg_send_recv(int fd, const void *outbuff, size_t outbytes,
 	}
 
 	sendhdr.seq++;
-	msgsend.msg_name = destaddr;
+	msgsend.msg_name = (SA *)destaddr;
 	msgsend.msg_namelen = destlen;
 	msgsend.msg_iov = iovsend;
 	msgsend.msg_iovlen = 2;
-	iovsend[0].iov_base = &sendhdr;
+	iovsend[0].iov_base = (void *)&sendhdr;
 	iovsend[0].iov_len = sizeof(struct hdr);
-	iovsend[1].iov_base = outbuff;
+	iovsend[1].iov_base = (void *)outbuff;
 	iovsend[1].iov_len = outbytes;
 
 	msgrecv.msg_name = NULL;
 	msgrecv.msg_namelen = 0;
 	msgrecv.msg_iov = iovrecv;
 	msgrecv.msg_iovlen = 2;
-	iovrecv[0].iov_base = &recvhdr;
+	iovrecv[0].iov_base = (void *)&recvhdr;
 	iovrecv[0].iov_len = sizeof(struct hdr);
-	iovrecv[1].iov_base = inbuff;
+	iovrecv[1].iov_base = (void *)inbuff;
 	iovrecv[1].iov_len = inbytes;
 /* end dgsendrecv1 */
 

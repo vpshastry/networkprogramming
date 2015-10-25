@@ -1,3 +1,7 @@
+#include "unp.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include "unpifiplus.h"
 
 extern struct ifi_info *Get_ifi_info_plus(int family, int doaliases);
@@ -31,9 +35,13 @@ typedef struct {
   uint32 length;
 } seq_header_t;
 
-seq_header_t * get_header(char *buffer);
+seq_header_t * get_header_from_buff(char *buffer);
 char * get_data(char *buffer);
 char * prepare_buffer(seq_header_t *header, char *data, int size);
 seq_header_t * get_header(uint32 source_port, uint32 dest_port, uint32 seq_nu,
                           uint32 ack_nu, uint8 nack, uint8 ack, uint8 fin);
 // End tcp header management.
+
+ssize_t
+Dg_send_recv(int fd, const void *outbuff, size_t outbytes, void *inbuff,
+              size_t inbytes, const SA *destaddr, socklen_t destlen);
