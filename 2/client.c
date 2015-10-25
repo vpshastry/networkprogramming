@@ -186,6 +186,7 @@ main(int argc, char *argv[]) {
         size_t sie = sizeof(servaddr);
         //n = recvfrom(serv_sock_fd, inbuff, inbytes, 0, (SA *)&servaddr, &sie);
         Write(serv_sock_fd, "Hello!!", strlen("Hello!!"));
+        printf("Write successful\n");
 
         n = Read(serv_sock_fd, inbuff, inbytes);
         inbuff[n] = '\0';

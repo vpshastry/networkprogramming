@@ -135,10 +135,11 @@ main(int argc, char *argv[]) {
 					sprintf(msg, "%d", temp_port);
 					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);
 
+                                        printf ("Trying to read\n");
                                         char mybuf[100] = {0,};
                                         n = Read(client_sockfd, &mybuf, 100);
                                         mybuf[n] = '\0';
-                                        printf ("%s\n", mybuf);
+                                        printf ("\nRead:%s\n", mybuf);
 
                                         if (access(filename, F_OK | R_OK)) {
                                           printf ("File not accessible\n");
