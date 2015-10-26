@@ -65,5 +65,5 @@ readline.o: /home/courses/cse533/Stevens/unpv13e_solaris2.10/threads/readline.c
 
 
 clean:
-	rm server server.o client client.o readline.o header.o prifinfo_plus prifinfo_plus.o get_ifi_info_plus.o rtt.o unprtt.h.gch
+	rm server server.o client client.o readline.o header.o prifinfo_plus prifinfo_plus.o get_ifi_info_plus.o rtt.o unprtt.h.gch dg_send_recv.o header.h.gch
 
