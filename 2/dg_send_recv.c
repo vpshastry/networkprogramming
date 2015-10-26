@@ -117,28 +117,6 @@ dg_send_recv(int fd, const void *outbuff, size_t outbytes,
 		rtt_d_flag = 1;
 	}
 
-        for (idx = 0; idx < get_cur_window_size(); ++idx) {
-          msgsend[idx].msg_name = NULL;
-          msgsend[idx].msg_namelen = 0;
-          msgsend[idx].msg_iov = iovsend[idx];
-          msgsend[idx].msg_iovlen = 2;
-          iovsend[idx][0].iov_base = (void *)&sendhdr[idx];
-          iovsend[idx][0].iov_len = sizeof(seq_header_t);
-
-          n = 0;
-          mybuf = malloc(FILE_READ_SIZE *sizeof(char));
-          if ((n = read(filefd, mybuf, FILE_READ_SIZE)) <= 0)
-            if (n != 0) {
-              err_sys("File read error");
-              return NULL;
-            } else {
-              sendhdr[idx].fin = 1;
-            }
-
-          iovsend[idx][1].iov_base = mybuf;
-          iovsend[idx][1].iov_len = n;
-        }
-
         msgrecv.msg_name = NULL;
         msgrecv.msg_namelen = 0;
         msgrecv.msg_iov = iovrecv;
@@ -151,6 +129,29 @@ dg_send_recv(int fd, const void *outbuff, size_t outbytes,
           rtt_newpack(&rttinfo);		/* initialize for this packet */
 
 sendagain:
+
+          for (idx = 0; idx < get_cur_window_size(); ++idx) {
+            msgsend[idx].msg_name = NULL;
+            msgsend[idx].msg_namelen = 0;
+            msgsend[idx].msg_iov = iovsend[idx];
+            msgsend[idx].msg_iovlen = 2;
+            iovsend[idx][0].iov_base = (void *)&sendhdr[idx];
+            iovsend[idx][0].iov_len = sizeof(seq_header_t);
+
+            n = 0;
+            mybuf = malloc(FILE_READ_SIZE *sizeof(char));
+            if ((n = read(filefd, mybuf, FILE_READ_SIZE)) <= 0)
+              if (n != 0) {
+                err_sys("File read error");
+                return NULL;
+              } else {
+                sendhdr[idx].fin = 1;
+              }
+
+            printf ("Sending: %s\n", mybuf);
+            iovsend[idx][1].iov_base = mybuf;
+            iovsend[idx][1].iov_len = n;
+          }
 
           tt = rtt_ts(&rttinfo);
           for (i = 0; i < get_cur_window_size(); ++i) {

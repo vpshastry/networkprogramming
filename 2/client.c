@@ -39,6 +39,15 @@ receive_file(int sockfd)
 
   printf ("Waiting for server to send something\n");
   while (42) {
+    msgrecv.msg_name = NULL;
+    msgrecv.msg_namelen = 0;
+    msgrecv.msg_iov = iovrecv;
+    msgrecv.msg_iovlen = 2;
+    iovrecv[0].iov_base = (void *)&recvhdr;
+    iovrecv[0].iov_len = sizeof(seq_header_t);
+    iovrecv[1].iov_base = inbuff;
+    iovrecv[1].iov_len = inbytes;
+
     n = Recvmsg(sockfd, &msgrecv, 0);
     printf ("Wait is over\n");
     inbuff[iovrecv[1].iov_len] = 0;
