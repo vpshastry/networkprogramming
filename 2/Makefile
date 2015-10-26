@@ -28,7 +28,7 @@ FLAGS = -g -O2
 
 CFLAGS = ${FLAGS} -I/home/courses/cse533/Stevens/unpv13e_solaris2.10/lib
 
-all: get_ifi_info_plus.o prifinfo_plus.o rtt.o server client
+all: get_ifi_info_plus.o prifinfo_plus.o rtt.o dg_send_recv.o server client
 	${CC} -o prifinfo_plus prifinfo_plus.o get_ifi_info_plus.o ${LIBS}
 
 get_ifi_info_plus.o: get_ifi_info_plus.c
@@ -40,7 +40,7 @@ prifinfo_plus.o: prifinfo_plus.c
 rtt.o: rtt.c unprtt.h
 	${CC} ${CFLAGS} -c rtt.c unprtt.h
 
-dg_send_recv.o: dg_send_recv.c
+dg_send_recv.o: dg_send_recv.c header.h
 	${CC} ${CFLAGS} -c dg_send_recv.c header.h
 
 header.o: header.h header.c

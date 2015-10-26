@@ -21,34 +21,37 @@ receive_file(int sockfd)
   size_t outbytes = strlen(outbuff);
   char inbuff[4096];
   int inbytes = 4096;
-  static struct hdr {
-    uint32_t	seq;	/* sequence # */
-    uint32_t	ts;		/* timestamp when sent */
-  } sendhdr, recvhdr;
+  seq_header_t sendhdr, recvhdr;
   msgsend.msg_name = NULL;
   msgsend.msg_namelen = 0;
   msgsend.msg_iov = iovsend;
-  msgsend.msg_iovlen = 2;
+  msgsend.msg_iovlen = 1;
   iovsend[0].iov_base = (void *)&sendhdr;
-  iovsend[0].iov_len = sizeof(struct hdr);
-  iovsend[1].iov_base = outbuff;
-  iovsend[1].iov_len = outbytes;
+  iovsend[0].iov_len = sizeof(seq_header_t);
   msgrecv.msg_name = NULL;
   msgrecv.msg_namelen = 0;
   msgrecv.msg_iov = iovrecv;
   msgrecv.msg_iovlen = 2;
   iovrecv[0].iov_base = (void *)&recvhdr;
-  iovrecv[0].iov_len = sizeof(struct hdr);
+  iovrecv[0].iov_len = sizeof(seq_header_t);
   iovrecv[1].iov_base = inbuff;
   iovrecv[1].iov_len = inbytes;
 
   printf ("Waiting for server to send something\n");
-  while ((n = Recvmsg(sockfd, &msgrecv, 0)) > 0) {
+  while (42) {
+    n = Recvmsg(sockfd, &msgrecv, 0);
     printf ("Wait is over\n");
-    inbuff[n] = 0;
+    inbuff[iovrecv[1].iov_len] = 0;
     printf ("%s\n", inbuff);
-    sendhdr.seq = recvhdr.seq;
+    sendhdr.seq = recvhdr.seq +1;
+    if (recvhdr.fin)
+      sendhdr.fin = 1;
+    printf ("Sending ack for: %d\n", recvhdr.seq);
+
     Sendmsg(sockfd, &msgsend, 0);
+    printf ("Sent\n");
+    if (recvhdr.fin)
+      break;
   }
   return 0;
 }

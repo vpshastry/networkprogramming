@@ -1,3 +1,6 @@
+#ifndef __MYHEADER_H_
+#define __MYHEADER_H_
+
 #include "unp.h"
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -15,25 +18,25 @@ typedef struct {
 } interface_info_t;
 
 void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int bind, unsigned int port);
-void print_interface_info(interface_info_t *ii, size_t interface_info_len); 
+void print_interface_info(interface_info_t *ii, size_t interface_info_len);
 
 #define MAX_INTERFACE_INFO 16
+#define MAX_PACKET_SIZE 512 // in bytes
 
 // Tcp header management libraries.
 typedef unsigned int uint32;
 typedef unsigned char uint8;
 typedef unsigned short uint16;
 typedef struct {
-  uint32  source_port;
-  uint32  dest_port;
-  uint32  seq_nu;
-  uint32  ack_nu;
+  uint32 seq; // If it's ack, contains seq number of the ack.
+  uint32 ts;
   uint8 nack;
   uint8 ack;
   uint8 fin;
   uint8 padding_var;
   uint32 length;
 } seq_header_t;
+#define FILE_READ_SIZE (MAX_PACKET_SIZE - sizeof(seq_header_t))
 
 seq_header_t * get_header_from_buff(char *buffer);
 char * get_data(char *buffer);
@@ -43,5 +46,5 @@ seq_header_t * get_header(uint32 source_port, uint32 dest_port, uint32 seq_nu,
 // End tcp header management.
 
 ssize_t
-Dg_send_recv(int fd, const void *outbuff, size_t outbytes, void *inbuff,
-              size_t inbytes, const SA *destaddr, socklen_t destlen);
+Dg_send_recv(int fd, const void *outbuff, size_t outbytes, int filefd);
+#endif

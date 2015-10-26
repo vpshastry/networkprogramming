@@ -1,27 +1,115 @@
 /* include dgsendrecv1 */
 #include	"unprtt.h"
 #include	<setjmp.h>
+#include "header.h"
 
 #define	RTT_DEBUG
 
+static int cur_window_size = 1;
+static int updated_cur_window_size = -1;
 static struct rtt_info   rttinfo;
 static int	rttinit = 0;
-static struct msghdr	msgsend, msgrecv;	/* assumed init to 0 */
-static struct hdr {
-  uint32_t	seq;	/* sequence # */
-  uint32_t	ts;		/* timestamp when sent */
-} sendhdr, recvhdr;
+static struct msghdr	msgrecv;	/* assumed init to 0 */
+static long long seq = 0;
 
 static void	sig_alrm(int signo);
 static sigjmp_buf	jmpbuf;
 
-ssize_t
+int
+get_cur_window_size()
+{
+  if (updated_cur_window_size != -1)
+    return updated_cur_window_size;
+  return cur_window_size;
+}
+
+void
+update_window_size(int i)
+{
+  updated_cur_window_size = i;
+}
+
+/*
+struct msghdr *
+get_new_msg(int filefd, seq_header_t *sendhdr, struct iovec *sendvec)
+{
+  struct msghdr *msgsend = calloc(1, sizeof(struct msghdr));
+  char *outbuff = malloc(FILE_READ_SIZE);
+  int n = 0;
+
+  if (filefd != -1)
+    if ((n = read(filefd, outbuff, FILE_READ_SIZE)) <= 0)
+      if (n != 0) {
+        err_sys("File read error");
+        return NULL;
+      } else {
+        sendhdr->fin = 1;
+      }
+
+  sendhdr->length = n;
+  msgsend->msg_name = NULL;
+  msgsend->msg_namelen = 0;
+  msgsend->msg_iovlen = n? 2: 1;
+  msgsend->msg_iov = sendvec;
+  sendvec[0].iov_base = (void *)sendhdr;
+  sendvec[0].iov_len = sizeof(seq_header_t);
+  if (n) {
+    sendvec[1].iov_base = outbuff;
+    sendvec[1].iov_len = n;
+  }
+}
+
+void
+safe_free_send_msg(struct msghdr **msgsend)
+{
+  if(!msgsend)
+    return;
+  if((*msgsend)->msg_iov[1].iov_base)
+    free((*msgsend)->msg_iov[1].iov_base);
+  if((*msgsend)->msg_iov)
+    free((*msgsend)->msg_iov);
+  free(msgsend);
+  *msgsend = NULL;
+}
+
+struct msghdr **
+prepare_window(int filefd, struct iovec *sendvec[])
+{
+  seq_header_t *sendhdr = (seq_header_t *)calloc(get_cur_window_size(), sizeof(seq_header_t));
+  struct msghdr **window = (struct msghdr **)calloc(get_cur_window_size(), sizeof(struct msghdr *));
+  int i;
+
+  for (i = 0; i < get_cur_window_size(); ++i) {
+    if(!(window[i] = get_new_msg(filefd, &sendhdr[i], sendvec[i]))) {
+      fprintf (stderr, "Failed to get new message\n");
+      return NULL;
+    }
+    sendhdr[i].seq = ++seq;
+
+    if (sendhdr[i].fin) {
+      update_window_size(i+1);
+      break;
+    }
+  }
+  return window;
+}
+*/
+
+int
 dg_send_recv(int fd, const void *outbuff, size_t outbytes,
-			 void *inbuff, size_t inbytes,
-			 const SA *destaddr, socklen_t destlen)
+                     int filefd)
 {
 	ssize_t			n;
-	struct iovec	iovsend[2], iovrecv[2];
+        uint32 tt;
+        int i;
+        int idx;
+        seq_header_t recvhdr, sendhdr[get_cur_window_size()];
+        int breaknow = 0;
+        struct msghdr **window;
+        struct iovec iovsend[get_cur_window_size()][2], iovrecv[2];
+        struct msghdr msgsend[get_cur_window_size()];
+        char *mybuf;
+        int loop = 1;
 
 	if (rttinit == 0) {
 		rtt_init(&rttinfo);		/* first time we're called */
@@ -29,69 +117,94 @@ dg_send_recv(int fd, const void *outbuff, size_t outbytes,
 		rtt_d_flag = 1;
 	}
 
-	sendhdr.seq++;
-	msgsend.msg_name = NULL;
-	msgsend.msg_namelen = 0;
-	msgsend.msg_iov = iovsend;
-	msgsend.msg_iovlen = 2;
-	iovsend[0].iov_base = (void *)&sendhdr;
-	iovsend[0].iov_len = sizeof(struct hdr);
-	iovsend[1].iov_base = (void *)outbuff;
-	iovsend[1].iov_len = outbytes;
+        for (idx = 0; idx < get_cur_window_size(); ++idx) {
+          msgsend[idx].msg_name = NULL;
+          msgsend[idx].msg_namelen = 0;
+          msgsend[idx].msg_iov = iovsend[idx];
+          msgsend[idx].msg_iovlen = 2;
+          iovsend[idx][0].iov_base = (void *)&sendhdr[idx];
+          iovsend[idx][0].iov_len = sizeof(seq_header_t);
 
-	msgrecv.msg_name = NULL;
-	msgrecv.msg_namelen = 0;
-	msgrecv.msg_iov = iovrecv;
-	msgrecv.msg_iovlen = 2;
-	iovrecv[0].iov_base = (void *)&recvhdr;
-	iovrecv[0].iov_len = sizeof(struct hdr);
-	iovrecv[1].iov_base = (void *)inbuff;
-	iovrecv[1].iov_len = inbytes;
-/* end dgsendrecv1 */
+          n = 0;
+          mybuf = malloc(FILE_READ_SIZE *sizeof(char));
+          if ((n = read(filefd, mybuf, FILE_READ_SIZE)) <= 0)
+            if (n != 0) {
+              err_sys("File read error");
+              return NULL;
+            } else {
+              sendhdr[idx].fin = 1;
+            }
 
-/* include dgsendrecv2 */
-	Signal(SIGALRM, sig_alrm);
-	rtt_newpack(&rttinfo);		/* initialize for this packet */
+          iovsend[idx][1].iov_base = mybuf;
+          iovsend[idx][1].iov_len = n;
+        }
+
+        msgrecv.msg_name = NULL;
+        msgrecv.msg_namelen = 0;
+        msgrecv.msg_iov = iovrecv;
+        msgrecv.msg_iovlen = 1;
+        iovrecv[0].iov_base = (void *)&recvhdr;
+        iovrecv[0].iov_len = sizeof(seq_header_t);
+
+        while (42) {
+          Signal(SIGALRM, sig_alrm);
+          rtt_newpack(&rttinfo);		/* initialize for this packet */
 
 sendagain:
+
+          tt = rtt_ts(&rttinfo);
+          for (i = 0; i < get_cur_window_size(); ++i) {
+            printf ("I; %d\n", i);
+
+            ((seq_header_t *)iovsend[i][0].iov_base)->ts = tt;
+            if (((seq_header_t *)iovsend[i][0].iov_base)->fin)
+              breaknow = 1;
+
+            printf ("Just before sending\n");
+            Sendmsg(fd, &msgsend[i], 0);
+          }
+          printf ("%d set of messages sent\n", loop++);
+
+          alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
 #ifdef	RTT_DEBUG
-	fprintf(stderr, "send %4d: ", sendhdr.seq);
+          rtt_debug(&rttinfo);
 #endif
-	sendhdr.ts = rtt_ts(&rttinfo);
-        printf ("Writing: Message: %s\n", outbuff);
-	Sendmsg(fd, &msgsend, 0);
-        ((char *)outbuff)[outbytes] = '\0';
 
-	alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
+          if (sigsetjmp(jmpbuf, 1) != 0) {
+                  if (rtt_timeout(&rttinfo) < 0) {
+                          err_msg("dg_send_recv: no response from server, giving up");
+                          rttinit = 0;	/* reinit in case we're called again */
+                          errno = ETIMEDOUT;
+                          return(-1);
+                  }
 #ifdef	RTT_DEBUG
-	rtt_debug(&rttinfo);
+                  err_msg("dg_send_recv: timeout, retransmitting");
 #endif
+                  goto sendagain;
+          }
 
-	if (sigsetjmp(jmpbuf, 1) != 0) {
-		if (rtt_timeout(&rttinfo) < 0) {
-			err_msg("dg_send_recv: no response from server, giving up");
-			rttinit = 0;	/* reinit in case we're called again */
-			errno = ETIMEDOUT;
-			return(-1);
-		}
+          for (i = 0; i < get_cur_window_size(); ++i) {
+                  n = Recvmsg(fd, &msgrecv, 0);
 #ifdef	RTT_DEBUG
-		err_msg("dg_send_recv: timeout, retransmitting");
+                  fprintf(stderr, "recv %4d\n", recvhdr.seq);
 #endif
-		goto sendagain;
-	}
+                  if (!(recvhdr.seq > (seq -get_cur_window_size() +1) && recvhdr.seq <= seq+1)) {
+                    fprintf (stderr, "Client is doing some BS!!\n");
+                    exit(0);
+                  }
+                  printf ("Recieved ack for: %d\n", recvhdr.seq -1);
+          }
+          printf ("Received the ack as well\n");
 
-	do {
-		n = Recvmsg(fd, &msgrecv, 0);
-#ifdef	RTT_DEBUG
-		fprintf(stderr, "recv %4d\n", recvhdr.seq);
-#endif
-	} while (n < sizeof(struct hdr) || recvhdr.seq != sendhdr.seq);
+          alarm(0);			/* stop SIGALRM timer */
+                  /* 4calculate & store new RTT estimator values */
+          rtt_stop(&rttinfo, rtt_ts(&rttinfo) - recvhdr.ts);
 
-	alarm(0);			/* stop SIGALRM timer */
-		/* 4calculate & store new RTT estimator values */
-	rtt_stop(&rttinfo, rtt_ts(&rttinfo) - recvhdr.ts);
+          if (breaknow)
+            break;
+        }
 
-	return(n - sizeof(struct hdr));	/* return size of received datagram */
+	return(n - sizeof(seq_header_t));	/* return size of received datagram */
 }
 
 static void
@@ -103,13 +216,11 @@ sig_alrm(int signo)
 
 ssize_t
 Dg_send_recv(int fd, const void *outbuff, size_t outbytes,
-			 void *inbuff, size_t inbytes,
-			 const SA *destaddr, socklen_t destlen)
+                       int filefd)
 {
 	ssize_t	n;
 
-	n = dg_send_recv(fd, outbuff, outbytes, inbuff, inbytes,
-					 destaddr, destlen);
+	n = dg_send_recv(fd, outbuff, outbytes, filefd);
 	if (n < 0)
 		err_quit("dg_send_recv error");
 
@@ -121,6 +232,7 @@ send_file(char *filename, int client_sockfd)
 {
   int n;
 
+  printf ("in send file\n");
   if (access(filename, F_OK | R_OK)) {
     printf ("File not accessible\n");
     return -1;
@@ -134,9 +246,5 @@ send_file(char *filename, int client_sockfd)
 
   char buf[1024];
   char inbuf[1024];
-  while ((n = read(filefd, buf, 512)) > 0) {
-    n = Dg_send_recv(client_sockfd, buf, 512, inbuf, 10, NULL, 0);
-    inbuf[n] = '\0';
-    printf ("Received: %s\n", inbuf);
-  }
+  n = Dg_send_recv(client_sockfd, buf, 512, filefd);
 }
