@@ -1,6 +1,6 @@
 #include "header.h"
 
-void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int bind) {
+void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int bind, unsigned int port) {
 	int                 sockfd;
 	int curii = 0;
 	const int           on = 1;
@@ -19,7 +19,7 @@ void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int 
 		//ii[curii].subnet = (struct sockaddr_in *) ifi->ifi_addr;
 		ii[curii].subnet.s_addr = ii[curii].ip->sin_addr.s_addr & ii[curii].netmask->sin_addr.s_addr;
 		ii[curii].ip->sin_family = AF_INET;
-		ii[curii].ip->sin_port = htons(51476);
+		ii[curii].ip->sin_port = htons(port);
 		if (bind == 1) Bind(ii[curii].sockfd, (SA *) ii[curii].ip, sizeof(*(ii[curii].ip)));
 		//printf("bound %s\n", Sock_ntop((SA *) ii[curii].ip, sizeof(*(ii[curii].ip))));
 		curii++;

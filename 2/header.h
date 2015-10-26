@@ -14,8 +14,8 @@ typedef struct {
   struct in_addr subnet;
 } interface_info_t;
 
-void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int bind);
-void print_interface_info(interface_info_t *ii, size_t interface_info_len);
+void build_inferface_info(interface_info_t *ii, size_t *interface_info_len, int bind, unsigned int port);
+void print_interface_info(interface_info_t *ii, size_t interface_info_len); 
 
 #define MAX_INTERFACE_INFO 16
 
