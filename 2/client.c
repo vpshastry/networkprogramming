@@ -34,7 +34,8 @@ receive_file(int sockfd)
     memset(&recvbuf, 0, sizeof(recvbuf));
     memset(&sendbuf, 0, sizeof(sendbuf));
 
-    while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t));
+    while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
+        if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
 
     sendbuf.hdr.seq = recvbuf.hdr.seq +1;
     sendbuf.hdr.ts = rtt_ts(&rttinfo);

@@ -55,15 +55,14 @@ dg_send_recv(int fd, int filefd)
         if (n != 0) {
           err_sys("File read error");
           return NULL;
-        } else {
-
-          if (RTT_DEBUG) printf ("\n\n\n\n\n\n\n\nRecieved no data\n");
-
-          sendbuf[i].hdr.fin = 1;
-          lastloop = 1;
         }
       }
 
+      if (n == 0 || n < FILE_READ_SIZE) {
+        if (RTT_DEBUG) fprintf (stderr, "I think this is the last data gram\n");
+        sendbuf[i].hdr.fin = 1;
+        update_window_size(i +1);
+      }
       sendbuf[i].length = n;
 
       if (RTT_DEBUG) printf ("Data for packet %d: %s\n", i, sendbuf[i].payload);
@@ -137,7 +136,7 @@ send_file(char *filename, int client_sockfd)
     return -1;
   }
 
-  if (RTT_DEBUG) fprintf (stderr, "Calling dg_send_recv");
+  if (RTT_DEBUG) fprintf (stderr, "Calling dg_send_recv\n");
 
   n = dg_send_recv(client_sockfd, filefd);
   if (n < 0)
