@@ -43,19 +43,19 @@ rtt.o: rtt.c unprtt.h
 dg_send_recv.o: dg_send_recv.c
 	${CC} ${CFLAGS} -c dg_send_recv.c header.h
 
-#header.o: header.h header.c
-#${CC} ${CFLAGS} -c header.c
+header.o: header.h header.c
+	${CC} ${CFLAGS} -c header.c
 
-server: server.o readline.o dg_send_recv.o
+server: server.o readline.o dg_send_recv.o header.o
 	${CC} ${FLAGS} -o server server.o readline.o get_ifi_info_plus.o header.o dg_send_recv.o ${LIBS}
 server.o: server.c
-	${CC} ${CFLAGS} -c server.c header.c
+	${CC} ${CFLAGS} -c server.c header.h
 
 
-client: client.o
+client: client.o header.o
 	${CC} ${FLAGS} -o client client.o get_ifi_info_plus.o header.o ${LIBS}
 client.o: client.c
-	${CC} ${CFLAGS} -c client.c header.c
+	${CC} ${CFLAGS} -c client.c header.h
 
 
 # pick up the thread-safe version of readline.c from directory "threads"

@@ -30,8 +30,8 @@ dg_send_recv(int fd, const void *outbuff, size_t outbytes,
 	}
 
 	sendhdr.seq++;
-	msgsend.msg_name = (SA *)destaddr;
-	msgsend.msg_namelen = destlen;
+	msgsend.msg_name = NULL;
+	msgsend.msg_namelen = 0;
 	msgsend.msg_iov = iovsend;
 	msgsend.msg_iovlen = 2;
 	iovsend[0].iov_base = (void *)&sendhdr;
@@ -114,4 +114,27 @@ Dg_send_recv(int fd, const void *outbuff, size_t outbytes,
 		err_quit("dg_send_recv error");
 
 	return(n);
+}
+
+int
+send_file(char *filename)
+{
+  if (access(filename, F_OK | R_OK)) {
+    printf ("File not accessible\n");
+    return -1;
+  }
+
+  int filefd;
+  if ((filefd = open(filename, O_RDONLY)) < 0) {
+    err_sys("opening file failed:");
+    return -1;
+  }
+
+  char buf[1024];
+  char inbuf[1024];
+  while ((n = read(filefd, buf, 512)) > 0) {
+    n = Dg_send_recv(client_sockfd, buf, 512, inbuf, 10, (SA *) &cliaddr, sizeof(cliaddr));
+    inbuf[n] = '\0';
+    printf ("Received: %s\n", inbuf);
+  }
 }

@@ -135,39 +135,16 @@ main(int argc, char *argv[]) {
 					sprintf(msg, "%d", temp_port);
 					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);
 
-					printf("New port sent.");
+					printf("New port sent.\n");
 					//close(mysockfd);
 					n = Read(client_sockfd, msg, MAXLINE);
 					printf("Msg (ACK) on new port:%s\n", msg);
 					sprintf(msg, "Aashray\n");
 					Write(client_sockfd, msg, strlen(msg));
-					printf("Sent from new port!");
+					printf("Sent from new port!\n");
 
-                                        printf ("Trying to read\n");
-                                        char mybuf[100] = {0,};
-                                        n = Read(client_sockfd, &mybuf, 100);
-                                        mybuf[n] = '\0';
-                                        printf ("\nRead:%s\n", mybuf);
-
-                                        if (access(filename, F_OK | R_OK)) {
-                                          printf ("File not accessible\n");
-                                          exit(0);
-                                        }
-
-                                        int filefd;
-                                        if ((filefd = open(filename, O_RDONLY)) < 0) {
-                                          printf ("opening file failed\n");
-                                          exit(0);
-                                        }
-
-                                        printf ("File opened\n");
-                                        char buf[1024];
-                                        char inbuf[1024];
-                                        while ((n = read(filefd, buf, 512)) != EOF) {
-                                          n = Dg_send_recv(client_sockfd, buf, 512, inbuf, 10, (SA *) &cli_conn, sizeof(cli_conn));
-                                          inbuf[n] = '\0';
-                                          printf ("Received: %s\n", inbuf);
-                                        }
+                                        if (send_file(filename))
+                                          ERR (0, "Failed to send file\n");
 
 					exit(0);// exit child
 				}
