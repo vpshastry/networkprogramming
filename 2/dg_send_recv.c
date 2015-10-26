@@ -5,7 +5,7 @@
 
 #define	RTT_DEBUG
 
-static int cur_window_size = 1;
+static int cur_window_size = 8;
 static int updated_cur_window_size = -1;
 static struct rtt_info   rttinfo;
 static int	rttinit = 0;
@@ -29,71 +29,6 @@ update_window_size(int i)
   updated_cur_window_size = i;
 }
 
-/*
-struct msghdr *
-get_new_msg(int filefd, seq_header_t *sendhdr, struct iovec *sendvec)
-{
-  struct msghdr *msgsend = calloc(1, sizeof(struct msghdr));
-  char *outbuff = malloc(FILE_READ_SIZE);
-  int n = 0;
-
-  if (filefd != -1)
-    if ((n = read(filefd, outbuff, FILE_READ_SIZE)) <= 0)
-      if (n != 0) {
-        err_sys("File read error");
-        return NULL;
-      } else {
-        sendhdr->fin = 1;
-      }
-
-  sendhdr->length = n;
-  msgsend->msg_name = NULL;
-  msgsend->msg_namelen = 0;
-  msgsend->msg_iovlen = n? 2: 1;
-  msgsend->msg_iov = sendvec;
-  sendvec[0].iov_base = (void *)sendhdr;
-  sendvec[0].iov_len = sizeof(seq_header_t);
-  if (n) {
-    sendvec[1].iov_base = outbuff;
-    sendvec[1].iov_len = n;
-  }
-}
-
-void
-safe_free_send_msg(struct msghdr **msgsend)
-{
-  if(!msgsend)
-    return;
-  if((*msgsend)->msg_iov[1].iov_base)
-    free((*msgsend)->msg_iov[1].iov_base);
-  if((*msgsend)->msg_iov)
-    free((*msgsend)->msg_iov);
-  free(msgsend);
-  *msgsend = NULL;
-}
-
-struct msghdr **
-prepare_window(int filefd, struct iovec *sendvec[])
-{
-  seq_header_t *sendhdr = (seq_header_t *)calloc(get_cur_window_size(), sizeof(seq_header_t));
-  struct msghdr **window = (struct msghdr **)calloc(get_cur_window_size(), sizeof(struct msghdr *));
-  int i;
-
-  for (i = 0; i < get_cur_window_size(); ++i) {
-    if(!(window[i] = get_new_msg(filefd, &sendhdr[i], sendvec[i]))) {
-      fprintf (stderr, "Failed to get new message\n");
-      return NULL;
-    }
-    sendhdr[i].seq = ++seq;
-
-    if (sendhdr[i].fin) {
-      update_window_size(i+1);
-      break;
-    }
-  }
-  return window;
-}
-*/
 
 int
 dg_send_recv(int fd, const void *outbuff, size_t outbytes,
@@ -140,13 +75,16 @@ sendagain:
 
             n = 0;
             mybuf = malloc(FILE_READ_SIZE *sizeof(char));
-            if ((n = read(filefd, mybuf, FILE_READ_SIZE)) <= 0)
+            if ((n = read(filefd, mybuf, FILE_READ_SIZE)) <= 0) {
               if (n != 0) {
                 err_sys("File read error");
                 return NULL;
               } else {
+                printf ("\n\n\n\n\n\n\n\n");
+                printf ("Recieved no data\n");
                 sendhdr[idx].fin = 1;
               }
+            }
 
             printf ("Sending: %s\n", mybuf);
             iovsend[idx][1].iov_base = mybuf;
@@ -156,10 +94,12 @@ sendagain:
           tt = rtt_ts(&rttinfo);
           for (i = 0; i < get_cur_window_size(); ++i) {
             printf ("I; %d\n", i);
-
+            sendhdr[i].seq = ++seq;
             ((seq_header_t *)iovsend[i][0].iov_base)->ts = tt;
-            if (((seq_header_t *)iovsend[i][0].iov_base)->fin)
+            if (((seq_header_t *)iovsend[i][0].iov_base)->fin == 1) {
+              printf ("Found fin\n");
               breaknow = 1;
+            }
 
             printf ("Just before sending\n");
             Sendmsg(fd, &msgsend[i], 0);

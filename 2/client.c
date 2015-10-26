@@ -44,6 +44,7 @@ receive_file(int sockfd)
     msgrecv.msg_iov = iovrecv;
     msgrecv.msg_iovlen = 2;
     iovrecv[0].iov_base = (void *)&recvhdr;
+    memset (&recvhdr, 0, sizeof(seq_header_t));
     iovrecv[0].iov_len = sizeof(seq_header_t);
     iovrecv[1].iov_base = inbuff;
     iovrecv[1].iov_len = inbytes;
@@ -53,14 +54,18 @@ receive_file(int sockfd)
     inbuff[iovrecv[1].iov_len] = 0;
     printf ("%s\n", inbuff);
     sendhdr.seq = recvhdr.seq +1;
-    if (recvhdr.fin)
+    if (recvhdr.fin == 1) {
+      printf ("Fin received\n");
       sendhdr.fin = 1;
+    }
     printf ("Sending ack for: %d\n", recvhdr.seq);
 
     Sendmsg(sockfd, &msgsend, 0);
     printf ("Sent\n");
-    if (recvhdr.fin)
+    if (recvhdr.fin == 1) {
+      printf ("Received fin\n");
       break;
+    }
   }
   return 0;
 }
