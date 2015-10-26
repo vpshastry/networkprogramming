@@ -130,9 +130,6 @@ main(int argc, char *argv[]) {
 					temp_port = ntohs(cli_conn.sin_port);
 					sprintf(msg, "%d", temp_port);
 					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);
-<<<<<<< HEAD
-
-=======
 					printf("New port sent.");
 					//close(mysockfd);
 					n = Read(client_sockfd, msg, MAXLINE);
@@ -140,8 +137,6 @@ main(int argc, char *argv[]) {
 					sprintf(msg, "Aashray\n");
 					Write(client_sockfd, msg, strlen(msg));
 					printf("Sent from new port!");
-					//while(1);
->>>>>>> Fixed some bugs of part 1.
 					exit(0);// exit child
 				}
 			}

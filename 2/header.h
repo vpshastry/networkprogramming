@@ -31,7 +31,7 @@ typedef struct {
   uint32 length;
 } seq_header_t;
 
-seq_header_t * get_header(char *buffer);
+seq_header_t * get_header_from_buff(char *buffer);
 char * get_data(char *buffer);
 char * prepare_buffer(seq_header_t *header, char *data, int size);
 seq_header_t * get_header(uint32 source_port, uint32 dest_port, uint32 seq_nu,
