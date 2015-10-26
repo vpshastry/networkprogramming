@@ -1,4 +1,6 @@
 #include "header.h"
+#include	"unprtt.h"
+#include	<setjmp.h>
 
 typedef struct {
   char server_ip[100];
@@ -10,62 +12,42 @@ typedef struct {
   unsigned long mean; // In milliseconds
 } input_t;
 
+static struct rtt_info   rttinfo;
+static int	rttinit = 0;
+
 int
 receive_file(int sockfd)
 {
   int n;
+  send_buffer_t recvbuf, sendbuf;
   /* Remove and add proper receiver window logic here */
-  static struct msghdr	msgsend, msgrecv;
-  struct iovec	iovsend[2], iovrecv[2];
-  char *outbuff = "done!";
-  size_t outbytes = strlen(outbuff);
-  char inbuff[4096];
-  int inbytes = 4096;
-  seq_header_t sendhdr, recvhdr;
-  msgsend.msg_name = NULL;
-  msgsend.msg_namelen = 0;
-  msgsend.msg_iov = iovsend;
-  msgsend.msg_iovlen = 1;
-  iovsend[0].iov_base = (void *)&sendhdr;
-  iovsend[0].iov_len = sizeof(seq_header_t);
-  msgrecv.msg_name = NULL;
-  msgrecv.msg_namelen = 0;
-  msgrecv.msg_iov = iovrecv;
-  msgrecv.msg_iovlen = 2;
-  iovrecv[0].iov_base = (void *)&recvhdr;
-  iovrecv[0].iov_len = sizeof(seq_header_t);
-  iovrecv[1].iov_base = inbuff;
-  iovrecv[1].iov_len = inbytes;
+  if (rttinit == 0) {
+    rtt_init(&rttinfo);		/* first time we're called */
+    rttinit = 1;
+    rtt_d_flag = 1;
+  }
 
   printf ("Waiting for server to send something\n");
-  while (42) {
-    msgrecv.msg_name = NULL;
-    msgrecv.msg_namelen = 0;
-    msgrecv.msg_iov = iovrecv;
-    msgrecv.msg_iovlen = 2;
-    iovrecv[0].iov_base = (void *)&recvhdr;
-    memset (&recvhdr, 0, sizeof(seq_header_t));
-    iovrecv[0].iov_len = sizeof(seq_header_t);
-    iovrecv[1].iov_base = inbuff;
-    iovrecv[1].iov_len = inbytes;
+  while (recvbuf.hdr.fin != 1) {
+    rtt_newpack(&rttinfo);		/* initialize for this packet */
 
-    n = Recvmsg(sockfd, &msgrecv, 0);
-    printf ("Wait is over\n");
-    inbuff[iovrecv[1].iov_len] = 0;
-    printf ("%s\n", inbuff);
-    sendhdr.seq = recvhdr.seq +1;
-    if (recvhdr.fin == 1) {
-      printf ("Fin received\n");
-      sendhdr.fin = 1;
-    }
-    printf ("Sending ack for: %d\n", recvhdr.seq);
+    memset(&recvbuf, 0, sizeof(recvbuf));
+    memset(&sendbuf, 0, sizeof(sendbuf));
 
-    Sendmsg(sockfd, &msgsend, 0);
-    printf ("Sent\n");
-    if (recvhdr.fin == 1) {
-      printf ("Received fin\n");
-      break;
+    while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t));
+
+    sendbuf.hdr.seq = recvbuf.hdr.seq +1;
+    sendbuf.hdr.ts = rtt_ts(&rttinfo);
+
+    if (recvbuf.hdr.fin == 1) {
+      if (RTT_DEBUG) printf ("Fin received\n");
+      sendbuf.hdr.fin = 1;
     }
+
+    recvbuf.payload[recvbuf.length] = '\0';
+    printf ("%s\n", recvbuf.payload);
+
+    Write(sockfd, &sendbuf, sizeof(seq_header_t));
   }
   return 0;
 }

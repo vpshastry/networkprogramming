@@ -7,6 +7,8 @@
 #include <fcntl.h>
 #include "unpifiplus.h"
 
+#define RTT_DEBUG 1
+
 extern struct ifi_info *Get_ifi_info_plus(int family, int doaliases);
 extern        void      free_ifi_info_plus(struct ifi_info *ifihead);
 
@@ -34,9 +36,14 @@ typedef struct {
   uint8 ack;
   uint8 fin;
   uint8 padding_var;
-  uint32 length;
 } seq_header_t;
 #define FILE_READ_SIZE (MAX_PACKET_SIZE - sizeof(seq_header_t))
+
+typedef struct {
+  seq_header_t hdr;
+  char payload[FILE_READ_SIZE];
+  uint32 length;
+} send_buffer_t;
 
 seq_header_t * get_header_from_buff(char *buffer);
 char * get_data(char *buffer);
@@ -45,6 +52,6 @@ seq_header_t * get_header(uint32 source_port, uint32 dest_port, uint32 seq_nu,
                           uint32 ack_nu, uint8 nack, uint8 ack, uint8 fin);
 // End tcp header management.
 
-ssize_t
-Dg_send_recv(int fd, const void *outbuff, size_t outbytes, int filefd);
+int dg_send_recv(int fd, int filefd);
+
 #endif
