@@ -63,7 +63,7 @@ main(int argc, char *argv[]) {
 	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
 	size_t interface_info_len;
 	fd_set rset, mainset;
-	int maxfdp1, i, n, mysockfd, is_local, pid, client_sockfd, temp_port;
+	int maxfdp1, i, n, mysockfd, is_local, pid, client_sockfd, temp_port, new_client_conn;
 	const int do_not_route = 1, on = 1;
 	char str[INET_ADDRSTRLEN], msg[MAXLINE];
 	struct sockaddr_in cliaddr, my_recv_addr, my_recv_netmask, cli_conn;
@@ -80,8 +80,8 @@ main(int argc, char *argv[]) {
 		return -1;
 	}
 	printf("port num: %d\nmaxslidewinsize:%d\n\n", portnumber, maxslidewindowsize);
-
-	build_inferface_info(ii, &interface_info_len, 1);
+	
+	build_inferface_info(ii, &interface_info_len, 1, portnumber);
 	print_interface_info(ii, interface_info_len);
 
 	build_fd_set(&mainset, ii, interface_info_len, &maxfdp1);
@@ -122,15 +122,26 @@ main(int argc, char *argv[]) {
 					len = sizeof(cli_conn);
 					Getsockname(client_sockfd, (SA*) &cli_conn, &len);
 					printf("\nConnection socket bound, protocol Address:%s\n", Sock_ntop((SA*) &cli_conn, len));
-					Connect(client_sockfd, (SA*) &cli_conn, sizeof(cli_conn));
-
-					/*len = sizeof(cliaddr);
+					//new_client_conn = Socket(AF_INET, SOCK_DGRAM, 0);
+					Connect(client_sockfd, (SA*) &cliaddr, sizeof(cliaddr));
+					len = sizeof(cliaddr);
 					Getpeername(client_sockfd, (SA*) &cliaddr, &len);
-					printf("\nServer child connected to client, protocol Address:%s\n", Sock_ntop((SA*) &cliaddr, len));*/
+					printf("\nServer child connected to client, protocol Address:%s\n", Sock_ntop((SA*) &cliaddr, len));
 					temp_port = ntohs(cli_conn.sin_port);
 					sprintf(msg, "%d", temp_port);
 					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);
+<<<<<<< HEAD
 
+=======
+					printf("New port sent.");
+					//close(mysockfd);
+					n = Read(client_sockfd, msg, MAXLINE);
+					printf("Msg (ACK) on new port:%s\n", msg);
+					sprintf(msg, "Aashray\n");
+					Write(client_sockfd, msg, strlen(msg));
+					printf("Sent from new port!");
+					//while(1);
+>>>>>>> Fixed some bugs of part 1.
 					exit(0);// exit child
 				}
 			}

@@ -105,8 +105,7 @@ main(int argc, char *argv[]) {
 
 	bzero(&servaddr, sizeof(servaddr));
 	bzero(&clientaddr, sizeof(clientaddr));
-
-	build_inferface_info(ii, &interface_info_len, 0);
+	build_inferface_info(ii, &interface_info_len, 0, -1);
   	print_interface_info(ii, interface_info_len);
 
 	if(inet_pton(AF_INET, input.server_ip, &servaddr.sin_addr) != 1){
@@ -131,30 +130,33 @@ main(int argc, char *argv[]) {
 	printf("\nIPclient bound, protocol Address:%s\n", Sock_ntop((SA*) &clientaddr, len));
 
 	// Connect to IPserver.
-	serv_sock_fd = Socket(AF_INET, SOCK_DGRAM, 0);
+	//serv_sock_fd = Socket(AF_INET, SOCK_DGRAM, 0);
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_port = htons(input.portnumber);
-	Connect(serv_sock_fd, (SA*) &servaddr, sizeof(servaddr));
+	Connect(sockfd, (SA*) &servaddr, sizeof(servaddr));
 
 	// Getpeername
 	len = sizeof(serv_connect);
-	Getpeername(serv_sock_fd, (SA*) &serv_connect, &len);
+	Getpeername(sockfd, (SA*) &serv_connect, &len);
 	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
 	len = sizeof(clientaddr);
 	printf("\nIPclient connected, protocol Address:%s\n", Sock_ntop((SA*) &clientaddr, len));
 	// Send the filename
-	Write(serv_sock_fd, input.filename, strlen(input.filename));
-	n = Read(serv_sock_fd, recvline, MAXLINE);
+	Write(sockfd, input.filename, strlen(input.filename));
+	n = Read(sockfd, recvline, MAXLINE);
 	Fputs(recvline, stdout);
 	//bzero(&servaddr, sizeof(serv_connect));
 	//Sock_pton(recvline, &servaddr);
 	sscanf(recvline, "%d", &temp_port);
 	servaddr.sin_port = htons(temp_port);
-	Connect(serv_sock_fd, (SA*) &servaddr, sizeof(servaddr));
+	Connect(sockfd, (SA*) &servaddr, sizeof(servaddr));
 	bzero(&serv_connect, sizeof(serv_connect));
 	len = sizeof(serv_connect);
-	Getpeername(serv_sock_fd, (SA*) &serv_connect, &len);
+	Getpeername(sockfd, (SA*) &serv_connect, &len);
 	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
-
+	Write(sockfd, input.filename, strlen(input.filename));
+	n = Read(sockfd, recvline, MAXLINE);
+	Fputs(recvline, stdout);
+	
 	return 0;
 }
