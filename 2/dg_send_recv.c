@@ -117,8 +117,10 @@ Dg_send_recv(int fd, const void *outbuff, size_t outbytes,
 }
 
 int
-send_file(char *filename)
+send_file(char *filename, int client_sockfd)
 {
+  int n;
+
   if (access(filename, F_OK | R_OK)) {
     printf ("File not accessible\n");
     return -1;
@@ -133,7 +135,7 @@ send_file(char *filename)
   char buf[1024];
   char inbuf[1024];
   while ((n = read(filefd, buf, 512)) > 0) {
-    n = Dg_send_recv(client_sockfd, buf, 512, inbuf, 10, (SA *) &cliaddr, sizeof(cliaddr));
+    n = Dg_send_recv(client_sockfd, buf, 512, inbuf, 10, NULL, 0);
     inbuf[n] = '\0';
     printf ("Received: %s\n", inbuf);
   }

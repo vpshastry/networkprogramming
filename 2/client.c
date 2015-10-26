@@ -13,6 +13,7 @@ typedef struct {
 int
 receive_file(int sockfd)
 {
+  int n;
   /* Remove and add proper receiver window logic here */
   static struct msghdr	msgsend, msgrecv;
   struct iovec	iovsend[2], iovrecv[2];
@@ -202,7 +203,7 @@ main(int argc, char *argv[]) {
 
 
         if (receive_file(sockfd)) {
-          ERR(0, "Failed to receive file\n");
+          printf ("Failed to receive file\n");
           return -1;
         }
 
