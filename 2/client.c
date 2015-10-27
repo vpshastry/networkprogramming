@@ -16,7 +16,7 @@ static struct rtt_info   rttinfo;
 static int	rttinit = 0;
 
 int
-receive_file(int sockfd)
+receive_file(int sockfd, float p /* prob */)
 {
   int n;
   send_buffer_t recvbuf, sendbuf;
@@ -37,6 +37,10 @@ receive_file(int sockfd)
     while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
         if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
 
+    // Simulate incoming packet loss.
+    if (!simulate_transmission_loss(p))
+      continue;
+
     sendbuf.hdr.ack = 1;
     sendbuf.hdr.seq = recvbuf.hdr.seq +1;
     sendbuf.hdr.ts = rtt_ts(&rttinfo);
@@ -44,7 +48,9 @@ receive_file(int sockfd)
     recvbuf.payload[recvbuf.length] = '\0';
     printf ("%s\n", recvbuf.payload);
 
-    Write(sockfd, &sendbuf, sizeof(seq_header_t));
+    // Simulate ack packet loss.
+    if (simulate_transmission_loss(p))
+      Write(sockfd, &sendbuf, sizeof(seq_header_t));
 
     if (recvbuf.hdr.fin == 1) {
       if (RTT_DEBUG) printf ("Fin received\n");
@@ -161,7 +167,7 @@ main(int argc, char *argv[]) {
 	readargsfromfile(&input);
 	// srand here. Once per program run.
 	srand(input.seedvalue);
-	
+
 	bzero(&servaddr, sizeof(servaddr));
 	bzero(&clientaddr, sizeof(clientaddr));
 	build_inferface_info(ii, &interface_info_len, 0, -1);
@@ -219,7 +225,7 @@ main(int argc, char *argv[]) {
 	Fputs(recvline, stdout);
 
 
-        if (receive_file(sockfd)) {
+        if (receive_file(sockfd, input.p)) {
           printf ("Failed to receive file\n");
           return -1;
         }
