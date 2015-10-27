@@ -49,3 +49,9 @@ int compare_ips(struct in_addr a, struct in_addr b) {
 	else return 0;
 }
 
+void
+safe_free(void **var)
+{
+  free(*var);
+  *var = NULL;
+}

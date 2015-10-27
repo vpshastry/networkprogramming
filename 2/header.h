@@ -32,10 +32,9 @@ typedef unsigned short uint16;
 typedef struct {
   uint32 seq; // If it's ack, contains seq number of the ack.
   uint32 ts;
-  uint8 nack;
   uint8 ack;
   uint8 fin;
-  uint8 padding_var;
+  uint16 padding_var;
 } seq_header_t;
 #define FILE_READ_SIZE (MAX_PACKET_SIZE - sizeof(seq_header_t))
 
@@ -53,5 +52,6 @@ seq_header_t * get_header(uint32 source_port, uint32 dest_port, uint32 seq_nu,
 // End tcp header management.
 
 int dg_send_recv(int fd, int filefd);
+void safe_free(void **);
 
 #endif

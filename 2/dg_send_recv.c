@@ -2,12 +2,13 @@
 #include	"unprtt.h"
 #include	<setjmp.h>
 #include "header.h"
+#include "window.h"
 
 static int cur_window_size = 16;
 static int updated_cur_window_size = -1;
 static struct rtt_info   rttinfo;
 static int	rttinit = 0;
-static long long seq = 0;
+static long long seq = -1;
 
 static void	sig_alrm(int signo);
 static sigjmp_buf	jmpbuf;
@@ -33,12 +34,18 @@ dg_send_recv(int fd, int filefd)
   uint32 tt;
   int i;
   int lastloop = 0;
-  send_buffer_t recvbuf, sendbuf[get_cur_window_size()];
+  send_buffer_t recvbuf, sendbuf[window->cwnd];
+  struct stat buf;
 
   if (rttinit == 0) {
     rtt_init(&rttinfo);		/* first time we're called */
     rttinit = 1;
     rtt_d_flag = 1;
+
+    if (fstat(filefd, &buf))
+      err_sys("Fstat on file failed\n");
+
+    window->init(window, buf.st_size/FILE_READ_SIZE +1);
   }
 
   while (!lastloop) {
@@ -46,7 +53,7 @@ dg_send_recv(int fd, int filefd)
     rtt_newpack(&rttinfo);		/* initialize for this packet */
 
     // Below for loop initializes the data.
-    for (i = 0; i < get_cur_window_size(); ++i) {
+    for (i = 0; i < window->cwnd; ++i) {
       sendbuf[i].hdr.seq = ++seq;
 
       // Read from file to fill the buffer.
@@ -61,16 +68,17 @@ dg_send_recv(int fd, int filefd)
       if (n == 0 || n < FILE_READ_SIZE) {
         if (RTT_DEBUG) fprintf (stderr, "I think this is the last data gram\n");
         sendbuf[i].hdr.fin = 1;
-        update_window_size(i +1);
+        window->cwnd = i+1;
+        lastloop = 1;
       }
       sendbuf[i].length = n;
-
-      if (RTT_DEBUG) printf ("Data for packet %d: %s\n", i, sendbuf[i].payload);
     }
+
+    if (RTT_DEBUG) fprintf (stderr, "At DEBUG: Last loop\n");
 
 sendagain:
     tt = rtt_ts(&rttinfo);
-    for (i = 0; i < get_cur_window_size(); ++i) {
+    for (i = 0; i < window->cwnd; ++i) {
       sendbuf[i].hdr.ts = tt;
       Write(fd, &sendbuf[i], sizeof(sendbuf[i]));
     }
@@ -92,7 +100,7 @@ sendagain:
       goto sendagain;
     }
 
-    for (i = 0; i < get_cur_window_size(); ++i) {
+    for (i = 0; i < window->cwnd; ++i) {
       memset (&recvbuf, 0, sizeof(recvbuf));
 
       while ((n = Read(fd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
@@ -100,9 +108,18 @@ sendagain:
 
       if (RTT_DEBUG) fprintf(stderr, "recv %4d\n", recvbuf.hdr.seq);
 
-      if (!(recvbuf.hdr.seq > (seq -get_cur_window_size() +1) && recvbuf.hdr.seq <= seq+1)) {
+      if (!(recvbuf.hdr.seq > (seq -window->cwnd +1) && recvbuf.hdr.seq <= seq+1)) {
         fprintf (stderr, "Client is doing some BS!!\n");
         exit(0);
+      }
+
+      switch (window->add_new_ack(window, recvbuf.hdr.seq)) {
+        case ACK_DUP:
+          window->selective_repeat(window, recvbuf.hdr.seq);
+          break;
+        case ACK_NONE:
+          // Increase the window size and resend;
+          break;
       }
     }
 
@@ -143,4 +160,5 @@ send_file(char *filename, int client_sockfd)
           err_quit("dg_send_recv error");
 
   close(filefd);
+  return 0;
 }

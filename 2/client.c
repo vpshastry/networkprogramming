@@ -37,18 +37,19 @@ receive_file(int sockfd)
     while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
         if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
 
+    sendbuf.hdr.ack = 1;
     sendbuf.hdr.seq = recvbuf.hdr.seq +1;
     sendbuf.hdr.ts = rtt_ts(&rttinfo);
-
-    if (recvbuf.hdr.fin == 1) {
-      if (RTT_DEBUG) printf ("Fin received\n");
-      sendbuf.hdr.fin = 1;
-    }
 
     recvbuf.payload[recvbuf.length] = '\0';
     printf ("%s\n", recvbuf.payload);
 
     Write(sockfd, &sendbuf, sizeof(seq_header_t));
+
+    if (recvbuf.hdr.fin == 1) {
+      if (RTT_DEBUG) printf ("Fin received\n");
+      sendbuf.hdr.fin = 1;
+    }
   }
   return 0;
 }

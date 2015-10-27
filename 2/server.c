@@ -90,41 +90,54 @@ main(int argc, char *argv[]) {
 	for ( ; ; ) {
 		rset = mainset;
 		Select(maxfdp1, &rset, NULL, NULL, NULL);
+
 		for (i = 0; i < interface_info_len; i++) {
 			if (FD_ISSET(ii[i].sockfd, &rset)) {
 				printf("Data recieved on %s\n", Sock_ntop((SA*) (ii[i].ip), sizeof(*(ii[i].ip))));
+
 				mysockfd = ii[i].sockfd;
 				my_recv_addr = *(ii[i].ip);
 				my_recv_netmask = *(ii[i].netmask);
+
 				n = Recvfrom(ii[i].sockfd, msg, MAXLINE, 0, (SA*) &cliaddr, &len);
+
 				printf("Data recieved from: %s\n", Sock_ntop((SA*) &cliaddr, len));
                                 memcpy(filename, msg, 4096);
+
                                 if (strchr(filename, '\n'))
-                                *strchr(filename, '\n') = '\0';
+                                  *strchr(filename, '\n') = '\0';
 				printf("Data:%s\n", msg);
+
 				//Sendto(ii[i].sockfd, msg, n, 0,(SA*) &cliaddr, len);
 				if ((pid = Fork()) == 0) {
+
 					// Child
 					// CLose all other sockets.
 					for (i = 0; i < interface_info_len; i++)
-						if (ii[i].sockfd != mysockfd) close(ii[i].sockfd);
+                                          if (ii[i].sockfd != mysockfd)
+                                            close(ii[i].sockfd);
+
 					// Find out if client is loopback or local or not.
 					is_local = find_if_client_local(my_recv_addr, cliaddr, ii, interface_info_len, my_recv_netmask);
 					if (is_local < 3)
-						printf("Client host is local\n");
-					else printf("Client host is not local\n");
+                                          printf("Client host is local\n");
+					else
+                                          printf("Client host is not local\n");
 
 					// Create UDP socket to handle file transfer with this client."connection socket"
 					client_sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
  					if (is_local < 3)
-     					Setsockopt(client_sockfd, SOL_SOCKET, SO_DONTROUTE, &do_not_route, sizeof(do_not_route));
+                                          Setsockopt(client_sockfd, SOL_SOCKET, SO_DONTROUTE, &do_not_route, sizeof(do_not_route));
  					Setsockopt(client_sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
 					cli_conn.sin_addr = my_recv_addr.sin_addr;
  					cli_conn.sin_family = AF_INET;
  					cli_conn.sin_port = htons(0);
 					Bind(client_sockfd, (SA *) &cli_conn, sizeof(cli_conn));
+
 					len = sizeof(cli_conn);
 					Getsockname(client_sockfd, (SA*) &cli_conn, &len);
+
 					printf("\nConnection socket bound, protocol Address:%s\n", Sock_ntop((SA*) &cli_conn, len));
 					//new_client_conn = Socket(AF_INET, SOCK_DGRAM, 0);
 					Connect(client_sockfd, (SA*) &cliaddr, sizeof(cliaddr));
@@ -133,6 +146,7 @@ main(int argc, char *argv[]) {
 					printf("\nServer child connected to client, protocol Address:%s\n", Sock_ntop((SA*) &cliaddr, len));
 					temp_port = ntohs(cli_conn.sin_port);
 					sprintf(msg, "%d", temp_port);
+
 					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);
 
 					printf("New port sent.\n");
@@ -147,7 +161,11 @@ main(int argc, char *argv[]) {
                                           printf("Failed to send file\n");
 
 					exit(0);// exit child
-				}
+				} else if (pid > 0) {
+                                  // Close all the connections
+                                } else {
+                                  err_sys("Creating child failed: ");
+                                }
 			}
 		}
 
