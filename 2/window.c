@@ -45,21 +45,35 @@ window_dequeue(window_t *window)
 }
 
 int
-window_add_new_ack(window_t *window, int ack)
+window_add_new_ack(window_t *window, int ackno)
 {
-  if (ack <= 0) {
-    if (RTT_DEBUG) fprintf (stderr, "Received ack with #%d\n", ack);
+  if (ackno <= 0) {
+    if (RTT_DEBUG) fprintf (stderr, "Received ack with #%d\n", ackno);
     return ACK_ERR;
   }
 
-  if (ack-1 > window->head) {
-    if (RTT_DEBUG) fprintf (stderr, "Ack received for packet that isn't even sent: %d\n", ack);
+  if (ackno-1 > window->head) {
+    if (RTT_DEBUG)
+      fprintf (stderr, "Ack received for packet that isn't even sent: %d\n",
+                ackno);
     return ACK_NOTSENT;
   }
 
-  window->queue[ack-1].ack++;
+  window->queue[ackno-1].ack++;
 
-  if (window->queue[ack-1].ack > 3)
+  if (window->queue[ackno-1].ack > 3)
     return ACK_DUP;
   return ACK_NONE;
+}
+
+send_buffer_t *
+window_get_buf(window_t *window, int ackno)
+{
+  if (ackno < tail || ackno > head) {
+    fprintf (stderr, "Can't find buf for ack: %d while window is %d-%d\n",
+              ackno, tail, head);
+    return -1;
+  }
+
+  return window->queue[ackno-1].data;
 }

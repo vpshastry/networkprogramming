@@ -34,8 +34,9 @@ dg_send_recv(int fd, int filefd)
   uint32 tt;
   int i;
   int lastloop = 0;
-  send_buffer_t recvbuf, sendbuf[window->cwnd];
+  send_buffer_t recvbuf, sendbuf[window->cwnd], *resendbuf;
   struct stat buf;
+  window_t *window = &newwindow;
 
   if (rttinit == 0) {
     rtt_init(&rttinfo);		/* first time we're called */
@@ -106,17 +107,20 @@ sendagain:
       while ((n = Read(fd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
         if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
 
-      if (RTT_DEBUG) fprintf(stderr, "recv %4d\n", recvbuf.hdr.seq);
-
-      if (!(recvbuf.hdr.seq > (seq -window->cwnd +1) && recvbuf.hdr.seq <= seq+1)) {
-        fprintf (stderr, "Client is doing some BS!!\n");
-        exit(0);
+      if (recvbuf.hdr.ack != 1) {
+        fprintf (stderr, "This is not an ack\n");
+        continue;
       }
+
+      if (RTT_DEBUG) fprintf(stderr, "recv %4d\n", recvbuf.hdr.seq);
 
       switch (window->add_new_ack(window, recvbuf.hdr.seq)) {
         case ACK_DUP:
-          window->selective_repeat(window, recvbuf.hdr.seq);
+          resendbuf = window->get_buf(window, recvbuf.hdr.seq);
+          resendbuf->ts = rtt_ts(&rttinfo);
+          Send(fd, (void *)resendbuf, sizeof(send_buffer_t));
           break;
+
         case ACK_NONE:
           // Increase the window size and resend;
           break;
@@ -126,6 +130,21 @@ sendagain:
     alarm(0);			/* stop SIGALRM timer */
             /* 4calculate & store new RTT estimator values */
     rtt_stop(&rttinfo, rtt_ts(&rttinfo) - recvbuf.hdr.ts);
+
+    switch (window->mode) {
+      case MODE_SLOW_START:
+        window->cwnd *= 2;
+        break;
+
+      case MODE_CAVOID:
+        window->cwnd += 1;
+        break;
+
+      default:
+        fprintf (stderr, "Window mode unknown, assuming slow start\n");
+        window->cwnd *= 2;
+        break;
+    }
   }
 
   return 0;
