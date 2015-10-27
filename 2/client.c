@@ -132,6 +132,20 @@ void set_ip_server_and_ip_client(struct sockaddr_in *servaddr, struct sockaddr_i
 		clientaddr->sin_addr = ii[i-1].ip->sin_addr; // is this correct. What about loopback, is that valid for clientIP? TODO(@aashray)
 	}
 }
+/* return 0 - drop datagram */
+/* return 1 - do not drop */
+int simulate_transmission_loss(float p) {
+	float num = ((float) rand() / (float)(RAND_MAX)) * 1.0;
+	//printf("Random number:%f\n", num);
+	if (num <=p) {
+		//printf("drop packet.");
+		return 0;
+	} else {
+		//printf("Do not drop this packet");
+		return 1;
+	}
+}
+
 
 int
 main(int argc, char *argv[]) {
@@ -145,7 +159,9 @@ main(int argc, char *argv[]) {
 
 	socklen_t len = sizeof(clientaddr);
 	readargsfromfile(&input);
-
+	// srand here. Once per program run.
+	srand(input.seedvalue);
+	
 	bzero(&servaddr, sizeof(servaddr));
 	bzero(&clientaddr, sizeof(clientaddr));
 	build_inferface_info(ii, &interface_info_len, 0, -1);
