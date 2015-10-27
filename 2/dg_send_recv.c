@@ -28,15 +28,56 @@ update_window_size(int i)
 }
 
 int
+prepare_window(window_t *window, int filefd)
+{
+  send_buffer_t tmpsendbuf, *newsendbuff;
+  int i;
+  int n;
+  int lastloop = 0;
+
+  // Below for loop initializes the data.
+  for (i = 0; i < window->cwnd; ++i) {
+    memset(&tmpsendbuf, 0, sizeof(send_buffer_t));
+
+    tmpsendbuf.hdr.seq = ++seq;
+
+    // Read from file to fill the buffer.
+    n = 0;
+    if ((n = read(filefd, tmpsendbuf.payload, FILE_READ_SIZE)) <= 0) {
+      if (n != 0) {
+        err_sys("File read error");
+        return -1;
+      }
+    }
+
+    if (n == 0 || n < FILE_READ_SIZE) {
+      if (RTT_DEBUG) fprintf (stderr, "I think this is the last datagram\n");
+      tmpsendbuf.hdr.fin = 1;
+      window->cwnd = i+1;
+      lastloop = 1;
+    }
+    tmpsendbuf.length = n;
+
+    /* Add this to window */
+    newsendbuff = malloc(sizeof(send_buffer_t));
+    memcpy (newsendbuff, &tmpsendbuf, sizeof(send_buffer_t));
+    window->append(newsendbuff);
+  }
+
+  return lastloop;
+}
+
+int
 dg_send_recv(int fd, int filefd)
 {
   ssize_t			n;
   uint32 tt;
   int i;
   int lastloop = 0;
-  send_buffer_t recvbuf, sendbuf[window->cwnd], *resendbuf;
+  send_buffer_t recvbuf, *sendbuf, *resendbuf;
   struct stat buf;
   window_t *window = &newwindow;
+  int received_dup_ack = 0;
 
   if (rttinit == 0) {
     rtt_init(&rttinfo);		/* first time we're called */
@@ -50,38 +91,28 @@ dg_send_recv(int fd, int filefd)
   }
 
   while (!lastloop) {
+    received_dup_ack = 0;
     Signal(SIGALRM, sig_alrm);
     rtt_newpack(&rttinfo);		/* initialize for this packet */
 
-    // Below for loop initializes the data.
-    for (i = 0; i < window->cwnd; ++i) {
-      sendbuf[i].hdr.seq = ++seq;
-
-      // Read from file to fill the buffer.
-      n = 0;
-      if ((n = read(filefd, sendbuf[i].payload, FILE_READ_SIZE)) <= 0) {
-        if (n != 0) {
-          err_sys("File read error");
-          return NULL;
-        }
-      }
-
-      if (n == 0 || n < FILE_READ_SIZE) {
-        if (RTT_DEBUG) fprintf (stderr, "I think this is the last data gram\n");
-        sendbuf[i].hdr.fin = 1;
-        window->cwnd = i+1;
-        lastloop = 1;
-      }
-      sendbuf[i].length = n;
+    if ((lastloop = prepare_window(window, filefd)) < 0) {
+      fprintf (stderr, "Error preparing window\n");
+      return NULL;
     }
 
     if (RTT_DEBUG) fprintf (stderr, "At DEBUG: Last loop\n");
 
 sendagain:
+    if ((window->head - window->tail + 1) != window->cwnd) {
+      fprintf (stderr, "head - tail != cwnd\n");
+      exit(0);
+    }
+
     tt = rtt_ts(&rttinfo);
-    for (i = 0; i < window->cwnd; ++i) {
-      sendbuf[i].hdr.ts = tt;
-      Write(fd, &sendbuf[i], sizeof(sendbuf[i]));
+    for (i = window->tail; i <= window->head; ++i) {
+      sendbuf = window->get_buf(window, i);
+      sendbuf->hdr.ts = tt;
+      Write(fd, sendbuf, sizeof(sendbuf[i]));
     }
 
     alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
@@ -116,9 +147,9 @@ sendagain:
 
       switch (window->add_new_ack(window, recvbuf.hdr.seq)) {
         case ACK_DUP:
+          received_dup_ack = 1;
           resendbuf = window->get_buf(window, recvbuf.hdr.seq);
-          resendbuf->ts = rtt_ts(&rttinfo);
-          Send(fd, (void *)resendbuf, sizeof(send_buffer_t));
+          Write(fd, (void *)resendbuf, sizeof(send_buffer_t));
           break;
 
         case ACK_NONE:
@@ -131,20 +162,8 @@ sendagain:
             /* 4calculate & store new RTT estimator values */
     rtt_stop(&rttinfo, rtt_ts(&rttinfo) - recvbuf.hdr.ts);
 
-    switch (window->mode) {
-      case MODE_SLOW_START:
-        window->cwnd *= 2;
-        break;
-
-      case MODE_CAVOID:
-        window->cwnd += 1;
-        break;
-
-      default:
-        fprintf (stderr, "Window mode unknown, assuming slow start\n");
-        window->cwnd *= 2;
-        break;
-    }
+    window->clear(window);
+    window->update_cwnd(window, received_dup_ack);
   }
 
   return 0;

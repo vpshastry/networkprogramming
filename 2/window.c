@@ -23,23 +23,31 @@ window_init(window_t *window, int size)
 void
 window_append(window_t *window, send_buffer_t *newbuf)
 {
+  if (newbuf->hdr.seq != (window->head +1)) {
+    fprintf (stderr, "\n\n\nCan't append\n\n\n");
+    return;
+  }
+
   window->queue[++window->head].data = (void *)newbuf;
   if (window->tail == -1)
     window->tail = 0;
 }
 
 send_buffer_t *
-window_dequeue(window_t *window)
+window_dequeue(window_t *window, int ackno)
 {
-  if (window->tail == -1) {
-    if (RTT_DEBUG) fprintf (stderr, "Nothing in window\n");
+  if ((ackno -1) < 0) {
+    if (RTT_DEBUG) fprintf (stderr, "Ack number(%d) is < 0\n", ackno);
     return NULL;
   }
 
-  send_buffer_t *retdata= window->queue[window->tail++].data;
+  send_buffer_t *retdata= window->queue[ackno -1].data;
+  window->queue[ackno -1].data = NULL;
 
+  /*
   if (window->tail > window->head)
     window->reset(window);
+    */
 
   return retdata;
 }
@@ -67,13 +75,33 @@ window_add_new_ack(window_t *window, int ackno)
 }
 
 send_buffer_t *
-window_get_buf(window_t *window, int ackno)
+window_get_buf(window_t *window, int bufno)
 {
-  if (ackno < tail || ackno > head) {
+  if (bufno < tail || bufno > head) {
     fprintf (stderr, "Can't find buf for ack: %d while window is %d-%d\n",
-              ackno, tail, head);
+              bufno, tail, head);
     return -1;
   }
 
-  return window->queue[ackno-1].data;
+  return window->queue[bufno].data;
+}
+
+void
+window_update_cwnd(window_t *window, int received_dup_ack)
+{
+  switch (window->mode) {
+    case MODE_SLOW_START:
+      window->cwnd = received_dup_ack? window->cwnd >> 1: window->cwnd *2;
+      break;
+
+    // TODO: Revisit this case.
+    case MODE_CAVOID:
+      window->cwnd += (received_dup_ack? 0: 1);
+      break;
+
+    default:
+      fprintf (stderr, "Window mode unknown, assuming slow start\n");
+      window->cwnd = received_dup_ack? window->cwnd >> 1: window->cwnd *2;
+      break;
+  }
 }

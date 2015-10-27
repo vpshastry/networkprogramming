@@ -26,6 +26,7 @@ typedef struct mywindow {
   int tail;
   int head;
   int cwnd;
+  int ssthresh;
   mode_t mode;
   cqueue_t *queue;
 
@@ -34,10 +35,9 @@ typedef struct mywindow {
   int (*get_tail)(struct mywindow *);
   void (*append)(struct mywindow *, send_buffer_t *);
   send_buffer_t * (*dequeue)(struct mywindow *);
-  int (*get_cwnd)(struct mywindow *);
   int (*add_new_ack)(struct mywindow *, int ack);
   void* (*get_buf)(struct mywindow *, int ack);
-  int (*update_cwnd)(window_t *window);
+  void (*update_cwnd)(struct mywindow *);
 
 } window_t;
 
@@ -46,10 +46,9 @@ void window_reset(window_t *window);
 void window_init(window_t *window, int size);
 void window_append(window_t *window, send_buffer_t *newbuf);
 send_buffer_t * window_dequeue(window_t *window);
-int window_get_cwnd(window_t *window);
 int window_add_new_ack(window_t *window, int ack);
 send_buffer_t *window_get_buf(window_t *, int ack);
-int window_update_cwnd(window_t *window);
+void window_update_cwnd(window_t *window);
 
 static window_t newwindow = {
   .cwnd = 16,
