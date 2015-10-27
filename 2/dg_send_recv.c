@@ -35,6 +35,8 @@ prepare_window(window_t *window, int filefd)
   int n;
   int lastloop = 0;
 
+  //if (RTT_DEBUG) fprintf (stderr, "Current window size: %s\n", window->cwnd);
+
   // Below for loop initializes the data.
   for (i = 0; i < window->cwnd; ++i) {
     memset(&tmpsendbuf, 0, sizeof(send_buffer_t));
@@ -61,7 +63,7 @@ prepare_window(window_t *window, int filefd)
     /* Add this to window */
     newsendbuff = malloc(sizeof(send_buffer_t));
     memcpy (newsendbuff, &tmpsendbuf, sizeof(send_buffer_t));
-    window->append(newsendbuff);
+    window->append(window, newsendbuff);
   }
 
   return lastloop;
@@ -100,8 +102,7 @@ dg_send_recv(int fd, int filefd)
       return NULL;
     }
 
-    if (RTT_DEBUG) fprintf (stderr, "At DEBUG: Last loop\n");
-
+// TODO: Rethink about placing this tag
 sendagain:
     if ((window->head - window->tail + 1) != window->cwnd) {
       fprintf (stderr, "head - tail != cwnd\n");
@@ -110,7 +111,8 @@ sendagain:
 
     tt = rtt_ts(&rttinfo);
     for (i = window->tail; i <= window->head; ++i) {
-      sendbuf = window->get_buf(window, i);
+      if (!(sendbuf = window->get_buf(window, i)))
+        fprintf (stderr, "Couldn't get the window. Yerror!!\n");
       sendbuf->hdr.ts = tt;
       Write(fd, sendbuf, sizeof(sendbuf[i]));
     }

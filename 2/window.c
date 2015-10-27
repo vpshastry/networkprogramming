@@ -77,10 +77,10 @@ window_add_new_ack(window_t *window, int ackno)
 send_buffer_t *
 window_get_buf(window_t *window, int bufno)
 {
-  if (bufno < tail || bufno > head) {
+  if (bufno < window->tail || bufno > window->head) {
     fprintf (stderr, "Can't find buf for ack: %d while window is %d-%d\n",
-              bufno, tail, head);
-    return -1;
+              bufno, window->tail, window->head);
+    return NULL;
   }
 
   return window->queue[bufno].data;
@@ -104,4 +104,21 @@ window_update_cwnd(window_t *window, int received_dup_ack)
       window->cwnd = received_dup_ack? window->cwnd >> 1: window->cwnd *2;
       break;
   }
+}
+
+void
+window_clear(window_t *window)
+{
+  int i;
+
+  if ((window->head - window->tail + 1) != window->cwnd) {
+    fprintf (stderr, "head - tail != cwnd\n");
+    exit(0);
+  }
+
+  for (i = window->tail; i <= window->head; ++i) {
+    free(window->queue[i].data);
+    memset(&window->queue[i], 0, sizeof(cqueue_t));
+  }
+  window->tail = window->head +1;
 }

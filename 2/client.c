@@ -12,6 +12,20 @@ typedef struct {
   unsigned long mean; // In milliseconds
 } input_t;
 
+/* return 0 - drop datagram */
+/* return 1 - do not drop */
+int simulate_transmission_loss(float p) {
+	float num = ((float) rand() / (float)(RAND_MAX)) * 1.0;
+	//printf("Random number:%f\n", num);
+	if (num <=p) {
+		//printf("drop packet.");
+		return 0;
+	} else {
+		//printf("Do not drop this packet");
+		return 1;
+	}
+}
+
 static struct rtt_info   rttinfo;
 static int	rttinit = 0;
 
@@ -136,19 +150,6 @@ void set_ip_server_and_ip_client(struct sockaddr_in *servaddr, struct sockaddr_i
 	else {
 		printf("Client and Server are not local\n");
 		clientaddr->sin_addr = ii[i-1].ip->sin_addr; // is this correct. What about loopback, is that valid for clientIP? TODO(@aashray)
-	}
-}
-/* return 0 - drop datagram */
-/* return 1 - do not drop */
-int simulate_transmission_loss(float p) {
-	float num = ((float) rand() / (float)(RAND_MAX)) * 1.0;
-	//printf("Random number:%f\n", num);
-	if (num <=p) {
-		//printf("drop packet.");
-		return 0;
-	} else {
-		//printf("Do not drop this packet");
-		return 1;
 	}
 }
 
