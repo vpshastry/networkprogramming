@@ -16,40 +16,16 @@ static sigjmp_buf jmpbuf;
 int
 prepare_window(window_t *window, int filefd)
 {
-  send_buffer_t *newsendbuff;
   int i;
-  int n;
   int lastloop = 0;
 
   // Below for loop initializes the data.
-  for (i = 0; i < window->cwnd; ++i) {
-    if (window->get_buf(window, seq +1))
-      continue;
-
-    newsendbuff = calloc(1, sizeof(send_buffer_t));
-
-    newsendbuff->hdr.seq = ++seq;
-
-    // Read from file to fill the buffer.
-    if ((n = read(filefd, newsendbuff->payload, FILE_READ_SIZE)) <= 0) {
-      if (n != 0) {
-        err_sys("File read error");
-        return -1;
-      }
-    }
-
-    if (n == 0 || n < FILE_READ_SIZE) {
-      if (RTT_DEBUG) fprintf (stderr, "I think this is the last datagram\n");
-      newsendbuff->hdr.fin = 1;
+  for (i = 0; i < window->cwnd; ++i)
+    if ((lastloop = window->prepare_cur_datagram(window, &seq, filefd))) {
       // TODO: Recheck this inconsistent window size update.
-      window->cwnd = i+1;
-      lastloop = 1;
+      window->cwnd = i +1;
+      break;
     }
-    newsendbuff->length = n;
-
-    /* Add this to window */
-    window->append(window, newsendbuff);
-  }
 
   return lastloop;
 }
@@ -75,7 +51,7 @@ dg_send_recv(int fd, int filefd)
     if (fstat(filefd, &buf))
       err_sys("Fstat on file failed\n");
 
-    window->init(window, buf.st_size/FILE_READ_SIZE +1);
+    window->init(window, buf.st_size/FILE_READ_SIZE +1, 1/*cwnd*/);
   }
 
   while (!lastloop) {
@@ -94,7 +70,7 @@ sendagain:
 
     for (i = window->tail; i <= window->head; ++i) {
       if (!(sendbuf = window->get_buf(window, i)))
-        fprintf (stderr, "Couldn't get the window. Yerror!!\n");
+        fprintf (stderr, "Couldn't get the window %d. Yerror!!\n", i);
       sendbuf->hdr.ts = rtt_ts(&rttinfo);
       Write(fd, sendbuf, sizeof(sendbuf[i]));
 

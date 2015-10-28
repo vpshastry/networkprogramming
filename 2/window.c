@@ -13,11 +13,15 @@ window_reset(window_t *window)
 }
 
 void
-window_init(window_t *window, int size)
+window_init(window_t *window, int size, int cwnd)
 {
   if (!(window->queue = (cqueue_t *) calloc(size, sizeof(cqueue_t))))
     err_sys("New memory allocation failed\n");
+
   window->head = window->tail = -1;
+  window->inuse = 0;
+  window->cwnd = 1;
+  window->queue_size = size;
 }
 
 void
@@ -29,8 +33,10 @@ window_append(window_t *window, send_buffer_t *newbuf)
   }
 
   window->queue[++window->head].data = (void *)newbuf;
-  if (window->tail == -1)
-    window->tail = 0;
+  if (!window->inuse) {
+    window->tail = window->head;
+    window->inuse = 1;
+  }
 }
 
 send_buffer_t *
@@ -77,11 +83,8 @@ window_add_new_ack(window_t *window, int ackno)
 send_buffer_t *
 window_get_buf(window_t *window, int bufno)
 {
-  if (bufno < window->tail || bufno > window->head) {
-    fprintf (stderr, "Can't find buf for ack: %d while window is %d-%d\n",
-              bufno, window->tail, window->head);
+  if (bufno < 0 || bufno > window->queue_size)
     return NULL;
-  }
 
   return window->queue[bufno].data;
 }
@@ -111,23 +114,67 @@ window_clear(window_t *window)
 {
   int i;
 
-  if ((window->head - window->tail + 1) != window->cwnd) {
-    fprintf (stderr, "head - tail != cwnd\n");
-    exit(0);
-  }
+  window->check_consistency(window);
 
   for (i = window->tail; i <= window->head; ++i) {
     free(window->queue[i].data);
     memset(&window->queue[i], 0, sizeof(cqueue_t));
   }
-  window->tail = window->head +1;
+  window->tail = window->head;
+  window->inuse = 0;
 }
 
 void
 window_check_consistency(window_t *window)
 {
-  if ((window->head - window->tail + 1) != window->cwnd) {
-    fprintf (stderr, "head - tail != cwnd\n");
+  if (window->inuse && ((window->head - window->tail + 1) != window->cwnd)) {
+    fprintf (stderr, "head(%d) - tail(%d) != cwnd(%d)\n",
+              window->head, window->tail, window->cwnd);
     exit(0);
   }
+}
+
+int
+window_prepare_cur_datagram(window_t *window, long long *seq, int filefd)
+{
+  int n;
+  send_buffer_t *newsendbuff;
+  int lastloop = 0;
+  send_buffer_t *buf;
+
+  if ((buf = window->get_buf(window, (*seq) +1))) {
+    if (!window->inuse) {
+      window->inuse = 1;
+      window->tail = window->head;
+    }
+
+    return buf->hdr.fin;
+  }
+
+  if (!(newsendbuff = calloc(1, sizeof(send_buffer_t)))) {
+    fprintf (stderr, "New memory allocation failed\n");
+    exit(0);
+  }
+
+  newsendbuff->hdr.seq = ++(*seq);
+
+  // Read from file to fill the buffer.
+  if ((n = read(filefd, newsendbuff->payload, FILE_READ_SIZE)) <= 0) {
+    if (n != 0) {
+      err_sys("File read error");
+      return -1;
+    }
+  }
+
+  if (n == 0 || n < FILE_READ_SIZE) {
+    if (RTT_DEBUG) fprintf (stderr, "I think this is the last datagram\n");
+    newsendbuff->hdr.fin = 1;
+    lastloop = 1;
+  }
+  newsendbuff->length = n;
+
+  /* Add this to window */
+  window->append(window, newsendbuff);
+
+  return lastloop;
 }

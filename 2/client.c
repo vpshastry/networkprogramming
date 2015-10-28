@@ -57,10 +57,12 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
       while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
           if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
       // Simulate incoming packet loss.
+      /*
       if (!simulate_transmission_loss(p)) {
         printf ("Dropping packet #%d\n", recvbuf.hdr.seq);
         continue;
       }
+      */
     }
 
     printf ("Received packet: #%d\n", recvbuf.hdr.seq);

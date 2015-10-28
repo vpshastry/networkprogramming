@@ -28,10 +28,12 @@ typedef struct mywindow {
   int head;
   int cwnd;
   int ssthresh;
+  int inuse;
   window_mode_t mode;
   cqueue_t *queue;
+  int queue_size;
 
-  void (*init)(struct mywindow *, int);
+  void (*init)(struct mywindow *, int, int);
   void (*reset)(struct mywindow *);
   int (*get_tail)(struct mywindow *);
   void (*append)(struct mywindow *, send_buffer_t *);
@@ -41,12 +43,13 @@ typedef struct mywindow {
   void (*update_cwnd)(struct mywindow *, int);
   void (*clear)(struct mywindow *);
   void (*check_consistency)(struct mywindow *);
+  int (*prepare_cur_datagram)(struct mywindow *, long long *, int);
 
 } window_t;
 
 int window_get_tail(window_t *window);
 void window_reset(window_t *window);
-void window_init(window_t *window, int size);
+void window_init(window_t *window, int size, int cwnd);
 void window_append(window_t *window, send_buffer_t *newbuf);
 send_buffer_t * window_dequeue(window_t *window, int ackno);
 int window_add_new_ack(window_t *window, int ack);
@@ -54,9 +57,9 @@ send_buffer_t *window_get_buf(window_t *, int ack);
 void window_update_cwnd(window_t *window, int);
 void window_check_consistency(window_t *window);
 void window_clear(window_t *window);
+int window_prepare_cur_datagram(window_t *window, long long *, int filefd);
 
 static window_t newwindow = {
-  .cwnd = 1,
   .seq = -1,
   .mode = MODE_SLOW_START,
   .init = window_init,
@@ -69,5 +72,6 @@ static window_t newwindow = {
   .update_cwnd = window_update_cwnd,
   .clear = window_clear,
   .check_consistency = window_check_consistency,
+  .prepare_cur_datagram = window_prepare_cur_datagram,
 };
 #endif
