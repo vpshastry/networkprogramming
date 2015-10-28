@@ -16,20 +16,22 @@ static sigjmp_buf jmpbuf;
 int
 prepare_window(window_t *window, int filefd)
 {
-  send_buffer_t tmpsendbuf, *newsendbuff;
+  send_buffer_t *newsendbuff;
   int i;
   int n;
   int lastloop = 0;
 
   // Below for loop initializes the data.
   for (i = 0; i < window->cwnd; ++i) {
-    memset(&tmpsendbuf, 0, sizeof(send_buffer_t));
+    if (window->get_buf(window, seq +1))
+      continue;
 
-    tmpsendbuf.hdr.seq = ++seq;
+    newsendbuff = calloc(1, sizeof(send_buffer_t));
+
+    newsendbuff->hdr.seq = ++seq;
 
     // Read from file to fill the buffer.
-    n = 0;
-    if ((n = read(filefd, tmpsendbuf.payload, FILE_READ_SIZE)) <= 0) {
+    if ((n = read(filefd, newsendbuff->payload, FILE_READ_SIZE)) <= 0) {
       if (n != 0) {
         err_sys("File read error");
         return -1;
@@ -38,15 +40,14 @@ prepare_window(window_t *window, int filefd)
 
     if (n == 0 || n < FILE_READ_SIZE) {
       if (RTT_DEBUG) fprintf (stderr, "I think this is the last datagram\n");
-      tmpsendbuf.hdr.fin = 1;
+      newsendbuff->hdr.fin = 1;
+      // TODO: Recheck this inconsistent window size update.
       window->cwnd = i+1;
       lastloop = 1;
     }
-    tmpsendbuf.length = n;
+    newsendbuff->length = n;
 
     /* Add this to window */
-    newsendbuff = malloc(sizeof(send_buffer_t));
-    memcpy (newsendbuff, &tmpsendbuf, sizeof(send_buffer_t));
     window->append(window, newsendbuff);
   }
 
