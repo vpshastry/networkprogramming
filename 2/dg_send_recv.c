@@ -96,12 +96,12 @@ sendagain:
     if (RTT_DEBUG) rtt_debug(&rttinfo);
 
     if (sigsetjmp(jmpbuf, 1) != 0) {
-      if (rtt_timeout(&rttinfo) < 0) {
+      /*if (rtt_timeout(&rttinfo) < 0) {
         err_msg("dg_send_recv: no response from server, giving up");
-        rttinit = 0;	/* reinit in case we're called again */
-        errno = ETIMEDOUT;
+        rttinit = 0;	*//* reinit in case we're called again */
+        /*errno = ETIMEDOUT;
         return(-1);
-      }
+      }*/
 
       if (RTT_DEBUG) err_msg("dg_send_recv: timeout, retransmitting");
 	  /* timeout - so make window size as 1 with last unacked data - send again */

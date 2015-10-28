@@ -28,16 +28,20 @@ int simulate_transmission_loss(float p) {
 
 static struct rtt_info   rttinfo;
 static int	rttinit = 0;
+static sigjmp_buf jmpbuf;
+
+static void sig_alrm(int signo);
 
 int
 receive_file(int sockfd, float p /* prob */, int buffer_size)
 {
-  int n, fin = 0;
+  int n, fin = 0, time_wait_state = 0;
   send_buffer_t recvbuf, sendbuf;
   cli_in_buff_t in_buff[buffer_size];
   int i = -1;
   int seq = 0;
 
+  Signal(SIGALRM, sig_alrm);
   /* Remove and add proper receiver window logic here */
   if (rttinit == 0) {
     rtt_init(&rttinfo);		/* first time we're called */
@@ -46,13 +50,19 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
   }
 
   printf ("Waiting for server to send something\n");
-  while (fin != 1) {
+  while (fin != 1 || time_wait_state == 1) {
+	
     rtt_newpack(&rttinfo);		/* initialize for this packet */
 
     memset(&recvbuf, 0, sizeof(recvbuf));
     memset(&sendbuf, 0, sizeof(sendbuf));
 
-    // These two parts should be together.
+	if (sigsetjmp(jmpbuf, 1) != 0) {
+    	printf("Timer expired and server did not contact me.\n Success.\n");
+		time_wait_state = 0;
+		continue;
+	}
+	// These two parts should be together.
     {
       while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
           if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
@@ -61,7 +71,24 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
         printf ("Dropping packet #%d\n", recvbuf.hdr.seq);
         continue;
       }
-	  if (recvbuf.hdr.fin == 1) fin = 1;
+	  if (time_wait_state == 1){
+		  printf("Server has lost my ACK of FIN, send again.\n");
+		  sendbuf.hdr.ack = 1;
+		  sendbuf.hdr.seq = seq;
+		  sendbuf.hdr.ts = rtt_ts(&rttinfo);
+		  sendbuf.hdr.fin = 1;
+		  alarm(10);
+		  if (!simulate_transmission_loss(p)){
+			printf("Dropping sending of ACK of FIN %d\n", sendbuf.hdr.seq);
+		  } else {
+			Write(sockfd, &sendbuf, sizeof(seq_header_t));
+	      }
+		  continue;
+	  }
+	  if (recvbuf.hdr.fin == 1) {
+		  fin = 1;
+		  time_wait_state = 1;
+		}
     }
 
     printf ("Received packet: #%d\n", recvbuf.hdr.seq);
@@ -252,4 +279,10 @@ main(int argc, char *argv[]) {
         }
 
 	return 0;
+}
+
+static void
+sig_alrm(int signo)
+{
+	    siglongjmp(jmpbuf, 1);
 }
