@@ -157,8 +157,8 @@ main(int argc, char *argv[]) {
 					Write(client_sockfd, msg, strlen(msg));
 					printf("Sent from new port!\n");
 
-                                        if (send_file(filename, client_sockfd))
-                                          printf("Failed to send file\n");
+                    if (send_file(filename, client_sockfd))
+                    	printf("Failed to send file\n");
 
 					exit(0);// exit child
 				} else if (pid > 0) {

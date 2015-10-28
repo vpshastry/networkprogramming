@@ -90,7 +90,10 @@ sendagain:
       }
 
       if (RTT_DEBUG) err_msg("dg_send_recv: timeout, retransmitting");
-
+	  /* timeout - so make window size as 1 with last unacked data - send again */
+	  window->cwnd = 1;
+	  window->head = window->tail = min_idx_acked;
+	  printf("Reducing window to 1, with #:%d to be resent.\n", min_idx_acked);
       goto sendagain;
     }
 
@@ -117,6 +120,7 @@ sendagain:
         case ACK_NONE:
           // Increase the window size and resend;
           ++i;
+		  min_idx_acked = recvbuf.hdr.seq;
           break;
 
         default:

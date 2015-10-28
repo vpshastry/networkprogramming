@@ -114,8 +114,6 @@ window_clear(window_t *window)
 {
   int i;
 
-  window->check_consistency(window);
-
   for (i = window->tail; i <= window->head; ++i) {
     free(window->queue[i].data);
     memset(&window->queue[i], 0, sizeof(cqueue_t));
