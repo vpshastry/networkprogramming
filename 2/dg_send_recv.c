@@ -8,7 +8,7 @@ static int cur_window_size = 16;
 static int updated_cur_window_size = -1;
 static struct rtt_info rttinfo;
 static int rttinit = 0;
-static long long seq = -1;
+long long seq = -1;
 
 static void sig_alrm(int signo);
 static sigjmp_buf jmpbuf;
@@ -19,14 +19,27 @@ prepare_window(window_t *window, int filefd)
   int i;
   int lastloop = 0;
 
+  // TODO: This is a window management code. Try to move within window.c
+  window->tail = window->head +1;
+  window->head = window->tail + window->cwnd -1;
+
+  printf ("@prepare window before loop\n");
+  window->debug(window);
+
   // Below for loop initializes the data.
-  for (i = 0; i < window->cwnd; ++i)
-    if ((lastloop = window->prepare_cur_datagram(window, &seq, filefd))) {
+  for (i = 0; i < window->cwnd; ++i) {
+	printf ("Preparing for %d, seq: %ld\n", window->tail +i, window->seq+1);
+    if ((lastloop = window->prepare_cur_datagram(window, window->tail +i, filefd))) {
       // TODO: Recheck this inconsistent window size update.
       window->cwnd = i +1;
+	  window->head = window->tail + window->cwnd -1;
+	  printf ("@prepare window loop\n");
+	  window->debug(window);
       break;
     }
+  }
 
+  printf ("Prepared buffer\n");
   return lastloop;
 }
 
@@ -35,7 +48,7 @@ dg_send_recv(int fd, int filefd)
 {
   ssize_t			n;
   uint32 tt;
-  int i;
+  int i, done = 0;
   int lastloop = 0;
   send_buffer_t recvbuf, *sendbuf, *resendbuf;
   struct stat buf;
@@ -68,6 +81,7 @@ dg_send_recv(int fd, int filefd)
 sendagain:
     window->check_consistency(window);
 
+	//window->debug(window);
     for (i = window->tail; i <= window->head; ++i) {
       if (!(sendbuf = window->get_buf(window, i)))
         fprintf (stderr, "Couldn't get the window %d. Yerror!!\n", i);
@@ -91,13 +105,15 @@ sendagain:
 
       if (RTT_DEBUG) err_msg("dg_send_recv: timeout, retransmitting");
 	  /* timeout - so make window size as 1 with last unacked data - send again */
+	  // TODO: This is a window management code. Try to put it inside the window.c
 	  window->cwnd = 1;
 	  window->head = window->tail = min_idx_acked;
+	  //lastloop = 0;
 	  printf("Reducing window to 1, with #:%d to be resent.\n", min_idx_acked);
       goto sendagain;
     }
 
-    for (i = 0; i < window->cwnd;) {
+    for (i = 0; i < window->cwnd; ) {
       memset (&recvbuf, 0, sizeof(recvbuf));
 
       while ((n = Read(fd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
@@ -107,11 +123,17 @@ sendagain:
         fprintf (stderr, "This is not an ack\n");
         continue;
       }
+	  /*if (recvbuf.hdr.fin == 1) {
+		  printf("Recv Fins ACK\n");
+		  //done = 1;
+		  //break;
+		}*/
 
       if (RTT_DEBUG) fprintf(stderr, "recv %4d\n", recvbuf.hdr.seq);
 
       switch (window->add_new_ack(window, recvbuf.hdr.seq)) {
         case ACK_DUP:
+			printf ("\n\n\n\ndup ack\n\n\n\n");
           received_dup_ack = 1;
           resendbuf = window->get_buf(window, recvbuf.hdr.seq);
           Write(fd, (void *)resendbuf, sizeof(send_buffer_t));
@@ -137,6 +159,7 @@ sendagain:
     window->update_cwnd(window, received_dup_ack);
   }
 
+  printf ("Bye bye!!\n");
   return 0;
 }
 

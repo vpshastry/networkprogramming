@@ -32,7 +32,7 @@ static int	rttinit = 0;
 int
 receive_file(int sockfd, float p /* prob */, int buffer_size)
 {
-  int n;
+  int n, fin = 0;
   send_buffer_t recvbuf, sendbuf;
   cli_in_buff_t in_buff[buffer_size];
   int i = -1;
@@ -46,7 +46,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
   }
 
   printf ("Waiting for server to send something\n");
-  while (recvbuf.hdr.fin != 1) {
+  while (fin != 1) {
     rtt_newpack(&rttinfo);		/* initialize for this packet */
 
     memset(&recvbuf, 0, sizeof(recvbuf));
@@ -57,12 +57,11 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
       while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
           if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
       // Simulate incoming packet loss.
-      
       if (!simulate_transmission_loss(p)) {
         printf ("Dropping packet #%d\n", recvbuf.hdr.seq);
         continue;
       }
-      
+	  if (recvbuf.hdr.fin == 1) fin = 1;
     }
 
     printf ("Received packet: #%d\n", recvbuf.hdr.seq);
@@ -83,9 +82,13 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
     sendbuf.hdr.seq = seq;
     sendbuf.hdr.ts = rtt_ts(&rttinfo);
 
+	if(sendbuf.hdr.fin == 1) printf("Sending fin's ACK\n");
     // Simulate ack packet loss.
-    //if (simulate_transmission_loss(p))
-      Write(sockfd, &sendbuf, sizeof(seq_header_t));
+    if (!simulate_transmission_loss(p)){
+		printf("Dropping sending of ACK %d\n", sendbuf.hdr.seq);
+	} else {
+		Write(sockfd, &sendbuf, sizeof(seq_header_t));
+	}
 
   }
   return 0;
