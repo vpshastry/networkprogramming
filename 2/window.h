@@ -35,7 +35,6 @@ typedef struct mywindow {
 
   void (*init)(struct mywindow *, int, int);
   void (*reset)(struct mywindow *);
-  int (*get_tail)(struct mywindow *);
   void (*append)(struct mywindow *, send_buffer_t *);
   int (*add_new_ack)(struct mywindow *, int ack);
   send_buffer_t* (*get_buf)(struct mywindow *, int ack);
@@ -47,7 +46,6 @@ typedef struct mywindow {
 
 } window_t;
 
-int window_get_tail(window_t *window);
 void window_reset(window_t *window);
 void window_init(window_t *window, int size, int cwnd);
 void window_append(window_t *window, send_buffer_t *newbuf);
@@ -65,7 +63,6 @@ static window_t newwindow = {
   .init = window_init,
   .reset = window_reset,
   .append = window_append,
-  .get_tail = window_get_tail,
   .add_new_ack = window_add_new_ack,
   .get_buf = window_get_buf,
   .update_cwnd = window_update_cwnd,

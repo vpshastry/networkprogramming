@@ -28,13 +28,16 @@ prepare_window(window_t *window, int filefd)
 
   // Below for loop initializes the data.
   for (i = 0; i < window->cwnd; ++i) {
-	printf ("Preparing for %d, seq: %ld\n", window->tail +i, window->seq+1);
+    if (RTT_DEBUG)
+      printf ("Preparing for %d, seq: %ld\n", window->tail +i, window->seq+1);
+
     if ((lastloop = window->prepare_cur_datagram(window, window->tail +i, filefd))) {
       // TODO: Recheck this inconsistent window size update.
       window->cwnd = i +1;
-	  window->head = window->tail + window->cwnd -1;
-	  printf ("@prepare window loop\n");
-	  window->debug(window);
+      window->head = window->tail + window->cwnd -1;
+      printf ("@prepare window loop\n");
+      window->debug(window);
+
       break;
     }
   }
@@ -104,12 +107,13 @@ sendagain:
       }*/
 
       if (RTT_DEBUG) err_msg("dg_send_recv: timeout, retransmitting");
-	  /* timeout - so make window size as 1 with last unacked data - send again */
-	  // TODO: This is a window management code. Try to put it inside the window.c
-	  window->cwnd = 1;
-	  window->head = window->tail = min_idx_acked;
-	  //lastloop = 0;
-	  printf("Reducing window to 1, with #:%d to be resent.\n", min_idx_acked);
+
+      /* timeout - so make window size as 1 with last unacked data - send again */
+      // TODO: This is a window management code. Try to put it inside the window.c
+      window->cwnd = 1;
+      window->head = window->tail = min_idx_acked;
+      //lastloop = 0;
+      printf("Reducing window to 1, with #:%d to be resent.\n", min_idx_acked);
       goto sendagain;
     }
 
@@ -133,7 +137,6 @@ sendagain:
 
       switch (window->add_new_ack(window, recvbuf.hdr.seq)) {
         case ACK_DUP:
-			printf ("\n\n\n\ndup ack\n\n\n\n");
           received_dup_ack = 1;
           resendbuf = window->get_buf(window, recvbuf.hdr.seq);
           Write(fd, (void *)resendbuf, sizeof(send_buffer_t));
@@ -142,7 +145,7 @@ sendagain:
         case ACK_NONE:
           // Increase the window size and resend;
           ++i;
-		  min_idx_acked = recvbuf.hdr.seq;
+	  min_idx_acked = recvbuf.hdr.seq;
           break;
 
         default:
@@ -159,14 +162,14 @@ sendagain:
     window->update_cwnd(window, received_dup_ack);
   }
 
-  printf ("Bye bye!!\n");
+  printf ("File transfer completed. Bye bye!!\n");
   return 0;
 }
 
 static void
 sig_alrm(int signo)
 {
-	siglongjmp(jmpbuf, 1);
+  siglongjmp(jmpbuf, 1);
 }
 
 int

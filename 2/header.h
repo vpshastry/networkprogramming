@@ -8,6 +8,7 @@
 #include "unpifiplus.h"
 
 #define RTT_DEBUG 1
+#define RTT_TRACE 0
 
 extern struct ifi_info *Get_ifi_info_plus(int family, int doaliases);
 extern        void      free_ifi_info_plus(struct ifi_info *ifihead);
@@ -36,7 +37,8 @@ typedef struct {
   uint8 fin;
   uint16 padding_var;
 } seq_header_t;
-#define FILE_READ_SIZE (MAX_PACKET_SIZE - sizeof(seq_header_t))
+
+#define FILE_READ_SIZE (MAX_PACKET_SIZE - sizeof(seq_header_t) - sizeof(uint32))
 
 typedef struct {
   seq_header_t hdr;

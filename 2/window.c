@@ -1,11 +1,5 @@
 #include "window.h"
 
-int
-window_get_tail(window_t *window)
-{
-  return window->tail;
-}
-
 void
 window_reset(window_t *window)
 {
@@ -21,14 +15,12 @@ window_init(window_t *window, int size, int cwnd)
   window->head = window->tail = -1;
   window->inuse = 0;
   window->cwnd = 1;
-  printf ("init\n");
   window->queue_size = size;
 }
 
 void
 window_append(window_t *window, send_buffer_t *newbuf)
 {
-	printf ("@append\n");
   //window->debug(window);
   /*
   if (newbuf->hdr.seq != (window->head +1)) {
@@ -38,7 +30,8 @@ window_append(window_t *window, send_buffer_t *newbuf)
   */
 
   if (window->queue[newbuf->hdr.seq].data)
-	  printf ("Data was already there\n");
+    printf ("Data was already there for %d\n", newbuf->hdr.seq);
+
   window->queue[newbuf->hdr.seq].data = (void *)newbuf;
 }
 
@@ -54,14 +47,14 @@ window_add_new_ack(window_t *window, int ackno)
     if (RTT_DEBUG)
       fprintf (stderr, "Ack received for packet that isn't even sent or out of order: %d\n",
                 ackno);
-    return ACK_NONE;
+    return ACK_NOTSENT;
   }
 
   window->queue[ackno-1].ack++;
 
-  if (window->queue[ackno-1].ack >= 3){
+  if (window->queue[ackno-1].ack >= 3) {
     printf("3 duplicate ACKs : Fast Retransmit");
-	return ACK_DUP;
+    return ACK_DUP;
   }
   return ACK_NONE;
 }
@@ -69,9 +62,8 @@ window_add_new_ack(window_t *window, int ackno)
 send_buffer_t *
 window_get_buf(window_t *window, int bufno)
 {
-	printf ("In get buf: %d\n", bufno);
   if (bufno < 0 || bufno > (window->queue_size -1)) {
-	  printf ("Shouldn't happen\n");
+    printf ("Requested bufno(%d) is out of file size\n", bufno);
     return NULL;
   }
 
@@ -111,7 +103,7 @@ window_clear(window_t *window)
 
   for (i = window->tail; i <= window->head; ++i) {
     free(window->queue[i].data);
-	window->queue[i].data = NULL;
+    window->queue[i].data = NULL;
   }
   window->tail = window->head;
   window->inuse = 0;
@@ -121,7 +113,7 @@ void
 window_check_consistency(window_t *window)
 {
   if ((window->head - window->tail + 1) != window->cwnd) {
-    fprintf (stderr, "head(%d) - tail(%d) != cwnd(%d)\n",
+    fprintf (stderr, "PANIC!! head(%d) - tail(%d) != cwnd(%d)\n",
               window->head, window->tail, window->cwnd);
     exit(0);
   }
@@ -134,8 +126,9 @@ window_prepare_cur_datagram(window_t *window, int seq, int filefd)
   send_buffer_t *newsendbuff;
   int lastloop = 0;
   send_buffer_t *buf;
-  int debugvar = (seq);
-  printf ("Entered prepare cur datagram: operating on %d\n", debugvar);
+
+  if (RTT_DEBUG)
+    printf ("Entered prepare cur datagram: operating on %d\n", seq);
 
   if ((buf = window->get_buf(window, seq))) {
     printf ("DEBUG: %d already filled\n", buf->hdr.seq);
@@ -148,7 +141,7 @@ window_prepare_cur_datagram(window_t *window, int seq, int filefd)
   }
 
   newsendbuff->hdr.seq = seq;
-  printf("DEBUG: filling:%d\n", newsendbuff->hdr.seq);
+  if (RTT_DEBUG) printf("DEBUG: filling:%d\n", newsendbuff->hdr.seq);
 
   // Read from file to fill the buffer.
   if ((n = read(filefd, newsendbuff->payload, FILE_READ_SIZE)) <= 0) {
@@ -159,8 +152,11 @@ window_prepare_cur_datagram(window_t *window, int seq, int filefd)
   }
 
   if (n == 0 || n < FILE_READ_SIZE) {
-    if (RTT_DEBUG) fprintf (stderr, "I think this is the last datagram : %d\n", newsendbuff->hdr.seq);
-	printf("Contents:\n%s\n", newsendbuff->payload);
+    if (RTT_DEBUG) {
+      fprintf (stderr, "I think this is the last datagram : %d\n",
+                newsendbuff->hdr.seq);
+      fprintf(stderr, "Contents:\n%s\n", newsendbuff->payload);
+    }
     newsendbuff->hdr.fin = 1;
     lastloop = 1;
   }
@@ -175,7 +171,7 @@ window_prepare_cur_datagram(window_t *window, int seq, int filefd)
 void
 window_debug(window_t *window)
 {
-	if (1)
-	printf ("Window vars:-\nqueue_size: %d\ncwnd: %d\nhead: %d\ntail: %d\n",
-			window->queue_size, window->cwnd, window->head, window->tail);
+  if (1)
+    printf ("Window vars:-\nqueue_size: %d\ncwnd: %d\nhead: %d\ntail: %d\n",
+            window->queue_size, window->cwnd, window->head, window->tail);
 }
