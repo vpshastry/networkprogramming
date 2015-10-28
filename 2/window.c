@@ -69,7 +69,7 @@ window_add_new_ack(window_t *window, int ackno)
 
   window->queue[ackno-1].ack++;
 
-  if (window->queue[ackno-1].ack > 3)
+  if (window->queue[ackno-1].ack > 1)
     return ACK_DUP;
   return ACK_NONE;
 }
@@ -121,4 +121,13 @@ window_clear(window_t *window)
     memset(&window->queue[i], 0, sizeof(cqueue_t));
   }
   window->tail = window->head +1;
+}
+
+void
+window_check_consistency(window_t *window)
+{
+  if ((window->head - window->tail + 1) != window->cwnd) {
+    fprintf (stderr, "head - tail != cwnd\n");
+    exit(0);
+  }
 }

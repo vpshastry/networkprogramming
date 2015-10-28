@@ -1,31 +1,17 @@
 /* include dgsendrecv1 */
-#include	"unprtt.h"
-#include	<setjmp.h>
+#include "unprtt.h"
+#include <setjmp.h>
 #include "header.h"
 #include "window.h"
 
 static int cur_window_size = 16;
 static int updated_cur_window_size = -1;
-static struct rtt_info   rttinfo;
-static int	rttinit = 0;
+static struct rtt_info rttinfo;
+static int rttinit = 0;
 static long long seq = -1;
 
-static void	sig_alrm(int signo);
-static sigjmp_buf	jmpbuf;
-
-int
-get_cur_window_size()
-{
-  if (updated_cur_window_size != -1)
-    return updated_cur_window_size;
-  return cur_window_size;
-}
-
-void
-update_window_size(int i)
-{
-  updated_cur_window_size = i;
-}
+static void sig_alrm(int signo);
+static sigjmp_buf jmpbuf;
 
 int
 prepare_window(window_t *window, int filefd)
@@ -34,8 +20,6 @@ prepare_window(window_t *window, int filefd)
   int i;
   int n;
   int lastloop = 0;
-
-  //if (RTT_DEBUG) fprintf (stderr, "Current window size: %s\n", window->cwnd);
 
   // Below for loop initializes the data.
   for (i = 0; i < window->cwnd; ++i) {
@@ -80,6 +64,7 @@ dg_send_recv(int fd, int filefd)
   struct stat buf;
   window_t *window = &newwindow;
   int received_dup_ack = 0;
+  int min_idx_acked = 0;
 
   if (rttinit == 0) {
     rtt_init(&rttinfo);		/* first time we're called */
@@ -104,17 +89,15 @@ dg_send_recv(int fd, int filefd)
 
 // TODO: Rethink about placing this tag
 sendagain:
-    if ((window->head - window->tail + 1) != window->cwnd) {
-      fprintf (stderr, "head - tail != cwnd\n");
-      exit(0);
-    }
+    window->check_consistency(window);
 
-    tt = rtt_ts(&rttinfo);
     for (i = window->tail; i <= window->head; ++i) {
       if (!(sendbuf = window->get_buf(window, i)))
         fprintf (stderr, "Couldn't get the window. Yerror!!\n");
-      sendbuf->hdr.ts = tt;
+      sendbuf->hdr.ts = rtt_ts(&rttinfo);
       Write(fd, sendbuf, sizeof(sendbuf[i]));
+
+      if (RTT_DEBUG) fprintf (stderr, "Sent packet #%d\n", sendbuf->hdr.seq);
     }
 
     alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
@@ -134,7 +117,7 @@ sendagain:
       goto sendagain;
     }
 
-    for (i = 0; i < window->cwnd; ++i) {
+    for (i = 0; i < window->cwnd;) {
       memset (&recvbuf, 0, sizeof(recvbuf));
 
       while ((n = Read(fd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
@@ -156,6 +139,11 @@ sendagain:
 
         case ACK_NONE:
           // Increase the window size and resend;
+          ++i;
+          break;
+
+        default:
+          fprintf (stderr, "Something wrong here!!\n");
           break;
       }
     }

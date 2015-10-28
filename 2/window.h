@@ -19,6 +19,7 @@ typedef struct {
   send_buffer_t *data;
   int ack;
 } cqueue_t;
+typedef cqueue_t buffer_t;
 
 typedef struct mywindow {
 
@@ -39,6 +40,7 @@ typedef struct mywindow {
   send_buffer_t* (*get_buf)(struct mywindow *, int ack);
   void (*update_cwnd)(struct mywindow *, int);
   void (*clear)(struct mywindow *);
+  void (*check_consistency)(struct mywindow *);
 
 } window_t;
 
@@ -50,6 +52,7 @@ send_buffer_t * window_dequeue(window_t *window, int ackno);
 int window_add_new_ack(window_t *window, int ack);
 send_buffer_t *window_get_buf(window_t *, int ack);
 void window_update_cwnd(window_t *window, int);
+void window_check_consistency(window_t *window);
 void window_clear(window_t *window);
 
 static window_t newwindow = {
@@ -65,5 +68,6 @@ static window_t newwindow = {
   .get_buf = window_get_buf,
   .update_cwnd = window_update_cwnd,
   .clear = window_clear,
+  .check_consistency = window_check_consistency,
 };
 #endif

@@ -30,10 +30,14 @@ static struct rtt_info   rttinfo;
 static int	rttinit = 0;
 
 int
-receive_file(int sockfd, float p /* prob */)
+receive_file(int sockfd, float p /* prob */, int buffer_size)
 {
   int n;
   send_buffer_t recvbuf, sendbuf;
+  cli_in_buff_t in_buff[buffer_size];
+  int i = -1;
+  int seq = 0;
+
   /* Remove and add proper receiver window logic here */
   if (rttinit == 0) {
     rtt_init(&rttinfo);		/* first time we're called */
@@ -48,28 +52,39 @@ receive_file(int sockfd, float p /* prob */)
     memset(&recvbuf, 0, sizeof(recvbuf));
     memset(&sendbuf, 0, sizeof(sendbuf));
 
-    while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
-        if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
+    // These two parts should be together.
+    {
+      while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
+          if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
+      // Simulate incoming packet loss.
+      if (!simulate_transmission_loss(p)) {
+        printf ("Dropping packet #%d\n", recvbuf.hdr.seq);
+        continue;
+      }
+    }
 
-    // Simulate incoming packet loss.
-    if (!simulate_transmission_loss(p))
-      continue;
+    printf ("Received packet: #%d\n", recvbuf.hdr.seq);
+
+    if (recvbuf.hdr.seq == seq) {
+      ++seq;
+
+      recvbuf.payload[recvbuf.length] = '\0';
+      printf ("#%d\n%s\n", recvbuf.hdr.seq, recvbuf.payload);
+
+      if (recvbuf.hdr.fin == 1) {
+        if (RTT_DEBUG) printf ("Fin received\n");
+        sendbuf.hdr.fin = 1;
+      }
+    }
 
     sendbuf.hdr.ack = 1;
-    sendbuf.hdr.seq = recvbuf.hdr.seq +1;
+    sendbuf.hdr.seq = seq;
     sendbuf.hdr.ts = rtt_ts(&rttinfo);
 
-    recvbuf.payload[recvbuf.length] = '\0';
-    printf ("%s\n", recvbuf.payload);
-
     // Simulate ack packet loss.
-    if (simulate_transmission_loss(p))
+    //if (simulate_transmission_loss(p))
       Write(sockfd, &sendbuf, sizeof(seq_header_t));
 
-    if (recvbuf.hdr.fin == 1) {
-      if (RTT_DEBUG) printf ("Fin received\n");
-      sendbuf.hdr.fin = 1;
-    }
   }
   return 0;
 }
@@ -226,7 +241,7 @@ main(int argc, char *argv[]) {
 	Fputs(recvline, stdout);
 
 
-        if (receive_file(sockfd, input.p)) {
+        if (receive_file(sockfd, input.p, input.recvslidewindowsize)) {
           printf ("Failed to receive file\n");
           return -1;
         }

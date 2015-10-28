@@ -43,6 +43,7 @@ typedef struct {
   char payload[FILE_READ_SIZE];
   uint32 length;
 } send_buffer_t;
+typedef send_buffer_t cli_in_buff_t;
 
 seq_header_t * get_header_from_buff(char *buffer);
 char * get_data(char *buffer);
