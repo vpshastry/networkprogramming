@@ -62,8 +62,10 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
   while (!done) {
     fair_lock(&lock);
     {
-      if (global_buffer[seq % buffer_size])
+      if (global_buffer[seq % buffer_size]) {
+        printf ("Waiting for consumer to consume the buffer\n");
         goto unlock;
+      }
 
       global_buffer[seq % buffer_size] = temp;
       done = 1;
@@ -72,7 +74,6 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
 unlock:
     fair_unlock(&lock);
 
-    printf ("Waiting for consumer to consume the buffer\n");
   }
 }
 
@@ -165,16 +166,6 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
   }
   return 0;
 }
-void *
-receive_file_fn(void *args)
-{
-  args_t *largs = args;
-
-  if (receive_file(largs->sockfd, largs->input.p, largs->input.recvslidewindowsize))
-    fprintf (stderr, "Receiving file failed.\n");
-
-  return NULL;
-}
 
 unsigned int
 get_time_from_mu(unsigned int mu)
@@ -235,9 +226,9 @@ print_from_buf(int buffer_size, unsigned int  mu)
 void *
 print_from_buf_fn(void *args)
 {
-  args_t *largs = args;
+  input_t *largs = args;
 
-  if (print_from_buf(largs->input.recvslidewindowsize, largs->input.mean))
+  if (print_from_buf(largs->recvslidewindowsize, largs->mean))
     fprintf (stderr, "Printing from the buffer failed.\n");
 
   printf ("\nFile printed completely. Exiting the print buffer thread.\n");
@@ -398,30 +389,23 @@ main(int argc, char *argv[]) {
 
         // pthread code starts here.
         pthread_t thread_print_from_buf;
-        pthread_t thread_receive_file;
-        args_t *rf_args = calloc(1, sizeof(args_t));
-        args_t *pfb_args = calloc(1, sizeof(args_t));
+        input_t *args = calloc(1, sizeof(input_t));
 
-        rf_args->sockfd = sockfd;
-        memcpy (&rf_args->input, &input, sizeof(input_t));
-        memcpy (&pfb_args->input, &input, sizeof(input_t));
+        memcpy (args, &input, sizeof(input_t));
 
-        if (pthread_create(&thread_receive_file, NULL, &receive_file_fn, rf_args)) {
-          fprintf (stderr, "Couldn't create thread for receive file.\n");
-          return -1;
-        }
-
-        if (pthread_create(&thread_print_from_buf, NULL, &print_from_buf_fn, pfb_args)) {
+        if (pthread_create(&thread_print_from_buf, NULL, &print_from_buf_fn, args)) {
           fprintf (stderr, "Couldn't create thread for print from buffer.\n");
           return -1;
         }
 
-        if (pthread_join(thread_receive_file, NULL) ||
-            pthread_join(thread_print_from_buf, NULL))
-          fprintf (stderr, "pthread join failed\n");
+        if (receive_file(sockfd, input.p, input.recvslidewindowsize))
+          fprintf (stderr, "Receive file exited with error.\n");
 
-        free(rf_args);
-        free(pfb_args);
+        if (pthread_join(thread_print_from_buf, NULL))
+          fprintf (stderr, "pthread join failed\n");
+        printf ("Finished with all the jobs. Exiting the client.\n");
+
+        free(args);
 
 	return 0;
 }
