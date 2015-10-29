@@ -9,7 +9,7 @@ typedef struct {
   unsigned int recvslidewindowsize; // In # of datagrams
   unsigned int seedvalue;
   float p; // probability
-  unsigned long mean; // In milliseconds
+  unsigned int mean; // In milliseconds
 } input_t;
 
 typedef struct {
@@ -95,7 +95,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
 	if (sigsetjmp(jmpbuf, 1) != 0) {
     	printf("Timer expired and server did not contact me.\n Success.\n");
 		time_wait_state = 0;
-		continue;
+		return 0;
 	}
 	// These two parts should be together.
     {
@@ -168,26 +168,29 @@ receive_file_fn(void *args)
 }
 
 unsigned int
-get_time_from_mu(unsigned long mu)
+get_time_from_mu(unsigned int mu)
 {
-  float rnum = ((float) rand()) / ((float)(RAND_MAX)) * 1.0;
-  float floatsleeptime = (-1 * mu * log(rnum));
+  double rnum = ((double) rand() / (double)(RAND_MAX)) * 1.0;
+  double log_rnum = log(rnum);
+  double floatsleeptime = (-1 * (double) mu * log(rnum));
   unsigned int sleeptime = (unsigned int)floatsleeptime;
 
-  if (RTT_DEBUG) printf ("Sleeping for: %f\n", floatsleeptime);
+  //if (RTT_DEBUG) printf ("Sleeping for: %lf milliseconds\n", floatsleeptime);
 
-  return sleeptime;
+  return (unsigned int)floatsleeptime;
 }
 
 int
-print_from_buf(int buffer_size, unsigned long mu)
+print_from_buf(int buffer_size, unsigned int  mu)
 {
   int seq = 0;
+  unsigned int sleep_for;
   cli_in_buff_t *print_buf;
 
   while (42) {
-    // TODO: Remove this division after the correct calc of myu
-    usleep(get_time_from_mu(mu)/1000);
+	sleep_for = get_time_from_mu(mu);
+	printf("\nRecv buffer to stdout thread: sleeping for:%u ms or %f seconds\n", sleep_for, (float)sleep_for/1000);
+    usleep(sleep_for*1000);// usleep takes microseconds, so multiple by 1000.
 
     while (42) {
 
