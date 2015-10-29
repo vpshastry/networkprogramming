@@ -19,11 +19,11 @@ typedef struct {
 
 static struct rtt_info   rttinfo;
 static int	rttinit = 0;
-static sigjmp_buf jmpbuf;
+static sigjmp_buf jmpbuf, jmpbuf2;
 static void sig_alrm(int signo);
 static int producer_at;
 static int consumer_at;
-
+int awaiting_file_name_ack = 0;
 static cli_in_buff_t **global_buffer;
 fair_lock_t lock = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0};
 
@@ -112,7 +112,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
       while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
           if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
       // Simulate incoming packet loss.
-      if (!simulate_transmission_loss(p)) {
+      if (simulate_transmission_loss(p) == 0) {
         printf ("Dropping packet #%d\n", recvbuf.hdr.seq);
         continue;
       }
@@ -123,7 +123,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
 		  sendbuf.hdr.ts = rtt_ts(&rttinfo);
 		  sendbuf.hdr.fin = 1;
 		  alarm(10);
-		  if (!simulate_transmission_loss(p)){
+		  if (simulate_transmission_loss(p) == 0){
 			printf("Dropping sending of ACK of FIN %d\n", sendbuf.hdr.seq);
 		  } else {
 			Write(sockfd, &sendbuf, sizeof(seq_header_t));
@@ -156,7 +156,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
 
 	if(sendbuf.hdr.fin == 1) printf("Sending fin's ACK\n");
     // Simulate ack packet loss.
-    if (!simulate_transmission_loss(p)){
+    if (simulate_transmission_loss(p) == 0){
 		printf("Dropping sending of ACK %d\n", sendbuf.hdr.seq);
 	} else {
 		printf("Sending ACK with SEQ:%d\n", sendbuf.hdr.seq);
@@ -369,8 +369,27 @@ main(int argc, char *argv[]) {
 	len = sizeof(clientaddr);
 	printf("\nIPclient connected, protocol Address:%s\n", Sock_ntop((SA*) &clientaddr, len));
 	// Send the filename
-	Write(sockfd, input.filename, strlen(input.filename));
+	Signal(SIGALRM, sig_alrm);
+
+	if (simulate_transmission_loss(input.p) == 0) {
+		printf("Dropping datagram sending filename to server\n");
+	} else {
+		printf("Filename sent\n");
+		Write(sockfd, input.filename, strlen(input.filename));
+	}
+	
+	awaiting_file_name_ack = 1;
+	alarm(5);
+
+	if (sigsetjmp(jmpbuf2, 1) != 0) {
+    	printf("Server may have not recieved the file-name. Retransmit.\n");
+		if (simulate_transmission_loss(input.p) != 0)
+			Write(sockfd, input.filename, strlen(input.filename));
+		alarm(5);
+	}
 	n = Read(sockfd, recvline, MAXLINE);
+	alarm(0); // Got response from server, switch off timer.
+    awaiting_file_name_ack = 0;
 	Fputs(recvline, stdout);
 	//bzero(&servaddr, sizeof(serv_connect));
 	//Sock_pton(recvline, &servaddr);
@@ -382,9 +401,8 @@ main(int argc, char *argv[]) {
 	Getpeername(sockfd, (SA*) &serv_connect, &len);
 	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
 
+	// Send ACK to server on new port to continue file transfer.
 	Write(sockfd, input.filename, strlen(input.filename));
-	n = Read(sockfd, recvline, MAXLINE);
-	Fputs(recvline, stdout);
 
 
         // pthread code starts here.
@@ -413,5 +431,6 @@ main(int argc, char *argv[]) {
 static void
 sig_alrm(int signo)
 {
-	    siglongjmp(jmpbuf, 1);
+		if (awaiting_file_name_ack == 1) siglongjmp(jmpbuf2, 1);
+		else siglongjmp(jmpbuf, 1);
 }
