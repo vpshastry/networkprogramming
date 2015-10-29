@@ -24,18 +24,16 @@ static void sig_alrm(int signo);
 int awaiting_file_name_ack = 0;
 static cli_in_buff_t **global_buffer;
 fair_lock_t lock = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0};
+static int remaining_size = -1;
 
 int
 get_remaining_buffer_size(int buffer_size)
 {
-  int remaining = 0;
-  int i;
-
-  for (i = 0; i < buffer_size; i++)
-    if (!global_buffer[i])
-      remaining++;
-
-  return remaining;
+  if (remaining_size == -1) {
+    printf ("Remaining size not initialized yet.\n");
+    return INT_MAX;
+  }
+  return remaining_size;
 }
 
 /* return 0 - drop datagram */
@@ -61,8 +59,10 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
   if (seq < 0 || seq > (buffer_size-1))
     return -1;
 
-  if (!seq)
+  if (!seq) {
     global_buffer = (cli_in_buff_t **) calloc (buffer_size, sizeof(cli_in_buff_t *));
+    remaining_size = buffer_size;
+  }
 
   if (!(temp = malloc(sizeof(cli_in_buff_t)))) {
     err_sys("Failed getting new buffer for cli window.\n");
@@ -79,6 +79,7 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
       }
 
       global_buffer[seq % buffer_size] = temp;
+      --remaining_size;
       done = 1;
     }
 unlock:
@@ -211,6 +212,7 @@ print_from_buf(int buffer_size, unsigned int  mu)
         if (global_buffer[seq % buffer_size]) {
           print_buf = global_buffer[seq % buffer_size];
           global_buffer[seq % buffer_size] = NULL;
+          ++remaining_size;
         }
       }
       fair_unlock(&lock);

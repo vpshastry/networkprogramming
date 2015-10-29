@@ -9,6 +9,7 @@
 #include <math.h>
 #include "unpifiplus.h"
 #include <pthread.h>
+#include <limits.h>
 
 #define RTT_DEBUG 1
 
