@@ -55,3 +55,24 @@ safe_free(void **var)
   free(*var);
   *var = NULL;
 }
+
+void
+fair_lock(fair_lock_t *fairlock)
+{
+  unsigned long long myturn;
+
+  pthread_mutex_lock(&fairlock->mutex);
+  myturn = fairlock->turn_head++;
+  while (myturn != fairlock->turn_tail)
+    pthread_cond_wait(&fairlock->cond, &fairlock->mutex);
+  pthread_mutex_unlock(&fairlock->mutex);
+}
+
+void
+fair_unlock(fair_lock_t *fairlock)
+{
+  pthread_mutex_lock(&fairlock->mutex);
+  fairlock->turn_tail++;
+  pthread_cond_broadcast(&fairlock->cond);
+  pthread_mutex_unlock(&fairlock->mutex);
+}

@@ -41,3 +41,7 @@ Array of structures:
 	- We do a "bit-wise and" on the IP address and netmask to get the subnet address and store as a in_addr type. See code for details.
 	- We then call print_interface_info() to print the contents of this array for stucts as mentioned in the assignment spec.
 
+---------
+Citations
+---------
+* For starvation avoidance at the client threads referred stack overflow discussion titled pthreads-thread-starvation-caused-by-quick-re-locking.

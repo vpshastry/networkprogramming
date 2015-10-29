@@ -58,4 +58,16 @@ seq_header_t * get_header(uint32 source_port, uint32 dest_port, uint32 seq_nu,
 int dg_send_recv(int fd, int filefd);
 void safe_free(void **);
 
+// Locks
+typedef struct {
+  pthread_mutex_t mutex;
+  pthread_cond_t cond;
+  unsigned long long turn_head;
+  unsigned long long turn_tail;
+} fair_lock_t;
+
+void fair_lock(fair_lock_t *fairlock);
+void fair_unlock(fair_lock_t *fairlock);
+// End locks
+
 #endif

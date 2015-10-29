@@ -34,15 +34,17 @@ int simulate_transmission_loss(float p) {
 static struct rtt_info   rttinfo;
 static int	rttinit = 0;
 static sigjmp_buf jmpbuf;
-
 static void sig_alrm(int signo);
+
 static cli_in_buff_t **global_buffer;
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+fair_lock_t lock = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0};
+
 
 int
 append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
 {
   cli_in_buff_t *temp;
+  int done = 0;
 
   if (seq < 0 || seq > (buffer_size-1))
     return -1;
@@ -56,15 +58,20 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
   }
   memcpy(temp, recvbuf, sizeof(cli_in_buff_t));
 
-  pthread_mutex_lock(&mutex);
-  {
-    // TODO: Fix this with cond wait.
-    while (global_buffer[seq % buffer_size])
-      sleep(1);
+  while (!done) {
+    fair_lock(&lock);
+    {
+      if (global_buffer[seq % buffer_size])
+        goto unlock;
 
-    global_buffer[seq % buffer_size] = temp;
+      global_buffer[seq % buffer_size] = temp;
+      done = 1;
+    }
+unlock:
+    fair_unlock(&lock);
+
+    printf ("Waiting for consumer to consume the buffer\n");
   }
-  pthread_mutex_unlock(&mutex);
 }
 
 int
@@ -188,24 +195,27 @@ print_from_buf(int buffer_size, unsigned int  mu)
   cli_in_buff_t *print_buf;
 
   while (42) {
-	sleep_for = get_time_from_mu(mu);
-	printf("\nRecv buffer to stdout thread: sleeping for:%u ms or %f seconds\n", sleep_for, (float)sleep_for/1000);
+    sleep_for = get_time_from_mu(mu);
+    printf("\nRecv buffer to stdout thread: sleeping for:%u ms or %f seconds\n",
+            sleep_for, (float)sleep_for/1000);
     usleep(sleep_for*1000);// usleep takes microseconds, so multiple by 1000.
 
     while (42) {
 
       print_buf = NULL;
-      pthread_mutex_lock(&mutex);
+      fair_lock(&lock);
       {
         if (global_buffer[seq % buffer_size]) {
           print_buf = global_buffer[seq % buffer_size];
           global_buffer[seq % buffer_size] = NULL;
         }
       }
-      pthread_mutex_unlock(&mutex);
+      fair_unlock(&lock);
 
-      if (!print_buf)
+      if (!print_buf) {
+        printf ("Printed the current buffer. Waiting for producer to produce.\n");
         break;
+      }
 
       print_buf->payload[print_buf->length] = '\0';
       printf ("%s", print_buf->payload);
@@ -219,6 +229,7 @@ print_from_buf(int buffer_size, unsigned int  mu)
       free(print_buf);
       seq = (++seq) % buffer_size;
     }
+
   }
 }
 void *
