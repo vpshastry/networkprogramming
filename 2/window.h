@@ -12,7 +12,8 @@ typedef enum {
 
 typedef enum {
   MODE_SLOW_START = 1,
-  MODE_CAVOID = 2
+  MODE_CAVOID = 2,
+  MODE_FAST_RECOV = 3
 } window_mode_t;
 
 typedef struct {

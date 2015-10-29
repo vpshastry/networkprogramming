@@ -149,6 +149,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
     if (!simulate_transmission_loss(p)){
 		printf("Dropping sending of ACK %d\n", sendbuf.hdr.seq);
 	} else {
+		printf("Sending ACK with SEQ:%d\n", sendbuf.hdr.seq);
 		Write(sockfd, &sendbuf, sizeof(seq_header_t));
 	}
 

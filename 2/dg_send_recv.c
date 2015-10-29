@@ -23,23 +23,23 @@ prepare_window(window_t *window, int filefd)
   window->tail = window->head +1;
   window->head = window->tail + window->cwnd -1;
 
-  printf ("@prepare window before loop\n");
-  window->debug(window);
+  //printf ("@prepare window before loop\n");
+  //window->debug(window);
 
   // Below for loop initializes the data.
   for (i = 0; i < window->cwnd; ++i) {
-	printf ("Preparing for %d, seq: %ld\n", window->tail +i, window->seq+1);
+	//printf ("Preparing for %d, seq: %ld\n", window->tail +i, window->seq+1);
     if ((lastloop = window->prepare_cur_datagram(window, window->tail +i, filefd))) {
       // TODO: Recheck this inconsistent window size update.
       window->cwnd = i +1;
 	  window->head = window->tail + window->cwnd -1;
-	  printf ("@prepare window loop\n");
-	  window->debug(window);
+	  //printf ("@prepare window loop\n");
+	  //window->debug(window);
       break;
     }
   }
 
-  printf ("Prepared buffer\n");
+  //printf ("Prepared buffer\n");
   return lastloop;
 }
 
@@ -48,7 +48,7 @@ dg_send_recv(int fd, int filefd)
 {
   ssize_t			n;
   uint32 tt;
-  int i, done = 0;
+  int i, done = 0, waiting_for_new_ack = 0;
   int lastloop = 0;
   send_buffer_t recvbuf, *sendbuf, *resendbuf;
   struct stat buf;
@@ -88,12 +88,13 @@ sendagain:
       sendbuf->hdr.ts = rtt_ts(&rttinfo);
       Write(fd, sendbuf, sizeof(sendbuf[i]));
 
-      if (RTT_DEBUG) fprintf (stderr, "Sent packet #%d\n", sendbuf->hdr.seq);
+      fprintf (stdout, "---------------------------\nSent packet #%d\n", sendbuf->hdr.seq);
+	  window->debug(window);
     }
 
     alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
 
-    if (RTT_DEBUG) rtt_debug(&rttinfo);
+    //if (RTT_DEBUG) rtt_debug(&rttinfo);
 
     if (sigsetjmp(jmpbuf, 1) != 0) {
       /*if (rtt_timeout(&rttinfo) < 0) {
@@ -103,24 +104,27 @@ sendagain:
         return(-1);
       }*/
 
-      if (RTT_DEBUG) err_msg("dg_send_recv: timeout, retransmitting");
+      printf("Timeout, reduce ssthresh=cwnd/2, cwnd = 1, and slow start\n");
 	  /* timeout - so make window size as 1 with last unacked data - send again */
 	  // TODO: This is a window management code. Try to put it inside the window.c
+	  window->ssthresh = window->cwnd / 2;
 	  window->cwnd = 1;
+	  received_dup_ack = 0;
 	  window->head = window->tail = min_idx_acked;
 	  if (lastloop) {
 		  lastloop = 0;
 	  }
-	  printf("Reducing window to 1, with #:%d to be resent.\n", min_idx_acked);
+	  //printf("Reducing window to 1, with #:%d to be resent.\n", min_idx_acked);
       goto sendagain;
     }
 
-    for (i = 0; i < window->cwnd; ) {
+    for (i = window->tail; i <= window->head; ) {
       memset (&recvbuf, 0, sizeof(recvbuf));
 
       while ((n = Read(fd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
         if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
-	  //alarm(0);
+	  alarm(0);
+	  alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
       if (recvbuf.hdr.ack != 1) {
         fprintf (stderr, "This is not an ack\n");
         continue;
@@ -134,19 +138,33 @@ sendagain:
 		  return 0;
 		}
 
-      if (RTT_DEBUG) fprintf(stderr, "recv %4d\n", recvbuf.hdr.seq);
+      if (RTT_DEBUG) fprintf(stdout, "Recvd ACK #%d\n", recvbuf.hdr.seq);
 
       switch (window->add_new_ack(window, recvbuf.hdr.seq)) {
         case ACK_DUP:
-			printf ("\n\n\n\ndup ack\n\n\n\n");
           received_dup_ack = 1;
+		  waiting_for_new_ack = 1;
+		  window->mode = MODE_FAST_RECOV;
+		  window->ssthresh = window->cwnd / 2;
+		  window->cwnd = window->ssthresh + 3;
           resendbuf = window->get_buf(window, recvbuf.hdr.seq);
+		  printf("Fast retransmit of Seq:%d\n", recvbuf.hdr.seq);
+		  window->debug(window);
           Write(fd, (void *)resendbuf, sizeof(send_buffer_t));
           break;
 
         case ACK_NONE:
           // Increase the window size and resend;
-          ++i;
+		  if (waiting_for_new_ack == 1) {
+			  waiting_for_new_ack = 0;
+			  window->mode = MODE_CAVOID;
+			  window->cwnd = window->ssthresh;
+			  received_dup_ack = 0;
+		  }
+		  if (window->mode == MODE_CAVOID) {
+			  window->cwnd++;
+		  }
+          if (i < recvbuf.hdr.seq) i = recvbuf.hdr.seq;
 		  min_idx_acked = recvbuf.hdr.seq;
           break;
 
@@ -162,6 +180,7 @@ sendagain:
 
     window->clear(window);
     window->update_cwnd(window, received_dup_ack);
+	received_dup_ack = 0;
   }
 
   printf ("Bye bye!!\n");

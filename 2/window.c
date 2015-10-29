@@ -21,14 +21,17 @@ window_init(window_t *window, int size, int cwnd)
   window->head = window->tail = -1;
   window->inuse = 0;
   window->cwnd = 1;
-  printf ("init\n");
+  //printf ("init\n");
   window->queue_size = size;
+  window->ssthresh = 128; // 65535 (bytes)/ 512 (bytes - each payload size) = 128 (# of payloads)
+  printf("Sender window initilized with cwind = 1 and ssthresh = 128\n");
+  window->mode = MODE_SLOW_START;
 }
 
 void
 window_append(window_t *window, send_buffer_t *newbuf)
 {
-	printf ("@append\n");
+	//printf ("@append\n");
   //window->debug(window);
   /*
   if (newbuf->hdr.seq != (window->head +1)) {
@@ -37,8 +40,8 @@ window_append(window_t *window, send_buffer_t *newbuf)
   }
   */
 
-  if (window->queue[newbuf->hdr.seq].data)
-	  printf ("Data was already there\n");
+  /*if (window->queue[newbuf->hdr.seq].data)
+	  //printf ("Data was already there\n");*/
   window->queue[newbuf->hdr.seq].data = (void *)newbuf;
 }
 
@@ -59,8 +62,9 @@ window_add_new_ack(window_t *window, int ackno)
 
   window->queue[ackno-1].ack++;
 
-  if (window->queue[ackno-1].ack >= 50){
-    printf("3 duplicate ACKs : Fast Retransmit");
+  if (window->queue[ackno-1].ack >= 3){
+    printf("3 duplicate ACKs\n");
+	window->queue[ackno-1].ack = 0; // reset dup ack counter.
 	return ACK_DUP;
   }
   return ACK_NONE;
@@ -69,7 +73,7 @@ window_add_new_ack(window_t *window, int ackno)
 send_buffer_t *
 window_get_buf(window_t *window, int bufno)
 {
-	printf ("In get buf: %d\n", bufno);
+  //printf ("In get buf: %d\n", bufno);
   if (bufno < 0 || bufno > (window->queue_size -1)) {
 	  printf ("Shouldn't happen\n");
     return NULL;
@@ -81,17 +85,27 @@ window_get_buf(window_t *window, int bufno)
 void
 window_update_cwnd(window_t *window, int received_dup_ack)
 {
+  if(window->cwnd >= window->ssthresh) {
+	  printf("Moving to cavoid mode\n");
+	  window->mode = MODE_CAVOID;
+  }
   switch (window->mode) {
     case MODE_SLOW_START:
-      window->cwnd = received_dup_ack? window->cwnd >> 1: window->cwnd *2;
-	  //printf ("@slow start mode\n");
+      window->cwnd = window->cwnd *2;
+	  printf ("@slow start mode\n");
 	  //window->debug(window);
       break;
-
+	
+	case MODE_FAST_RECOV:
+	  window->cwnd++;
+	  printf("@fast recovery mode\n");
+	  //window->debug(window);
+	  break;
+	
     // TODO: Revisit this case.
     case MODE_CAVOID:
-      window->cwnd += (received_dup_ack? 0: 1);
-	  //printf ("@mode cavoid\n");
+      //window->cwnd += 1;
+	  printf ("@mode cavoid - increase cwnd by 1 for every new ACK\n");
 	  //window->debug(window);
       break;
 
@@ -99,7 +113,7 @@ window_update_cwnd(window_t *window, int received_dup_ack)
       fprintf (stderr, "Window mode unknown, assuming slow start\n");
       window->cwnd = received_dup_ack? window->cwnd >> 1: window->cwnd *2;
 	  printf ("@default mode\n");
-	  window->debug(window);
+	  //window->debug(window);
       break;
   }
 }
@@ -135,10 +149,10 @@ window_prepare_cur_datagram(window_t *window, int seq, int filefd)
   int lastloop = 0;
   send_buffer_t *buf;
   int debugvar = (seq);
-  printf ("Entered prepare cur datagram: operating on %d\n", debugvar);
+  //printf ("Entered prepare cur datagram: operating on %d\n", debugvar);
 
   if ((buf = window->get_buf(window, seq))) {
-    printf ("DEBUG: %d already filled\n", buf->hdr.seq);
+    //printf ("DEBUG: %d already filled\n", buf->hdr.seq);
     return buf->hdr.fin;
   }
 
@@ -148,7 +162,7 @@ window_prepare_cur_datagram(window_t *window, int seq, int filefd)
   }
 
   newsendbuff->hdr.seq = seq;
-  printf("DEBUG: filling:%d\n", newsendbuff->hdr.seq);
+  //printf("DEBUG: filling:%d\n", newsendbuff->hdr.seq);
 
   // Read from file to fill the buffer.
   if ((n = read(filefd, newsendbuff->payload, FILE_READ_SIZE)) <= 0) {
@@ -159,8 +173,8 @@ window_prepare_cur_datagram(window_t *window, int seq, int filefd)
   }
 
   if (n == 0 || n < FILE_READ_SIZE) {
-    if (RTT_DEBUG) fprintf (stderr, "I think this is the last datagram : %d\n", newsendbuff->hdr.seq);
-	printf("Contents:\n%s\n", newsendbuff->payload);
+    if (RTT_DEBUG) fprintf (stderr, "last datagram (contains fin) is seq. no #%d\n", newsendbuff->hdr.seq);
+	//printf("Contents:\n%s\n", newsendbuff->payload);
     newsendbuff->hdr.fin = 1;
     lastloop = 1;
   }
@@ -175,7 +189,6 @@ window_prepare_cur_datagram(window_t *window, int seq, int filefd)
 void
 window_debug(window_t *window)
 {
-	if (1)
-	printf ("Window vars:-\nqueue_size: %d\ncwnd: %d\nhead: %d\ntail: %d\n",
-			window->queue_size, window->cwnd, window->head, window->tail);
+	printf ("ssthresh: %d\ncwnd: %d\nhead: %d\ntail: %d\n---------------------------\n",
+			window->ssthresh, window->cwnd, window->head, window->tail);
 }
