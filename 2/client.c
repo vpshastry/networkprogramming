@@ -19,11 +19,11 @@ typedef struct {
 
 static struct rtt_info   rttinfo;
 static int	rttinit = 0;
-static sigjmp_buf jmpbuf;
+static sigjmp_buf jmpbuf, jmpbuf2;
 static void sig_alrm(int signo);
 static int producer_at;
 static int consumer_at;
-
+int awaiting_file_name_ack = 0;
 static cli_in_buff_t **global_buffer;
 fair_lock_t lock = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0};
 
@@ -40,14 +40,6 @@ int simulate_transmission_loss(float p) {
 		return 1;
 	}
 }
-int awaiting_file_name_ack = 0;
-static struct rtt_info   rttinfo;
-static int	rttinit = 0;
-static sigjmp_buf jmpbuf, jmpbuf2;
-static void sig_alrm(int signo);
-
-static cli_in_buff_t **global_buffer;
-fair_lock_t lock = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0};
 
 int
 append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
