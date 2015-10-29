@@ -7,7 +7,7 @@ int		rtt_d_flag = 0;		/* debug flag; can be set by caller */
  * Calculate the RTO value based on current estimators:
  *		smoothed RTT plus four times the deviation
  */
-#define	RTT_RTOCALC(ptr) ((ptr)->rtt_srtt + (4.0 * (ptr)->rtt_rttvar))
+#define	RTT_RTOCALC(ptr) ((ptr)->rtt_srtt + (4 * (ptr)->rtt_rttvar))
 
 static long
 rtt_minmax(long rto)
@@ -29,7 +29,7 @@ rtt_init(struct rtt_info *ptr)
 
 	ptr->rtt_rtt    = 0;
 	ptr->rtt_srtt   = 0;
-	ptr->rtt_rttvar = 0.75;
+	ptr->rtt_rttvar = 750 /*0.75 sec = 750 ms*/;
 	ptr->rtt_rto = rtt_minmax(RTT_RTOCALC(ptr));
 		/* first RTO at (srtt + (4 * rttvar)) = 3 seconds */
 }
@@ -59,7 +59,7 @@ rtt_newpack(struct rtt_info *ptr)
 int
 rtt_start(struct rtt_info *ptr)
 {
-	return((int) (ptr->rtt_rto + 0.5));		/* round float to int */
+	return  (ptr->rtt_rto + 500/*0.5 sec = 500 ms*/);		/* round float to int */
 		/* 4return value can be used as: alarm(rtt_start(&foo)) */
 }
 
@@ -76,7 +76,7 @@ rtt_stop(struct rtt_info *ptr, uint32_t ms)
 {
 	int		delta;
 
-	ptr->rtt_rtt = ms / 1000.0;		/* measured RTT in seconds */
+	ptr->rtt_rtt = ms;		/* measured RTT in seconds */
 
 	/*
 	 * Update our estimators of RTT and mean deviation of RTT.
@@ -84,15 +84,14 @@ rtt_stop(struct rtt_info *ptr, uint32_t ms)
 	 * We use floating point here for simplicity.
 	 */
 
-	delta = (int)ptr->rtt_rtt - (int)ptr->rtt_srtt;
-	ptr->rtt_srtt += (float)(int)delta / 8;		/* g = 1/8 */
+	delta = ptr->rtt_rtt - ptr->rtt_srtt;
+	ptr->rtt_srtt += delta / 8;		/* g = 1/8 */
 
-	if (delta < 0)
-		delta = -delta;				/* |delta| */
+	if (delta < 0) delta = -delta;				/* |delta| */
 
-	ptr->rtt_rttvar += (float)(int)(delta - (int)ptr->rtt_rttvar) / 4;	/* h = 1/4 */
+	ptr->rtt_rttvar += (delta - ptr->rtt_rttvar) / 4;	/* h = 1/4 */
 
-	ptr->rtt_rto = (float)(int)rtt_minmax(RTT_RTOCALC(ptr));
+	ptr->rtt_rto = rtt_minmax(RTT_RTOCALC(ptr));
 }
 
 /*
@@ -105,9 +104,10 @@ rtt_timeout(struct rtt_info *ptr)
 	ptr->rtt_rto *= 2;		/* next RTO */
         ptr->rtt_rto = rtt_minmax(ptr->rtt_rto);
 
-	//if (++ptr->rtt_nrexmt > RTT_MAXNREXMT)
-		//return(-1);			/* time to give up for this packet */
-	return(0);
+	if (++ptr->rtt_nrexmt > RTT_MAXNREXMT)
+		return -1;			/* time to give up for this packet */
+
+	return 0;
 }
 
 /*
@@ -120,7 +120,7 @@ rtt_debug(struct rtt_info *ptr)
 	if (rtt_d_flag == 0)
 		return;
 
-	fprintf(stderr, "rtt = %.3f, srtt = %.3f, rttvar = %.3f, rto = %.3f\n",
+	fprintf(stderr, "rtt = %.3lu, srtt = %.3lu, rttvar = %.3ld, rto = %.3lu\n",
 			ptr->rtt_rtt, ptr->rtt_srtt, ptr->rtt_rttvar, ptr->rtt_rto);
 	fflush(stderr);
 }

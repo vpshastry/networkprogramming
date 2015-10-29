@@ -31,8 +31,14 @@ get_remaining_buffer_size(int buffer_size)
 {
   if (remaining_size == -1) {
     printf ("Remaining size not initialized yet.\n");
+    return 0;
+  }
+  if (remaining_size > buffer_size) {
+    fprintf (stderr, "ERR: Remaining size(%d) > buffer_size(%d)\n",
+              remaining_size, buffer_size);
     return INT_MAX;
   }
+
   return remaining_size;
 }
 
@@ -84,7 +90,6 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
     }
 unlock:
     fair_unlock(&lock);
-
   }
 }
 
