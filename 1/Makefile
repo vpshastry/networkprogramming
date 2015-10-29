@@ -67,5 +67,5 @@ readline.o: /home/courses/cse533/Stevens/unpv13e_solaris2.10/threads/readline.c
 
 
 clean:
-	rm echo_cli echo_cli.o server tcpechotimesrv.o client tcpechotimecli.o time_cli time_cli.o readline.o
+	rm echo_cli echo_cli.o server tcpechotimesrv.o client tcpechotimecli.o time_cli time_cli.o readline.o header.h.gch
 
