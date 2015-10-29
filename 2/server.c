@@ -153,9 +153,9 @@ main(int argc, char *argv[]) {
 					//close(mysockfd);
 					n = Read(client_sockfd, msg, MAXLINE);
 					printf("Msg (ACK) on new port:%s\n", msg);
-					sprintf(msg, "Aashray\n");
-					Write(client_sockfd, msg, strlen(msg));
-					printf("Sent from new port!\n");
+					//sprintf(msg, "Aashray\n");
+					//Write(client_sockfd, msg, strlen(msg));
+					//printf("Sent from new port!\n");
 
                     if (send_file(filename, client_sockfd))
                     	printf("Failed to send file\n");
