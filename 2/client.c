@@ -17,6 +17,16 @@ typedef struct {
   int sockfd;
 } args_t;
 
+static struct rtt_info   rttinfo;
+static int	rttinit = 0;
+static sigjmp_buf jmpbuf;
+static void sig_alrm(int signo);
+static int producer_at;
+static int consumer_at;
+
+static cli_in_buff_t **global_buffer;
+fair_lock_t lock = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0};
+
 /* return 0 - drop datagram */
 /* return 1 - do not drop */
 int simulate_transmission_loss(float p) {
@@ -30,15 +40,6 @@ int simulate_transmission_loss(float p) {
 		return 1;
 	}
 }
-
-static struct rtt_info   rttinfo;
-static int	rttinit = 0;
-static sigjmp_buf jmpbuf;
-static void sig_alrm(int signo);
-
-static cli_in_buff_t **global_buffer;
-fair_lock_t lock = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0};
-
 
 int
 append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
@@ -66,6 +67,7 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
 
       global_buffer[seq % buffer_size] = temp;
       done = 1;
+      producer_at = (seq % buffer_size);
     }
 unlock:
     fair_unlock(&lock);
@@ -209,19 +211,17 @@ print_from_buf(int buffer_size, unsigned int  mu)
           print_buf = global_buffer[seq % buffer_size];
           global_buffer[seq % buffer_size] = NULL;
         }
+        consumer_at = seq % buffer_size;
       }
       fair_unlock(&lock);
 
-      if (!print_buf) {
-        printf ("Printed the current buffer. Waiting for producer to produce.\n");
+      if (!print_buf)
         break;
-      }
 
       print_buf->payload[print_buf->length] = '\0';
       printf ("%s", print_buf->payload);
 
       if (print_buf->hdr.fin == 1) {
-        printf ("\nFile printed completely. Exiting print loop.\n");
         free(print_buf);
         return 0;
       }
@@ -240,6 +240,7 @@ print_from_buf_fn(void *args)
   if (print_from_buf(largs->input.recvslidewindowsize, largs->input.mean))
     fprintf (stderr, "Printing from the buffer failed.\n");
 
+  printf ("\nFile printed completely. Exiting the print buffer thread.\n");
   return NULL;
 }
 
@@ -396,25 +397,28 @@ main(int argc, char *argv[]) {
 
 
         // pthread code starts here.
-        pthread_t thread_print_from_buf, thread_receive_file;
-
+        pthread_t thread_print_from_buf;
+        pthread_t thread_receive_file;
         args_t *rf_args = calloc(1, sizeof(args_t));
+        args_t *pfb_args = calloc(1, sizeof(args_t));
+
         rf_args->sockfd = sockfd;
         memcpy (&rf_args->input, &input, sizeof(input_t));
+        memcpy (&pfb_args->input, &input, sizeof(input_t));
+
         if (pthread_create(&thread_receive_file, NULL, &receive_file_fn, rf_args)) {
           fprintf (stderr, "Couldn't create thread for receive file.\n");
           return -1;
         }
 
-        args_t *pfb_args = calloc(1, sizeof(args_t));
-        memcpy (&pfb_args->input, &input, sizeof(input_t));
         if (pthread_create(&thread_print_from_buf, NULL, &print_from_buf_fn, pfb_args)) {
           fprintf (stderr, "Couldn't create thread for print from buffer.\n");
           return -1;
         }
 
-        pthread_join(thread_receive_file, NULL);
-        pthread_join(thread_print_from_buf, NULL);
+        if (pthread_join(thread_receive_file, NULL) ||
+            pthread_join(thread_print_from_buf, NULL))
+          fprintf (stderr, "pthread join failed\n");
 
         free(rf_args);
         free(pfb_args);
