@@ -108,7 +108,9 @@ sendagain:
 	  // TODO: This is a window management code. Try to put it inside the window.c
 	  window->cwnd = 1;
 	  window->head = window->tail = min_idx_acked;
-	  //lastloop = 0;
+	  if (lastloop) {
+		  lastloop = 0;
+	  }
 	  printf("Reducing window to 1, with #:%d to be resent.\n", min_idx_acked);
       goto sendagain;
     }
@@ -118,16 +120,19 @@ sendagain:
 
       while ((n = Read(fd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
         if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
-
+	  //alarm(0);
       if (recvbuf.hdr.ack != 1) {
         fprintf (stderr, "This is not an ack\n");
         continue;
       }
-	  /*if (recvbuf.hdr.fin == 1) {
+	  if (recvbuf.hdr.fin == 1) {
 		  printf("Recv Fins ACK\n");
-		  //done = 1;
+		  lastloop = 1;
+		  alarm(0);
 		  //break;
-		}*/
+		  printf("Bye Bye\n");
+		  return 0;
+		}
 
       if (RTT_DEBUG) fprintf(stderr, "recv %4d\n", recvbuf.hdr.seq);
 

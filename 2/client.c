@@ -85,10 +85,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
 	      }
 		  continue;
 	  }
-	  if (recvbuf.hdr.fin == 1) {
-		  fin = 1;
-		  time_wait_state = 1;
-		}
+
     }
 
     printf ("Received packet: #%d\n", recvbuf.hdr.seq);
@@ -102,6 +99,10 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
       if (recvbuf.hdr.fin == 1) {
         if (RTT_DEBUG) printf ("Fin received\n");
         sendbuf.hdr.fin = 1;
+		printf("Setting fin to 1\n");
+		fin = 1;
+		time_wait_state = 1;
+		alarm(10);
       }
     }
 

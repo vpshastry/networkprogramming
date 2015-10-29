@@ -59,7 +59,7 @@ window_add_new_ack(window_t *window, int ackno)
 
   window->queue[ackno-1].ack++;
 
-  if (window->queue[ackno-1].ack >= 3){
+  if (window->queue[ackno-1].ack >= 50){
     printf("3 duplicate ACKs : Fast Retransmit");
 	return ACK_DUP;
   }
