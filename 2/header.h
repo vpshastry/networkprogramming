@@ -5,7 +5,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <math.h>
 #include "unpifiplus.h"
+#include <pthread.h>
 
 #define RTT_DEBUG 1
 

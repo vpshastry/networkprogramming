@@ -12,6 +12,11 @@ typedef struct {
   unsigned long mean; // In milliseconds
 } input_t;
 
+typedef struct {
+  input_t input;
+  int sockfd;
+} args_t;
+
 /* return 0 - drop datagram */
 /* return 1 - do not drop */
 int simulate_transmission_loss(float p) {
@@ -31,6 +36,36 @@ static int	rttinit = 0;
 static sigjmp_buf jmpbuf;
 
 static void sig_alrm(int signo);
+static cli_in_buff_t **global_buffer;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+int
+append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
+{
+  cli_in_buff_t *temp;
+
+  if (seq < 0 || seq > (buffer_size-1))
+    return -1;
+
+  if (!seq)
+    global_buffer = (cli_in_buff_t **) calloc (buffer_size, sizeof(cli_in_buff_t *));
+
+  if (!(temp = malloc(sizeof(cli_in_buff_t)))) {
+    err_sys("Failed getting new buffer for cli window.\n");
+    exit(0);
+  }
+  memcpy(temp, recvbuf, sizeof(cli_in_buff_t));
+
+  pthread_mutex_lock(&mutex);
+  {
+    // TODO: Fix this with cond wait.
+    while (global_buffer[seq % buffer_size])
+      sleep(1);
+
+    global_buffer[seq % buffer_size] = temp;
+  }
+  pthread_mutex_unlock(&mutex);
+}
 
 int
 receive_file(int sockfd, float p /* prob */, int buffer_size)
@@ -51,7 +86,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
 
   printf ("Waiting for server to send something\n");
   while (fin != 1 || time_wait_state == 1) {
-	
+
     rtt_newpack(&rttinfo);		/* initialize for this packet */
 
     memset(&recvbuf, 0, sizeof(recvbuf));
@@ -93,8 +128,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
     if (recvbuf.hdr.seq == seq) {
       ++seq;
 
-      recvbuf.payload[recvbuf.length] = '\0';
-      printf ("#%d\n%s\n", recvbuf.hdr.seq, recvbuf.payload);
+      append_to_buffer(&recvbuf, seq-1, buffer_size);
 
       if (recvbuf.hdr.fin == 1) {
         if (RTT_DEBUG) printf ("Fin received\n");
@@ -120,6 +154,78 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
 
   }
   return 0;
+}
+void *
+receive_file_fn(void *args)
+{
+  args_t *largs = args;
+
+  if (receive_file(largs->sockfd, largs->input.p, largs->input.recvslidewindowsize))
+    fprintf (stderr, "Receiving file failed.\n");
+
+  return NULL;
+}
+
+unsigned int
+get_time_from_mu(unsigned long mu)
+{
+  float rnum = ((float) rand()) / ((float)(RAND_MAX)) * 1.0;
+  float floatsleeptime = (-1 * mu * log(rnum));
+  unsigned int sleeptime = (unsigned int)floatsleeptime;
+
+  if (RTT_DEBUG) printf ("Sleeping for: %f\n", floatsleeptime);
+
+  return sleeptime;
+}
+
+int
+print_from_buf(int buffer_size, unsigned long mu)
+{
+  int seq = 0;
+  cli_in_buff_t *print_buf;
+
+  while (42) {
+    // TODO: Remove this division after the correct calc of myu
+    usleep(get_time_from_mu(mu)/1000);
+
+    while (42) {
+
+      print_buf = NULL;
+      pthread_mutex_lock(&mutex);
+      {
+        if (global_buffer[seq % buffer_size]) {
+          print_buf = global_buffer[seq % buffer_size];
+          global_buffer[seq % buffer_size] = NULL;
+        }
+      }
+      pthread_mutex_unlock(&mutex);
+
+      if (!print_buf)
+        break;
+
+      print_buf->payload[print_buf->length] = '\0';
+      printf ("%s", print_buf->payload);
+
+      if (print_buf->hdr.fin == 1) {
+        printf ("\nFile printed completely. Exiting print loop.\n");
+        free(print_buf);
+        return 0;
+      }
+
+      free(print_buf);
+      seq = (++seq) % buffer_size;
+    }
+  }
+}
+void *
+print_from_buf_fn(void *args)
+{
+  args_t *largs = args;
+
+  if (print_from_buf(largs->input.recvslidewindowsize, largs->input.mean))
+    fprintf (stderr, "Printing from the buffer failed.\n");
+
+  return NULL;
 }
 
 int
@@ -274,10 +380,29 @@ main(int argc, char *argv[]) {
 	Fputs(recvline, stdout);
 
 
-        if (receive_file(sockfd, input.p, input.recvslidewindowsize)) {
-          printf ("Failed to receive file\n");
+        // pthread code starts here.
+        pthread_t thread_print_from_buf, thread_receive_file;
+
+        args_t *rf_args = calloc(1, sizeof(args_t));
+        rf_args->sockfd = sockfd;
+        memcpy (&rf_args->input, &input, sizeof(input_t));
+        if (pthread_create(&thread_receive_file, NULL, &receive_file_fn, rf_args)) {
+          fprintf (stderr, "Couldn't create thread for receive file.\n");
           return -1;
         }
+
+        args_t *pfb_args = calloc(1, sizeof(args_t));
+        memcpy (&pfb_args->input, &input, sizeof(input_t));
+        if (pthread_create(&thread_print_from_buf, NULL, &print_from_buf_fn, pfb_args)) {
+          fprintf (stderr, "Couldn't create thread for print from buffer.\n");
+          return -1;
+        }
+
+        pthread_join(thread_receive_file, NULL);
+        pthread_join(thread_print_from_buf, NULL);
+
+        free(rf_args);
+        free(pfb_args);
 
 	return 0;
 }
