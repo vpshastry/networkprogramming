@@ -21,11 +21,22 @@ static struct rtt_info   rttinfo;
 static int	rttinit = 0;
 static sigjmp_buf jmpbuf, jmpbuf2;
 static void sig_alrm(int signo);
-static int producer_at;
-static int consumer_at;
 int awaiting_file_name_ack = 0;
 static cli_in_buff_t **global_buffer;
 fair_lock_t lock = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0};
+
+int
+get_remaining_buffer_size(int buffer_size)
+{
+  int remaining = 0;
+  int i;
+
+  for (i = 0; i < buffer_size; i++)
+    if (!global_buffer[i])
+      remaining++;
+
+  return remaining;
+}
 
 /* return 0 - drop datagram */
 /* return 1 - do not drop */
@@ -69,7 +80,6 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
 
       global_buffer[seq % buffer_size] = temp;
       done = 1;
-      producer_at = (seq % buffer_size);
     }
 unlock:
     fair_unlock(&lock);
@@ -202,7 +212,6 @@ print_from_buf(int buffer_size, unsigned int  mu)
           print_buf = global_buffer[seq % buffer_size];
           global_buffer[seq % buffer_size] = NULL;
         }
-        consumer_at = seq % buffer_size;
       }
       fair_unlock(&lock);
 
@@ -377,7 +386,7 @@ main(int argc, char *argv[]) {
 		printf("Filename sent\n");
 		Write(sockfd, input.filename, strlen(input.filename));
 	}
-	
+
 	awaiting_file_name_ack = 1;
 	alarm(5);
 
