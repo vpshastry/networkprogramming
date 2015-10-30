@@ -230,6 +230,7 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd, float pr)
         // the buffer at first production.
         if (!global_buffer)
           goto unlockme;
+
 		//printf("global buffer %x, seq:%d, rem size:%d\n", global_buffer[seq % buffer_size], seq, remaining_size);
         if (global_buffer[seq % buffer_size]) {
 		  if (remaining_size == 0)
