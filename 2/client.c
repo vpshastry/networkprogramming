@@ -122,7 +122,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
     memset(&sendbuf, 0, sizeof(sendbuf));
 
 	if (sigsetjmp(jmpbuf, 1) != 0) {
-    	printf("Timer expired and server did not contact me.\n Success.\n");
+		printf("Timer expired and server did not contact me.\n Success.\n");
 		time_wait_state = 0;
 		return 0;
 	}
@@ -146,7 +146,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
 			printf("Dropping sending of ACK of FIN %d\n", sendbuf.hdr.seq);
 		  } else {
 			Write(sockfd, &sendbuf, sizeof(seq_header_t));
-	      }
+		  }
 		  continue;
 	  }
 
@@ -175,6 +175,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
     sendbuf.hdr.ack = 1;
     sendbuf.hdr.seq = seq;
     sendbuf.hdr.ts = rtt_ts(&rttinfo);
+	sendbuf.hdr.rwnd = remaining_size;
 
 	if(sendbuf.hdr.fin == 1) printf("Sending fin's ACK\n");
     // Simulate ack packet loss.
@@ -203,11 +204,13 @@ get_time_from_mu(unsigned int mu)
 }
 
 int
-print_from_buf(int buffer_size, unsigned int  mu)
+print_from_buf(int buffer_size, unsigned int  mu, int sockfd)
 {
   int seq = 0;
   unsigned int sleep_for;
   cli_in_buff_t *print_buf;
+  int is_buf_full = 0;
+  send_buffer_t recvbuf;
 
   while (42) {
     sleep_for = get_time_from_mu(mu);
@@ -220,7 +223,10 @@ print_from_buf(int buffer_size, unsigned int  mu)
       print_buf = NULL;
       fair_lock(&lock);
       {
+		printf("global buffer %x, seq:%d, rem size:%d\n", global_buffer[seq % buffer_size], seq, remaining_size);
         if (global_buffer[seq % buffer_size]) {
+		  if (remaining_size == 0)
+			  is_buf_full = 1;
           print_buf = global_buffer[seq % buffer_size];
           global_buffer[seq % buffer_size] = NULL;
           ++remaining_size;
@@ -243,15 +249,20 @@ print_from_buf(int buffer_size, unsigned int  mu)
       free(print_buf);
       seq = (++seq) % buffer_size;
     }
-
+	if (is_buf_full == 1) {
+		is_buf_full = 0;
+		recvbuf.hdr.ack = 1;
+		recvbuf.hdr.rwnd = remaining_size;
+		//Write(sockfd, &recvbuf, sizeof(recvbuf));
+	}
   }
 }
 void *
 print_from_buf_fn(void *args)
 {
-  input_t *largs = args;
+  args_t *largs = args;
 
-  if (print_from_buf(largs->recvslidewindowsize, largs->mean))
+  if (print_from_buf(largs->input.recvslidewindowsize, largs->input.mean, largs->sockfd))
     fprintf (stderr, "Printing from the buffer failed.\n");
 
   printf ("\nFile printed completely. Exiting the print buffer thread.\n");
@@ -356,7 +367,7 @@ main(int argc, char *argv[]) {
 	bzero(&servaddr, sizeof(servaddr));
 	bzero(&clientaddr, sizeof(clientaddr));
 	build_inferface_info(ii, &interface_info_len, 0, -1);
-  	print_interface_info(ii, interface_info_len);
+	print_interface_info(ii, interface_info_len);
 
 	if(inet_pton(AF_INET, input.server_ip, &servaddr.sin_addr) != 1){
 		err_quit("client.in does not cotain a valid server IP. Please correct and try again.");
@@ -405,7 +416,7 @@ main(int argc, char *argv[]) {
 	alarm(5);
 
 	if (sigsetjmp(jmpbuf2, 1) != 0) {
-    	printf("Server may have not recieved the file-name. Retransmit.\n");
+		printf("Server may have not recieved the file-name. Retransmit.\n");
 		if (simulate_transmission_loss(input.p) != 0)
 			Write(sockfd, input.filename, strlen(input.filename));
 		alarm(5);
@@ -430,9 +441,10 @@ main(int argc, char *argv[]) {
 
         // pthread code starts here.
         pthread_t thread_print_from_buf;
-        input_t *args = calloc(1, sizeof(input_t));
+        args_t *args = calloc(1, sizeof(args_t));
 
-        memcpy (args, &input, sizeof(input_t));
+        memcpy (&args->input, &input, sizeof(args_t));
+		args->sockfd = sockfd;
 
         if (pthread_create(&thread_print_from_buf, NULL, &print_from_buf_fn, args)) {
           fprintf (stderr, "Couldn't create thread for print from buffer.\n");

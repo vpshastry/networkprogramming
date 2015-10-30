@@ -38,6 +38,7 @@ typedef struct {
   uint32 ts;
   uint8 ack;
   uint8 fin;
+  uint32 rwnd;
   uint16 padding_var;
 } seq_header_t;
 #define FILE_READ_SIZE (MAX_PACKET_SIZE - sizeof(seq_header_t))

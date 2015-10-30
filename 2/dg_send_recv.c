@@ -4,6 +4,8 @@
 #include "header.h"
 #include "window.h"
 
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
 static int cur_window_size = 16;
 static int updated_cur_window_size = -1;
 static struct rtt_info rttinfo;
@@ -55,6 +57,7 @@ dg_send_recv(int fd, int filefd)
   window_t *window = &newwindow;
   int received_dup_ack = 0;
   int min_idx_acked = 0;
+  int rwnd_from_ack = 1;
 
   if (rttinit == 0) {
     rtt_init(&rttinfo);		/* first time we're called */
@@ -71,7 +74,20 @@ dg_send_recv(int fd, int filefd)
     received_dup_ack = 0;
     Signal(SIGALRM, sig_alrm);
     rtt_newpack(&rttinfo);		/* initialize for this packet */
-
+	
+	if (rwnd_from_ack == 0)
+		printf("recv. window is full, waiting for a dupack\n");
+	while(rwnd_from_ack == 0) {
+		n = Read(fd, &recvbuf, sizeof(recvbuf));
+		if (recvbuf.hdr.ack = 2) {
+			// ack = 2 is a special marker for recv window update.
+			rwnd_from_ack = recvbuf.hdr.rwnd;
+			printf("Now client has rwnd=%d\n, continue...\n", rwnd_from_ack);
+			break;
+		}
+	}
+	//window->cwnd = MIN(rwnd_from_ack, window->cwnd);
+	//printf("cwnd=%d\n", window->cwnd);
     if ((lastloop = prepare_window(window, filefd)) < 0) {
       fprintf (stderr, "Error preparing window\n");
       return NULL;
@@ -150,6 +166,7 @@ sendagain:
           resendbuf = window->get_buf(window, recvbuf.hdr.seq);
 		  printf("Fast retransmit of Seq:%d\n", recvbuf.hdr.seq);
 		  window->debug(window);
+		  rwnd_from_ack = recvbuf.hdr.rwnd;
           Write(fd, (void *)resendbuf, sizeof(send_buffer_t));
           break;
 
@@ -162,10 +179,12 @@ sendagain:
 			  received_dup_ack = 0;
 		  }
 		  if (window->mode == MODE_CAVOID) {
+			  printf("Increasing cwind size\n");
 			  window->cwnd++;
 		  }
           if (i < recvbuf.hdr.seq) i = recvbuf.hdr.seq;
 		  min_idx_acked = recvbuf.hdr.seq;
+		  rwnd_from_ack = recvbuf.hdr.rwnd;
           break;
 
         default:
@@ -177,7 +196,8 @@ sendagain:
     alarm(0);			/* stop SIGALRM timer */
             /* 4calculate & store new RTT estimator values */
     rtt_stop(&rttinfo, rtt_ts(&rttinfo) - recvbuf.hdr.ts);
-
+	printf("rwnd  = %d\n", rwnd_from_ack);
+	//printf("Updated cwnd = %d\n", window->cwnd);
     window->clear(window);
     window->update_cwnd(window, received_dup_ack);
 	received_dup_ack = 0;

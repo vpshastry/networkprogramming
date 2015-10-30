@@ -85,7 +85,7 @@ window_get_buf(window_t *window, int bufno)
 void
 window_update_cwnd(window_t *window, int received_dup_ack)
 {
-  if(window->cwnd >= window->ssthresh) {
+  if(window->cwnd >= window->ssthresh && window->mode != MODE_CAVOID) {
 	  printf("Moving to cavoid mode\n");
 	  window->mode = MODE_CAVOID;
   }
