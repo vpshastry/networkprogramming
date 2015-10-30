@@ -229,7 +229,8 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd, float pr)
         // buffer is actualy filled by the producer. Bcz, producer initializes
         // the buffer at first production.
         if (!global_buffer)
-          break;
+          goto unlockme;
+
 		//printf("global buffer %x, seq:%d, rem size:%d\n", global_buffer[seq % buffer_size], seq, remaining_size);
         if (global_buffer[seq % buffer_size]) {
 		  if (remaining_size == 0)
@@ -239,6 +240,7 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd, float pr)
           ++remaining_size;
         }
       }
+unlockme:
       fair_unlock(&lock);
 
       if (!print_buf)
