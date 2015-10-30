@@ -25,6 +25,7 @@ int awaiting_file_name_ack = 0;
 static cli_in_buff_t **global_buffer;
 fair_lock_t lock = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0};
 static int remaining_size = -1;
+int dup_ack_window_update_seq;
 
 int
 get_remaining_buffer_size(int buffer_size)
@@ -176,6 +177,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
     sendbuf.hdr.seq = seq;
     sendbuf.hdr.ts = rtt_ts(&rttinfo);
 	sendbuf.hdr.rwnd = remaining_size;
+	if (remaining_size == 0) dup_ack_window_update_seq = seq;
 
 	if(sendbuf.hdr.fin == 1) printf("Sending fin's ACK\n");
     // Simulate ack packet loss.
@@ -214,8 +216,8 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd)
 
   while (42) {
     sleep_for = get_time_from_mu(mu);
-    printf("\nRecv buffer to stdout thread: sleeping for:%u ms or %f seconds\n",
-            sleep_for, (float)sleep_for/1000);
+    //printf("\nRecv buffer to stdout thread: sleeping for:%u ms or %f seconds\n",
+            //sleep_for, (float)sleep_for/1000);
     usleep(sleep_for*1000);// usleep takes microseconds, so multiple by 1000.
 
     while (42) {
@@ -223,7 +225,7 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd)
       print_buf = NULL;
       fair_lock(&lock);
       {
-		printf("global buffer %x, seq:%d, rem size:%d\n", global_buffer[seq % buffer_size], seq, remaining_size);
+		//printf("global buffer %x, seq:%d, rem size:%d\n", global_buffer[seq % buffer_size], seq, remaining_size);
         if (global_buffer[seq % buffer_size]) {
 		  if (remaining_size == 0)
 			  is_buf_full = 1;
@@ -251,9 +253,10 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd)
     }
 	if (is_buf_full == 1) {
 		is_buf_full = 0;
-		recvbuf.hdr.ack = 1;
+		recvbuf.hdr.ack = 2;
+		recvbuf.hdr.seq = dup_ack_window_update_seq;
 		recvbuf.hdr.rwnd = remaining_size;
-		//Write(sockfd, &recvbuf, sizeof(recvbuf));
+		Write(sockfd, &recvbuf, sizeof(recvbuf));
 	}
   }
 }

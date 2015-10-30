@@ -81,13 +81,14 @@ dg_send_recv(int fd, int filefd)
 		n = Read(fd, &recvbuf, sizeof(recvbuf));
 		if (recvbuf.hdr.ack = 2) {
 			// ack = 2 is a special marker for recv window update.
+			printf("Got a dup_ack of seq:%d, for rwnd update\n", recvbuf.hdr.seq);
 			rwnd_from_ack = recvbuf.hdr.rwnd;
 			printf("Now client has rwnd=%d\n, continue...\n", rwnd_from_ack);
 			break;
 		}
 	}
-	//window->cwnd = MIN(rwnd_from_ack, window->cwnd);
-	//printf("cwnd=%d\n", window->cwnd);
+	window->cwnd = MIN(rwnd_from_ack, window->cwnd);
+	printf("cwnd=%d\n", window->cwnd);
     if ((lastloop = prepare_window(window, filefd)) < 0) {
       fprintf (stderr, "Error preparing window\n");
       return NULL;
@@ -142,7 +143,12 @@ sendagain:
 	  alarm(0);
 	  alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
       if (recvbuf.hdr.ack != 1) {
-        fprintf (stderr, "This is not an ack\n");
+        //fprintf (stderr, "This is not an ack\n");
+		if (recvbuf.hdr.ack == 2) {
+			// I might have no recv. ack with rwnd 0, as now I am getting window update ack.
+			// This is fine. Just update rwnd.
+			rwnd_from_ack = recvbuf.hdr.rwnd;
+		}
         continue;
       }
 	  if (recvbuf.hdr.fin == 1) {
