@@ -1,7 +1,7 @@
 /* include rtt1 */
 #include	"unprtt.h"
 
-int		rtt_d_flag = 0;		/* debug flag; can be set by caller */
+int		rtt_d_flag = 1;		/* debug flag; can be set by caller */
 
 /*
  * Calculate the RTO value based on current estimators:
@@ -44,7 +44,7 @@ rtt_ts(struct rtt_info *ptr)
 {
 	uint32_t		ts;
 	struct timeval	tv;
-
+	printf("rtt_init\n");
 	Gettimeofday(&tv, NULL);
 	ts = ((tv.tv_sec - ptr->rtt_base) * 1000) + (tv.tv_usec / 1000);
 	return(ts);
@@ -54,12 +54,14 @@ void
 rtt_newpack(struct rtt_info *ptr)
 {
 	ptr->rtt_nrexmt = 0;
+	printf("rtt_newpack\n");
 }
 
 int
 rtt_start(struct rtt_info *ptr)
 {
-	return  (ptr->rtt_rto + 500/*0.5 sec = 500 ms*/);		/* round float to int */
+	printf("timer started to value:%u\n", (ptr->rtt_rto + 500) /1000);
+	return  ((ptr->rtt_rto + 500/*0.5 sec = 500 ms*/)/1000);		/* round float to int */
 		/* 4return value can be used as: alarm(rtt_start(&foo)) */
 }
 
@@ -104,6 +106,7 @@ rtt_timeout(struct rtt_info *ptr)
 	ptr->rtt_rto *= 2;		/* next RTO */
         ptr->rtt_rto = rtt_minmax(ptr->rtt_rto);
 
+	printf("******rrt_nrexmt = %d\n", ptr->rtt_nrexmt);
 	if (++ptr->rtt_nrexmt > RTT_MAXNREXMT)
 		return -1;			/* time to give up for this packet */
 
@@ -120,7 +123,7 @@ rtt_debug(struct rtt_info *ptr)
 	if (rtt_d_flag == 0)
 		return;
 
-	fprintf(stderr, "rtt = %.3lu, srtt = %.3lu, rttvar = %.3ld, rto = %.3lu\n",
+	fprintf(stderr, "rtt = %7lu, srtt = %5lu, rttvar = %5ld, rto = %3lu\n",
 			ptr->rtt_rtt, ptr->rtt_srtt, ptr->rtt_rttvar, ptr->rtt_rto);
 	fflush(stderr);
 }

@@ -137,16 +137,16 @@ sendagain:
       fprintf (stdout, "---------------------------\nSent packet #%d\n", sendbuf->hdr.seq);
 	  window->debug(window);
     }
-
+	printf("timer started\n");
     alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
 
-    //if (RTT_DEBUG) rtt_debug(&rttinfo);
+    if (RTT_DEBUG) rtt_debug(&rttinfo);
 
     if (sigsetjmp(jmpbuf, 1) != 0) {
       /*if (rtt_timeout(&rttinfo) < 0) {
-        err_msg("dg_send_recv: no response from server, giving up");
-        rttinit = 0;	*//* reinit in case we're called again */
-        /*errno = ETIMEDOUT;
+        err_msg("dg_send_recv: no response from server, giving up after %d times.\n", rttinfo.rtt_nrexmt);
+        rttinit = 0;	*//* reinit in case we're called again *//*
+        errno = ETIMEDOUT;
         return(-1);
       }*/
 
@@ -169,7 +169,9 @@ sendagain:
 
       while ((n = Read(fd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
         if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
+	  printf("timer stopped\n");
 	  alarm(0);
+	  printf("timer started\n");
 	  alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
       if (recvbuf.hdr.ack != 1) {
         //fprintf (stderr, "This is not an ack\n");
@@ -225,7 +227,7 @@ sendagain:
           break;
       }
     }
-
+	printf("alarm stopped\n");
     alarm(0);			/* stop SIGALRM timer */
             /* 4calculate & store new RTT estimator values */
     rtt_stop(&rttinfo, rtt_ts(&rttinfo) - recvbuf.hdr.ts);

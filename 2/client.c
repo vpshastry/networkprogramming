@@ -122,11 +122,14 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
     memset(&recvbuf, 0, sizeof(recvbuf));
     memset(&sendbuf, 0, sizeof(sendbuf));
 
+	printf("memset\n");
+
 	if (sigsetjmp(jmpbuf, 1) != 0) {
 		printf("Timer expired and server did not contact me.\n Success.\n");
 		time_wait_state = 0;
 		return 0;
 	}
+	printf("waiting for read()\n");
 	// These two parts should be together.
     {
       while ((n = Read(sockfd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
@@ -213,7 +216,7 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd, float pr)
   cli_in_buff_t *print_buf;
   int is_buf_full = 0;
   send_buffer_t recvbuf;
-
+  printf("print_buf_going into while\n");
   while (42) {
     sleep_for = get_time_from_mu(mu);
     //printf("\nRecv buffer to stdout thread: sleeping for:%u ms or %f seconds\n",
