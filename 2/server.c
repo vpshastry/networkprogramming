@@ -157,7 +157,7 @@ main(int argc, char *argv[]) {
 					//Write(client_sockfd, msg, strlen(msg));
 					//printf("Sent from new port!\n");
 
-                    if (send_file(filename, client_sockfd))
+                    if (send_file(filename, client_sockfd, maxslidewindowsize))
                     	printf("Failed to send file\n");
 
 					exit(0);// exit child

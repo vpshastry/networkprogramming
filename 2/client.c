@@ -206,7 +206,7 @@ get_time_from_mu(unsigned int mu)
 }
 
 int
-print_from_buf(int buffer_size, unsigned int  mu, int sockfd)
+print_from_buf(int buffer_size, unsigned int  mu, int sockfd, float pr)
 {
   int seq = 0;
   unsigned int sleep_for;
@@ -241,7 +241,7 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd)
 
 
       print_buf->payload[print_buf->length] = '\0';
-      printf ("%s", print_buf->payload);
+      printf ("%s\n", print_buf->payload);
 
       if (print_buf->hdr.fin == 1) {
         free(print_buf);
@@ -256,7 +256,11 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd)
 		recvbuf.hdr.ack = 2;
 		recvbuf.hdr.seq = dup_ack_window_update_seq;
 		recvbuf.hdr.rwnd = remaining_size;
-		Write(sockfd, &recvbuf, sizeof(recvbuf));
+		if (simulate_transmission_loss(pr) == 0) {
+			printf("Dropping sending of buffer_now_available update\n");
+		} else {
+			Write(sockfd, &recvbuf, sizeof(recvbuf));
+		}
 	}
   }
 }
@@ -265,7 +269,7 @@ print_from_buf_fn(void *args)
 {
   args_t *largs = args;
 
-  if (print_from_buf(largs->input.recvslidewindowsize, largs->input.mean, largs->sockfd))
+  if (print_from_buf(largs->input.recvslidewindowsize, largs->input.mean, largs->sockfd, largs->input.p))
     fprintf (stderr, "Printing from the buffer failed.\n");
 
   printf ("\nFile printed completely. Exiting the print buffer thread.\n");

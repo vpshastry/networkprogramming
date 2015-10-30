@@ -11,9 +11,11 @@ static int updated_cur_window_size = -1;
 static struct rtt_info rttinfo;
 static int rttinit = 0;
 long long seq = -1;
-
+unsigned int max_window_size;
 static void sig_alrm(int signo);
-static sigjmp_buf jmpbuf;
+static sigjmp_buf jmpbuf, jmpbuf2;
+int window_probe;
+unsigned int window_probe_timer = 2;
 
 int
 prepare_window(window_t *window, int filefd)
@@ -75,19 +77,46 @@ dg_send_recv(int fd, int filefd)
     Signal(SIGALRM, sig_alrm);
     rtt_newpack(&rttinfo);		/* initialize for this packet */
 	
-	if (rwnd_from_ack == 0)
-		printf("recv. window is full, waiting for a dupack\n");
+	if (rwnd_from_ack == 0) {
+		printf("recv. window is full, waiting for a dupack, and setting window probe timer.\n");
+		window_probe = 1;
+		alarm(window_probe_timer);
+	}
+	if (sigsetjmp(jmpbuf2, 1) != 0) {
+		printf("Timeout for window probe, Sending window probe\n");
+		sendbuf->hdr.seq = min_idx_acked;
+		Write(fd, sendbuf, sizeof(sendbuf[i]));
+		window_probe_timer = window_probe_timer * 2;
+		if (window_probe_timer > 60) window_probe_timer = 60;
+		printf("window_probe_timer: %u\n", window_probe_timer);
+		alarm(window_probe_timer);
+	}
 	while(rwnd_from_ack == 0) {
 		n = Read(fd, &recvbuf, sizeof(recvbuf));
-		if (recvbuf.hdr.ack = 2) {
+		if (recvbuf.hdr.ack == 2) {
 			// ack = 2 is a special marker for recv window update.
 			printf("Got a dup_ack of seq:%d, for rwnd update\n", recvbuf.hdr.seq);
 			rwnd_from_ack = recvbuf.hdr.rwnd;
 			printf("Now client has rwnd=%d\n, continue...\n", rwnd_from_ack);
+			window_probe = 0;
+			window_probe_timer = 2;
+			alarm(0);
+			break;
+		}
+		else {
+			rwnd_from_ack = recvbuf.hdr.rwnd;
+			printf("Now client has rwnd=%d\n, continue...\n", rwnd_from_ack);
+			window_probe = 0;
+			window_probe_timer = 2;
+			alarm(0);
 			break;
 		}
 	}
 	window->cwnd = MIN(rwnd_from_ack, window->cwnd);
+	if (window->cwnd >= max_window_size) {
+		printf("Server/Sender window full\n ");
+		window->cwnd = max_window_size;
+	}
 	printf("cwnd=%d\n", window->cwnd);
     if ((lastloop = prepare_window(window, filefd)) < 0) {
       fprintf (stderr, "Error preparing window\n");
@@ -103,7 +132,7 @@ sendagain:
       if (!(sendbuf = window->get_buf(window, i)))
         fprintf (stderr, "Couldn't get the window %d. Yerror!!\n", i);
       sendbuf->hdr.ts = rtt_ts(&rttinfo);
-      Write(fd, sendbuf, sizeof(sendbuf[i]));
+      write(fd, sendbuf, sizeof(sendbuf[i]));
 
       fprintf (stdout, "---------------------------\nSent packet #%d\n", sendbuf->hdr.seq);
 	  window->debug(window);
@@ -145,8 +174,6 @@ sendagain:
       if (recvbuf.hdr.ack != 1) {
         //fprintf (stderr, "This is not an ack\n");
 		if (recvbuf.hdr.ack == 2) {
-			// I might have no recv. ack with rwnd 0, as now I am getting window update ack.
-			// This is fine. Just update rwnd.
 			rwnd_from_ack = recvbuf.hdr.rwnd;
 		}
         continue;
@@ -185,7 +212,7 @@ sendagain:
 			  received_dup_ack = 0;
 		  }
 		  if (window->mode == MODE_CAVOID) {
-			  printf("Increasing cwind size\n");
+			  //printf("Increasing cwind size\n");
 			  window->cwnd++;
 		  }
           if (i < recvbuf.hdr.seq) i = recvbuf.hdr.seq;
@@ -216,14 +243,16 @@ sendagain:
 static void
 sig_alrm(int signo)
 {
-	siglongjmp(jmpbuf, 1);
+	if (window_probe == 1) siglongjmp(jmpbuf2, 1);
+	else siglongjmp(jmpbuf, 1);
 }
 
 int
-send_file(char *filename, int client_sockfd)
+send_file(char *filename, int client_sockfd, unsigned int maxslidewindowsize)
 {
   int n;
 
+  max_window_size = maxslidewindowsize;
   if (access(filename, F_OK | R_OK)) {
     printf ("File not accessible\n");
     return -1;
