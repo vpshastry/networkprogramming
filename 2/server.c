@@ -1,4 +1,8 @@
 #include "header.h"
+#include "unprtt.h"
+#include <setjmp.h>
+
+static sigjmp_buf jmpbuf;
 
 int
 readargsfromfile(unsigned int *portnumber, unsigned int *maxslidewindowsize)
@@ -145,18 +149,40 @@ main(int argc, char *argv[]) {
 					Getpeername(client_sockfd, (SA*) &cliaddr, &len);
 					printf("\nServer child connected to client, protocol Address:%s\n", Sock_ntop((SA*) &cliaddr, len));
 					temp_port = ntohs(cli_conn.sin_port);
-					sprintf(msg, "%d", temp_port);
 
-					Sendto(mysockfd, msg, strlen(msg), 0,(SA*) &cliaddr, len);
+                                        send_buffer_t buf;
+					sprintf(buf.payload, "%d", temp_port);
+                                        buf.hdr.cntrl = 1;
 
-					printf("New port sent.\n");
-					//close(mysockfd);
-					n = Read(client_sockfd, msg, MAXLINE);
-					printf("Msg (ACK) on new port:%s\n", msg);
-					//sprintf(msg, "Aashray\n");
-					//Write(client_sockfd, msg, strlen(msg));
-					//printf("Sent from new port!\n");
+                                        // Rtt init code
+                                        long long seq = -1;
+                                        static void sig_alrm(int signo);
 
+                                        Signal(SIGALRM, sig_alrm);
+
+                                        Sendto(mysockfd, &buf, sizeof(buf), 0,(SA*) &cliaddr, len);
+                                        printf("New port sent.\n");
+                                        alarm(5);
+
+                                        if (sigsetjmp(jmpbuf, 1) != 0) {
+                                          printf ("Didn't receive ack for port number transfer. Resending.\n");
+                                          Sendto(mysockfd, &buf, sizeof(buf), 0,(SA*) &cliaddr, len);
+                                          Write(client_sockfd, &buf, sizeof(buf));
+                                          alarm (5);
+                                        }
+
+                                        memset(msg, 0, MAXLINE);
+                                        n = Read(client_sockfd, msg, MAXLINE);
+                                        printf("Msg (ACK) on new port:%s\n", msg);
+                                        close(mysockfd);
+                                        //sprintf(msg, "Aashray\n");
+                                        //Write(client_sockfd, msg, strlen(msg));
+                                        //printf("Sent from new port!\n");
+                                        alarm(0);
+
+                                        memset(&buf, 0, sizeof(buf));
+                                        buf.hdr.sft = 1;
+                                        Write(client_sockfd, &buf, sizeof(buf));
                     if (send_file(filename, client_sockfd, maxslidewindowsize))
                     	printf("Failed to send file\n");
 
@@ -173,4 +199,10 @@ main(int argc, char *argv[]) {
 	}
 
 	return 0;
+}
+
+static void
+sig_alrm(int signo)
+{
+	siglongjmp(jmpbuf, 1);
 }

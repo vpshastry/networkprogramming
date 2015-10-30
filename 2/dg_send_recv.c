@@ -76,7 +76,7 @@ dg_send_recv(int fd, int filefd)
     received_dup_ack = 0;
     Signal(SIGALRM, sig_alrm);
     rtt_newpack(&rttinfo);		/* initialize for this packet */
-	
+
 	if (rwnd_from_ack == 0) {
 		printf("recv. window is full, waiting for a dupack, and setting window probe timer.\n");
 		window_probe = 1;
@@ -264,7 +264,7 @@ send_file(char *filename, int client_sockfd, unsigned int maxslidewindowsize)
     return -1;
   }
 
-  if (RTT_DEBUG) fprintf (stderr, "Calling dg_send_recv\n");
+  if (RTT_DEBUG) fprintf (stderr, "\n\n------------\n Starting file transfer.\n----------------\n");
 
   n = dg_send_recv(client_sockfd, filefd);
   if (n < 0)

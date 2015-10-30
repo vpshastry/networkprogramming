@@ -114,7 +114,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
     rtt_d_flag = 1;
   }
 
-  printf ("Waiting for server to send something\n");
+  printf ("Waiting for server to send the file.\n");
   while (fin != 1 || time_wait_state == 1) {
 
     rtt_newpack(&rttinfo);		/* initialize for this packet */
@@ -229,7 +229,7 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd, float pr)
         // buffer is actualy filled by the producer. Bcz, producer initializes
         // the buffer at first production.
         if (!global_buffer)
-          break;
+          goto unlockme;
 		//printf("global buffer %x, seq:%d, rem size:%d\n", global_buffer[seq % buffer_size], seq, remaining_size);
         if (global_buffer[seq % buffer_size]) {
 		  if (remaining_size == 0)
@@ -239,6 +239,7 @@ print_from_buf(int buffer_size, unsigned int  mu, int sockfd, float pr)
           ++remaining_size;
         }
       }
+unlockme:
       fair_unlock(&lock);
 
       if (!print_buf)
@@ -433,13 +434,14 @@ main(int argc, char *argv[]) {
 			Write(sockfd, input.filename, strlen(input.filename));
 		alarm(5);
 	}
-	n = Read(sockfd, recvline, MAXLINE);
+        send_buffer_t buf;
+	n = Read(sockfd, &buf, sizeof(buf));
 	alarm(0); // Got response from server, switch off timer.
     awaiting_file_name_ack = 0;
-	Fputs(recvline, stdout);
+	Fputs(buf.payload, stdout);
 	//bzero(&servaddr, sizeof(serv_connect));
 	//Sock_pton(recvline, &servaddr);
-	sscanf(recvline, "%d", &temp_port);
+	sscanf(buf.payload, "%d", &temp_port);
 	servaddr.sin_port = htons(temp_port);
 	Connect(sockfd, (SA*) &servaddr, sizeof(servaddr));
 	bzero(&serv_connect, sizeof(serv_connect));
@@ -448,8 +450,20 @@ main(int argc, char *argv[]) {
 	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
 
 	// Send ACK to server on new port to continue file transfer.
-	Write(sockfd, input.filename, strlen(input.filename));
+        if (simulate_transmission_loss(input.p))
+          Write(sockfd, "ACK!!\0", strlen("ACK!!\0"));
+        else
+          printf ("Dropped ack for port number.\n");
 
+        do {
+          memset(&buf, 0, sizeof(buf));
+          n = Read(sockfd, &buf, sizeof(buf));
+          if (simulate_transmission_loss(input.p))
+            Write(sockfd, "ACK!!\0", strlen("ACK!!\0"));
+          else
+            printf ("Dropped ack for port number.\n");
+        } while (buf.hdr.sft == 0);
+        printf ("All these control transfer is done. Moving to file transfer.\n");
 
         // pthread code starts here.
         pthread_t thread_print_from_buf;
