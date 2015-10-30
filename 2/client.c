@@ -62,8 +62,10 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
   cli_in_buff_t *temp;
   int done = 0;
 
-  if (seq < 0 || seq > (buffer_size-1))
-    return -1;
+  if (seq < 0) {
+    fprintf (stderr, "ERROR: Seq number(%d) < 0.\n", seq);
+    exit(0);
+  }
 
   if (!seq) {
     global_buffer = (cli_in_buff_t **) calloc (buffer_size, sizeof(cli_in_buff_t *));
@@ -76,21 +78,22 @@ append_to_buffer(cli_in_buff_t *recvbuf, int seq, int buffer_size)
   }
   memcpy(temp, recvbuf, sizeof(cli_in_buff_t));
 
-  while (!done) {
-    fair_lock(&lock);
-    {
-      if (global_buffer[seq % buffer_size]) {
-        printf ("Waiting for consumer to consume the buffer\n");
-        goto unlock;
-      }
+  fair_lock(&lock);
+  {
+    if (global_buffer[seq % buffer_size])
+      goto unlock;
 
-      global_buffer[seq % buffer_size] = temp;
-      --remaining_size;
-      done = 1;
-    }
-unlock:
-    fair_unlock(&lock);
+    global_buffer[seq % buffer_size] = temp;
+    --remaining_size;
+    done = 1;
   }
+unlock:
+  fair_unlock(&lock);
+
+  if (!done)
+    free(temp);
+
+  return done;
 }
 
 int
@@ -152,9 +155,12 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
     printf ("Received packet: #%d\n", recvbuf.hdr.seq);
 
     if (recvbuf.hdr.seq == seq) {
-      ++seq;
+      if (append_to_buffer(&recvbuf, seq, buffer_size) <= 0) {
+        printf ("Client buffer is full. Dropping the packet.\n");
+        continue;
+      }
 
-      append_to_buffer(&recvbuf, seq-1, buffer_size);
+      ++seq;
 
       if (recvbuf.hdr.fin == 1) {
         if (RTT_DEBUG) printf ("Fin received\n");
@@ -224,6 +230,7 @@ print_from_buf(int buffer_size, unsigned int  mu)
 
       if (!print_buf)
         break;
+
 
       print_buf->payload[print_buf->length] = '\0';
       printf ("%s", print_buf->payload);
