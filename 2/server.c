@@ -5,7 +5,7 @@
 static sigjmp_buf jmpbuf;
 
 typedef struct {
-	SA addr;
+	struct sockaddr_in ip;
 	int is_conn; // 1-> connected, 0 -> not;
 } table_t;
 
@@ -63,18 +63,17 @@ int find_if_client_local(struct sockaddr_in servaddr, struct sockaddr_in clienta
 	}
 	return 3;
 }
-/*int checktable(SA* caddr, int count, table_t table) {
+
+int checktable(struct sockaddr_in caddr, int count, table_t *table) {
 	int i;
-	SA temp;
 	for (i = 0; i < count+1; i++) {
-		if (table[i].is_conn == 1){
-			temp = *(table[i].addr);
-			if ((temp.sin_addr.s_addr == *(caddr).sin_addr.s_addr) && (temp.sin_port.s_addr == *(caddr).sin_port.s_addr))
+		if (table[i].is_conn == 1) {
+			if ((caddr.sin_addr.s_addr == table[i].ip.sin_addr.s_addr) && (caddr.sin_port == table[i].ip.sin_port))
 				return -1;
 		}
 	}
 	return 0;
-}*/
+}
 	
 int
 main(int argc, char *argv[]) {
@@ -129,7 +128,10 @@ main(int argc, char *argv[]) {
                                 if (strchr(filename, '\n'))
                                   *strchr(filename, '\n') = '\0';
 				printf("Data(Filename):%s\n", msg);
-				//if (check_table(&cliadrr, table_count, &table) < 0 ) continue;
+				if (checktable(cliaddr, table_count, table) < 0 ) {
+					printf("Same <ip and port> tried to conected again, not creating new child.\n");
+					continue;
+				}
 				//Sendto(ii[i].sockfd, msg, n, 0,(SA*) &cliaddr, len);
 				if ((pid = Fork()) == 0) {
 
@@ -206,9 +208,9 @@ main(int argc, char *argv[]) {
 					table[table_count].is_conn = 0;
 					exit(0);// exit child
 				} else if (pid > 0) {
-								//table[table_count].addr = &clientaddr;
-								//table[table_count].is_conn = 1;
-								//table_count++;
+								table[table_count].ip = cliaddr;
+								table[table_count].is_conn = 1;
+								table_count++;
                                 } else {
                                   err_sys("Creating child failed: ");
                                 }
