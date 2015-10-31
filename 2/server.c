@@ -191,9 +191,12 @@ main(int argc, char *argv[]) {
                                           alarm (5);
                                         }
 
-                                        memset(msg, 0, MAXLINE);
-                                        n = read(client_sockfd, msg, MAXLINE);
-                                        printf("Msg (ACK) on new port:%s\n", msg);
+                                        send_buffer_t rb;
+                                        do {
+                                        memset(&rb, 0, sizeof(rb));
+                                        n = read(client_sockfd, &rb, sizeof(rb));
+                                        }while (rb.hdr.cntrl == 0);
+                                        printf("Msg (ACK) on new port\n");
                                         close(mysockfd);
                                         //sprintf(msg, "Aashray\n");
                                         //Write(client_sockfd, msg, strlen(msg));

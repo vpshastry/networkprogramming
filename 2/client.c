@@ -458,8 +458,11 @@ main(int argc, char *argv[]) {
 	printf("\nIPserver connected, protocol Address:%s\n", Sock_ntop((SA*) &serv_connect, len));
 
 	// Send ACK to server on new port to continue file transfer.
+        send_buffer_t sb;
+        memset (&sb, 0, sizeof(sb));
+        sb.hdr.cntrl = 1;
         if (simulate_transmission_loss(input.p))
-          Write(sockfd, "ACK!!\0", strlen("ACK!!\0"));
+          Write(sockfd, &sb, sizeof(sb));
         else
           printf ("Dropped ack for port number.\n");
 
@@ -467,7 +470,7 @@ main(int argc, char *argv[]) {
           memset(&buf, 0, sizeof(buf));
           n = Read(sockfd, &buf, sizeof(buf));
           if (simulate_transmission_loss(input.p))
-            Write(sockfd, "ACK!!\0", strlen("ACK!!\0"));
+            Write(sockfd, &sb, sizeof(sb));
           else
             printf ("Dropped ack for port number.\n");
         } while (buf.hdr.sft == 0);
