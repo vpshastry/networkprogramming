@@ -74,7 +74,7 @@ int checktable(struct sockaddr_in caddr, int count, table_t *table) {
 	}
 	return 0;
 }
-	
+
 int
 main(int argc, char *argv[]) {
 
@@ -192,7 +192,7 @@ main(int argc, char *argv[]) {
                                         }
 
                                         memset(msg, 0, MAXLINE);
-                                        n = Read(client_sockfd, msg, MAXLINE);
+                                        n = read(client_sockfd, msg, MAXLINE);
                                         printf("Msg (ACK) on new port:%s\n", msg);
                                         close(mysockfd);
                                         //sprintf(msg, "Aashray\n");

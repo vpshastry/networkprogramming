@@ -33,7 +33,6 @@ mysetitimer(struct sigaction *sa, struct itimerval *timer, int waittime /* in mi
   timer->it_value.tv_sec = waittimesec;
   timer->it_interval.tv_sec = timer->it_interval.tv_usec = 0;
   setitimer(ITIMER_REAL, timer, NULL);
-  printf ("Timer started to value: %d\n", waittime);
 }
 
 int
@@ -163,7 +162,7 @@ sendagain:
     mysetitimer(&sa, &timer, rtt_start(&rttinfo));///rtt_start(&rttinfo));	/* calc timeout value & start timer */
     //alarm(1);
 
-    //if (RTT_DEBUG) rtt_debug(&rttinfo);
+    if (RTT_DEBUG) rtt_debug(&rttinfo);
 
     if (sigsetjmp(jmpbuf, 1) != 0) {
       /*if (rtt_timeout(&rttinfo) < 0) {

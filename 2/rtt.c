@@ -124,7 +124,7 @@ rtt_debug(struct rtt_info *ptr)
 	if (rtt_d_flag == 0)
 		return;
 
-	fprintf(stderr, "rtt = %3u, srtt = %3u, rttvar = %3d, rto = %3u\n",
+	fprintf(stderr, "rtt = %3u, srtt = %3u, rttvar = %3d, rto = %3u\n (all in micro seconds)",
                 ptr->rtt_rtt, ptr->rtt_srtt, ptr->rtt_rttvar, ptr->rtt_rto);
 	fflush(stderr);
 }
