@@ -84,10 +84,10 @@ dg_send_recv(int fd, int filefd)
 	}
 	if (sigsetjmp(jmpbuf2, 1) != 0) {
 		printf("Timeout for window probe, Sending window probe\n");
-		sendbuf->hdr.seq = min_idx_acked;
+		sendbuf->hdr.seq = min_idx_acked - 1;
 		Write(fd, sendbuf, sizeof(sendbuf[i]));
 		window_probe_timer = window_probe_timer * 2;
-		if (window_probe_timer > 60) window_probe_timer = 60;
+		if (window_probe_timer > 60) window_probe_timer = 60; // following TCP guidelines, could be lesser if needed. 
 		printf("window_probe_timer: %u\n", window_probe_timer);
 		alarm(window_probe_timer);
 	}
@@ -137,10 +137,10 @@ sendagain:
       fprintf (stdout, "---------------------------\nSent packet #%d\n", sendbuf->hdr.seq);
 	  window->debug(window);
     }
-	printf("timer started\n");
-    alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
+	//printf("timer started\n");
+    alarm(1);///rtt_start(&rttinfo));	/* calc timeout value & start timer */
 
-    if (RTT_DEBUG) rtt_debug(&rttinfo);
+    //if (RTT_DEBUG) rtt_debug(&rttinfo);
 
     if (sigsetjmp(jmpbuf, 1) != 0) {
       /*if (rtt_timeout(&rttinfo) < 0) {
@@ -169,10 +169,10 @@ sendagain:
 
       while ((n = Read(fd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
         if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
-	  printf("timer stopped\n");
+	  //printf("timer stopped\n");
 	  alarm(0);
-	  printf("timer started\n");
-	  alarm(rtt_start(&rttinfo));	/* calc timeout value & start timer */
+	  //printf("timer started\n");
+	  alarm(1);//rtt_start(&rttinfo));	/* calc timeout value & start timer */
       if (recvbuf.hdr.ack != 1) {
         //fprintf (stderr, "This is not an ack\n");
 		if (recvbuf.hdr.ack == 2) {
@@ -227,7 +227,7 @@ sendagain:
           break;
       }
     }
-	printf("alarm stopped\n");
+	//printf("alarm stopped\n");
     alarm(0);			/* stop SIGALRM timer */
             /* 4calculate & store new RTT estimator values */
     rtt_stop(&rttinfo, rtt_ts(&rttinfo) - recvbuf.hdr.ts);

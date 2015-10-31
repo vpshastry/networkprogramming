@@ -171,7 +171,7 @@ window_prepare_cur_datagram(window_t *window, int seq, int filefd)
       return -1;
     }
   }
-
+  //printf("Contents:\n%s\n", newsendbuff->payload);
   if (n == 0 || n < FILE_READ_SIZE) {
     if (RTT_DEBUG) fprintf (stderr, "last datagram (contains fin) is seq. no #%d\n", newsendbuff->hdr.seq);
 	//printf("Contents:\n%s\n", newsendbuff->payload);

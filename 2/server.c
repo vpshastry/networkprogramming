@@ -4,6 +4,11 @@
 
 static sigjmp_buf jmpbuf;
 
+typedef struct {
+	SA addr;
+	int is_conn; // 1-> connected, 0 -> not;
+} table_t;
+
 int
 readargsfromfile(unsigned int *portnumber, unsigned int *maxslidewindowsize)
 {
@@ -58,7 +63,19 @@ int find_if_client_local(struct sockaddr_in servaddr, struct sockaddr_in clienta
 	}
 	return 3;
 }
-
+/*int checktable(SA* caddr, int count, table_t table) {
+	int i;
+	SA temp;
+	for (i = 0; i < count+1; i++) {
+		if (table[i].is_conn == 1){
+			temp = *(table[i].addr);
+			if ((temp.sin_addr.s_addr == *(caddr).sin_addr.s_addr) && (temp.sin_port.s_addr == *(caddr).sin_port.s_addr))
+				return -1;
+		}
+	}
+	return 0;
+}*/
+	
 int
 main(int argc, char *argv[]) {
 
@@ -67,10 +84,11 @@ main(int argc, char *argv[]) {
 	interface_info_t ii[MAX_INTERFACE_INFO] = {0,};
 	size_t interface_info_len;
 	fd_set rset, mainset;
-	int maxfdp1, i, n, mysockfd, is_local, pid, client_sockfd, temp_port, new_client_conn;
+	int maxfdp1, i, n, mysockfd, is_local, pid, client_sockfd, temp_port, new_client_conn, table_count = 0;
 	const int do_not_route = 1, on = 1;
 	char str[INET_ADDRSTRLEN], msg[MAXLINE];
 	struct sockaddr_in cliaddr, my_recv_addr, my_recv_netmask, cli_conn;
+	table_t table[1000];
 	socklen_t len = sizeof(cliaddr);
         char filename[4096] = {0,};
 
@@ -110,8 +128,8 @@ main(int argc, char *argv[]) {
 
                                 if (strchr(filename, '\n'))
                                   *strchr(filename, '\n') = '\0';
-				printf("Data:%s\n", msg);
-
+				printf("Data(Filename):%s\n", msg);
+				//if (check_table(&cliadrr, table_count, &table) < 0 ) continue;
 				//Sendto(ii[i].sockfd, msg, n, 0,(SA*) &cliaddr, len);
 				if ((pid = Fork()) == 0) {
 
@@ -185,10 +203,12 @@ main(int argc, char *argv[]) {
                                         Write(client_sockfd, &buf, sizeof(buf));
                     if (send_file(filename, client_sockfd, maxslidewindowsize))
                     	printf("Failed to send file\n");
-
+					table[table_count].is_conn = 0;
 					exit(0);// exit child
 				} else if (pid > 0) {
-                                  // Close all the connections
+								//table[table_count].addr = &clientaddr;
+								//table[table_count].is_conn = 1;
+								//table_count++;
                                 } else {
                                   err_sys("Creating child failed: ");
                                 }
