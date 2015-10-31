@@ -176,7 +176,7 @@ receive_file(int sockfd, float p /* prob */, int buffer_size)
 
     sendbuf.hdr.ack = 1;
     sendbuf.hdr.seq = seq;
-    sendbuf.hdr.ts = rtt_ts(&rttinfo);
+    sendbuf.hdr.ts = recvbuf.hdr.ts;//rtt_ts(&rttinfo);
 	sendbuf.hdr.rwnd = remaining_size;
 	if (remaining_size == 0) dup_ack_window_update_seq = seq;
 

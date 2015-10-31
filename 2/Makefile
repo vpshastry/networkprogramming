@@ -49,15 +49,15 @@ header.o: header.h header.c
 window.o: window.h window.c
 	${CC} ${CFLAGS} -c window.c window.h header.h
 
-server: server.o readline.o dg_send_recv.o header.o window.o
+server: server.o readline.o dg_send_recv.o header.o window.o rtt.o
 	${CC} ${FLAGS} -o server server.o readline.o get_ifi_info_plus.o header.o window.o rtt.o dg_send_recv.o ${LIBS}
 server.o: server.c window.h header.h unprtt.h
-	${CC} ${CFLAGS} -c server.c header.h window.h
+	${CC} ${CFLAGS} -c server.c header.h window.h unprtt.h
 
 
 client: client.o header.o window.o
 	${CC} ${FLAGS} -o client client.o get_ifi_info_plus.o header.o window.o rtt.o ${LIBS}
-client.o: client.c window.h header.h unprtt.h
+client.o: client.c window.h header.h
 	${CC} ${CFLAGS} -c client.c header.h window.h
 
 

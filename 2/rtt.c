@@ -25,11 +25,11 @@ rtt_init(struct rtt_info *ptr)
 	struct timeval	tv;
 
 	Gettimeofday(&tv, NULL);
-	ptr->rtt_base = tv.tv_sec;		/* # sec since 1/1/1970 at start */
+	ptr->rtt_base = tv.tv_sec *1000 *1000;		/* # sec since 1/1/1970 at start */
 
 	ptr->rtt_rtt    = 0;
 	ptr->rtt_srtt   = 0;
-	ptr->rtt_rttvar = 750 /*0.75 sec = 750 ms*/;
+	ptr->rtt_rttvar = 750 ;
 	ptr->rtt_rto = rtt_minmax(RTT_RTOCALC(ptr));
 		/* first RTO at (srtt + (4 * rttvar)) = 3 seconds */
 }
@@ -46,7 +46,7 @@ rtt_ts(struct rtt_info *ptr)
 	struct timeval	tv;
 	//printf("rtt_init\n");
 	Gettimeofday(&tv, NULL);
-	ts = ((tv.tv_sec - ptr->rtt_base) * 1000) + (tv.tv_usec / 1000);
+	ts = ((tv.tv_sec*1000000 - ptr->rtt_base) ) + (tv.tv_usec);
 	return(ts);
 }
 
@@ -61,7 +61,8 @@ int
 rtt_start(struct rtt_info *ptr)
 {
 	//printf("timer started to value:%u\n", (ptr->rtt_rto + 500) /1000);
-	return  ((ptr->rtt_rto + 500/*0.5 sec = 500 ms*/)/1000);		/* round float to int */
+	//return  ((ptr->rtt_rto + 500/*0.5 sec = 500 ms*/)/1000);		/* round float to int */
+  return ptr->rtt_rto;
 		/* 4return value can be used as: alarm(rtt_start(&foo)) */
 }
 
@@ -123,7 +124,7 @@ rtt_debug(struct rtt_info *ptr)
 	if (rtt_d_flag == 0)
 		return;
 
-	fprintf(stderr, "rtt = %7lu, srtt = %5lu, rttvar = %5ld, rto = %3lu\n",
-			ptr->rtt_rtt, ptr->rtt_srtt, ptr->rtt_rttvar, ptr->rtt_rto);
+	fprintf(stderr, "rtt = %3u, srtt = %3u, rttvar = %3d, rto = %3u\n",
+                ptr->rtt_rtt, ptr->rtt_srtt, ptr->rtt_rttvar, ptr->rtt_rto);
 	fflush(stderr);
 }

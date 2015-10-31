@@ -10,6 +10,9 @@
 #include "unpifiplus.h"
 #include <pthread.h>
 #include <limits.h>
+#include <signal.h>
+#include <string.h>
+#include <sys/time.h>
 
 #define RTT_DEBUG 1
 

@@ -17,6 +17,25 @@ static sigjmp_buf jmpbuf, jmpbuf2;
 int window_probe;
 unsigned int window_probe_timer = 2;
 
+void
+mysetitimer(struct sigaction *sa, struct itimerval *timer, int waittime /* in micro seconds */)
+{
+  if (waittime) {
+  memset (sa, 0, sizeof (struct sigaction));
+  sa->sa_handler = &sig_alrm;
+  sigaction (SIGALRM, sa, NULL);
+  }
+
+  int waittimesec = waittime /1000000;
+  waittime %= 1000000;
+
+  timer->it_value.tv_usec = waittime;
+  timer->it_value.tv_sec = waittimesec;
+  timer->it_interval.tv_sec = timer->it_interval.tv_usec = 0;
+  setitimer(ITIMER_REAL, timer, NULL);
+  printf ("Timer started to value: %d\n", waittime);
+}
+
 int
 prepare_window(window_t *window, int filefd)
 {
@@ -60,6 +79,8 @@ dg_send_recv(int fd, int filefd)
   int received_dup_ack = 0;
   int min_idx_acked = 0;
   int rwnd_from_ack = 1;
+  struct sigaction sa;
+  struct itimerval timer;
 
   if (rttinit == 0) {
     rtt_init(&rttinfo);		/* first time we're called */
@@ -71,10 +92,11 @@ dg_send_recv(int fd, int filefd)
 
     window->init(window, buf.st_size/FILE_READ_SIZE +1, 1/*cwnd*/);
   }
+    if (RTT_DEBUG) rtt_debug(&rttinfo);
 
   while (!lastloop) {
     received_dup_ack = 0;
-    Signal(SIGALRM, sig_alrm);
+    //Signal(SIGALRM, sig_alrm);
     rtt_newpack(&rttinfo);		/* initialize for this packet */
 
 	if (rwnd_from_ack == 0) {
@@ -87,7 +109,7 @@ dg_send_recv(int fd, int filefd)
 		sendbuf->hdr.seq = min_idx_acked - 1;
 		Write(fd, sendbuf, sizeof(sendbuf[i]));
 		window_probe_timer = window_probe_timer * 2;
-		if (window_probe_timer > 60) window_probe_timer = 60; // following TCP guidelines, could be lesser if needed. 
+		if (window_probe_timer > 60) window_probe_timer = 60; // following TCP guidelines, could be lesser if needed.
 		printf("window_probe_timer: %u\n", window_probe_timer);
 		alarm(window_probe_timer);
 	}
@@ -138,7 +160,8 @@ sendagain:
 	  window->debug(window);
     }
 	//printf("timer started\n");
-    alarm(1);///rtt_start(&rttinfo));	/* calc timeout value & start timer */
+    mysetitimer(&sa, &timer, rtt_start(&rttinfo));///rtt_start(&rttinfo));	/* calc timeout value & start timer */
+    //alarm(1);
 
     //if (RTT_DEBUG) rtt_debug(&rttinfo);
 
@@ -170,9 +193,11 @@ sendagain:
       while ((n = Read(fd, &recvbuf, sizeof(recvbuf))) < sizeof(seq_header_t))
         if (RTT_DEBUG) fprintf (stderr, "Received data is smaller than header\n");
 	  //printf("timer stopped\n");
-	  alarm(0);
+	  mysetitimer(&sa, &timer, 0);
+          //alarm(0);
 	  //printf("timer started\n");
-	  alarm(1);//rtt_start(&rttinfo));	/* calc timeout value & start timer */
+	  mysetitimer(&sa,&timer, rtt_start(&rttinfo));//rtt_start(&rttinfo));	/* calc timeout value & start timer */
+          //alarm(1);
       if (recvbuf.hdr.ack != 1) {
         //fprintf (stderr, "This is not an ack\n");
 		if (recvbuf.hdr.ack == 2) {
@@ -183,7 +208,8 @@ sendagain:
 	  if (recvbuf.hdr.fin == 1) {
 		  printf("Recv Fins ACK\n");
 		  lastloop = 1;
-		  alarm(0);
+                  mysetitimer(&sa, &timer, 0);
+                  //alarm(0);
 		  //break;
 		  printf("Bye Bye\n");
 		  return 0;
@@ -228,7 +254,8 @@ sendagain:
       }
     }
 	//printf("alarm stopped\n");
-    alarm(0);			/* stop SIGALRM timer */
+    mysetitimer(&sa, &timer, 0);			/* stop SIGALRM timer */
+    //alarm(0);
             /* 4calculate & store new RTT estimator values */
     rtt_stop(&rttinfo, rtt_ts(&rttinfo) - recvbuf.hdr.ts);
 	printf("rwnd  = %d\n", rwnd_from_ack);
