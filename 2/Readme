@@ -13,6 +13,7 @@ User Documentation
 ------------------
 All the source files can be compiled using the "make" command.
 The Makefile uses the required libraries and compiles the programs.
+Just to be safe, do a make clean before another make.
 
 Run the server using the server executatble as shown below:
 
@@ -22,15 +23,18 @@ Run the client using the client executable as shown below:
 
 ./client
 
-Make sure you have the server running before you call a service on the client.
+Make sure you have the server running before you start the client.
 
 ---------------------
 System Documentation
 ---------------------
 There are two parts to this system. The server and the client.
-....
-....
 
+-------
+Server
+-------
+
+Server starts up, read input from file server.in. We used the modified get_ifi_info function given to get interface information.
 To ensure only unicast addresses are bound:
 	- Section 22.6 has code that first binds unicast address. We do this same way.
 	- Then it attemps to bind Broadcast address and wildcard address. We do not do this.
@@ -41,6 +45,37 @@ Array of structures:
 	- We do a "bit-wise and" on the IP address and netmask to get the subnet address and store as a in_addr type. See code for details.
 	- We then call print_interface_info() to print the contents of this array for stucts as mentioned in the assignment spec.
 
+Server goes into Select and waits for clients and forks a new child for each new client.
+	----------------------------------
+	 Modifications to RTT/Section 22.5
+	----------------------------------
+	We used int arthmatic and use microseconds instead of the seconds based calulations. We also use setitimer instead of alarm.
+	----------------
+	ARQ/ Reliability
+	----------------
+	- We have used tcp reno like reliability and features.
+	- Sender buffer and sender window.
+	- Slow start / Cong. avoidance/ Fast rev have been implemented.
+	- Recv. window advertizements in the acks of the client to server, have been implement.
+	--------------
+	Clean closing
+	--------------
+	Server marks the header of the last packet with a flag called "fin". So client knows it is last packet.
+	Client backs up the sending of the FIN ACK with the TIME_WAIT state. Client waits to see that server does not retransmit anything
+	for 10 secs, then assumes server got the FIN ACK and then closes. This way server is not left hanging.
+-------
+Client
+-------
+ Starts up and read input form client.in. Gets interface information in a similar way as mentioned in detailed in server part, and tells if server is local or not. And uses 
+ MSG_DO_NOT_ROUTE option if needed, as does server.
+ Client Sends a filename to server. This is backup by re-try incase we do not get a response.
+ Client then recvs data puts it in its buffer, a seperate thread reads buffer with the distribution time mentioned in spec. (producer/ Consumer model)
+------------------
+Datagram structure
+------------------
+For both client and server.
+Datagram is fixed to a struct of 512 bytes. This struct has header and payload (contents). Header has timestamp, ack flag, fin flag.
+Client sets ack flag = 1 for each ack.
 ---------
 Citations
 ---------
