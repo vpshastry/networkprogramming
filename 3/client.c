@@ -1,21 +1,6 @@
 #include "header.h"
 
-typedef struct {
-  char sockfile[PATH_MAX];
-  int sockfd;
-} ctx_t;
-ctx_t ctx;
-
-int
-cleanup_sock_file()
-{
-  if (unlink(ctx.sockfile) < 0) {
-    fprintf (stderr, "unlink on sock file(%s) failed: %s\n",
-              ctx.sockfile, strerror(errno));
-    return -1;
-  }
-  return 0;
-}
+static ctx_t ctx;
 
 int
 create_sock_file(int sockfd)
@@ -82,10 +67,11 @@ create_and_bind_socket()
 int
 do_repeated_task()
 {
-  int       vm              = -1;
-  char      ch              = '\0';
-  char      in[MAXLINE +1]  = {0,};
-  packet_t  packet          = {0,};
+  int       vm                  = -1;
+  char      ch                  = '\0';
+  char      in[MAXLINE +1]      = {0,};
+  char      inmsg[PAYLOAD_SIZE] = {0,};
+  vminfo_t  *vminfo             = NULL;
 
   while (42) {
     fflush(stdin);
@@ -104,7 +90,7 @@ do_repeated_task()
     }
 
 resend:
-    if (msg_send(ctx.sockfd, vminfo->ip, vminfo->port, payload, 0)) {
+    if (msg_send(ctx.sockfd, vminfo->ip, vminfo->port, payload, 0) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
     }
@@ -125,7 +111,7 @@ resend:
       goto resend;
     }
 
-    if (msg_recv(ctx.sockfd, inmsg, srcip, srcport)) {
+    if (msg_recv(ctx.sockfd, inmsg, srcip, srcport) < 0) {
       fprintf (stderr, "Failed to receive message: %s\n", strerror(errno));
       return -1;
     }
@@ -133,12 +119,23 @@ resend:
 }
 
 int
-main()
+main(int *argc, char *argv[])
 {
-  if ((ctx.sockfd = create_sock_file()) < 0) {
-    fprintf (stderr, "Failed to create and bind sock fd.\n");
-    return -1;
+  int ret = -1;
+  if ((ret = create_and_bind_socket()) < 0) {
+    fprintf (stderr, "Creating the socket file failed\n");
+    goto out;
   }
 
-  return cleanup_sock_file();
+  if ((ctx.sockfd = create_sock_file()) < 0) {
+    fprintf (stderr, "Failed to create and bind sock fd.\n");
+    ret = ctx.sockfd;
+    goto out;
+  }
+
+  if ((ret = do_repeated_task()))
+    goto out;
+
+out:
+  return cleanup_sock_file(ctx.sockfile);
 }
