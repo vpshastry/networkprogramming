@@ -137,5 +137,6 @@ main(int *argc, char *argv[])
     goto out;
 
 out:
-  return cleanup_sock_file(ctx.sockfile);
+  cleanup_sock_file(ctx.sockfile);
+  return ret;
 }
