@@ -7,18 +7,20 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <math.h>
-#include "unpifiplus.h"
 #include <pthread.h>
 #include <limits.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/time.h>
+#include <setjmp.h>
 
 #define SERVER_SUNPATH "~/workspace/var/serversunpath.sock"
 #define SOCK_DIR "~/workspace/var/"
 #define MKOSTEMP_SFX "XXXXXX"
 
 #define SERVER_PORT 51476
+
+#define MAX_RESEND 1
 
 #define MYID 1
 
@@ -32,6 +34,8 @@
 typedef unsigned int uint32;
 typedef unsigned char uint8;
 typedef unsigned short uint16;
+
+typedef struct CTX ctx_t;
 
 typedef struct {
   char ip[MAX_IP_LEN];
@@ -53,12 +57,12 @@ typedef struct {
 
 int msg_send(int, char *, int, char *, int);
 int msg_recv(int, char *, char *, int *);
-struct vminfo_t * get_vminfo(int vmno);
+vminfo_t * get_vminfo(ctx_t *, int vmno);
 int cleanup_sock_file(char *sockfile);
 
-typedef struct {
+struct CTX {
   char sockfile[PATH_MAX];
   int sockfd;
   vminfo_t *vminfos;
-} ctx_t;
+};
 #endif

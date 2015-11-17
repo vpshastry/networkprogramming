@@ -1,6 +1,7 @@
 #include "header.h"
 
 static ctx_t ctx;
+static sigjmp_buf waitbuf;
 
 int
 create_sock_file(int sockfd)
@@ -20,7 +21,7 @@ create_sock_file(int sockfd)
 
   strncpy (ctx.sockfile, sockfile, strlen(sockfile));
 
-  if (!(fp = fdopen (fd, 'w'))) {
+  if (!(fp = fdopen (fd, "w"))) {
     fprintf (stderr, "Error opening file(%s): %s\n",
               sockfile, strerror(errno));
     return -1;
@@ -42,12 +43,14 @@ create_sock_file(int sockfd)
 
   fclose(fp);
   close(fd);
+  return 0;
 }
 
 int
 create_and_bind_socket()
 {
   int                 sockfd      = -1;
+  int                 err         = -1;
   struct sockaddr_in  clientaddr  = {0,};
 
   clientaddr.sin_family = AF_INET;
@@ -67,11 +70,15 @@ create_and_bind_socket()
 int
 do_repeated_task()
 {
-  int       vm                  = -1;
-  char      ch                  = '\0';
-  char      in[MAXLINE +1]      = {0,};
-  char      inmsg[PAYLOAD_SIZE] = {0,};
-  vminfo_t  *vminfo             = NULL;
+  int       vm                    = -1;
+  int       vmno                  = -1;
+  int       resendcnt             = 0;
+  int       srcport               = 0;
+  char      ch                    = '\0';
+  char      in[MAXLINE +1]        = {0,};
+  char      inmsg[PAYLOAD_SIZE]   = {0,};
+  vminfo_t  *vminfo               = NULL;
+  char      payload[PAYLOAD_SIZE] = {0,};
 
   while (42) {
     fflush(stdin);
@@ -84,7 +91,7 @@ do_repeated_task()
     }
 
     vmno = atoi(in);
-    if (!(vminfo = get_vminfo(vmno))) {
+    if (!(vminfo = get_vminfo(&ctx, vmno))) {
       fprintf (stderr, "Entered value out of range. Try again.\n");
       continue;
     }
@@ -99,9 +106,9 @@ resend:
               "at vm %d\n", MYID, vmno);
 
     if (sigsetjmp(waitbuf, 1) != 0) {
-      if (resendcnt) {
-        fprintf (stderr, "Max resend count reached, %d times. Trying no"
-                  "more.\n", resendcnt);
+      if (resendcnt >= MAX_RESEND) {
+        fprintf (stderr, "Max resend count reached, %d times. No more "
+                  "trying.\n", resendcnt);
         continue;
       }
 
@@ -111,7 +118,7 @@ resend:
       goto resend;
     }
 
-    if (msg_recv(ctx.sockfd, inmsg, srcip, srcport) < 0) {
+    if (msg_recv(ctx.sockfd, inmsg, vminfo->ip, &srcport) < 0) {
       fprintf (stderr, "Failed to receive message: %s\n", strerror(errno));
       return -1;
     }
@@ -122,12 +129,13 @@ int
 main(int *argc, char *argv[])
 {
   int ret = -1;
+
   if ((ret = create_and_bind_socket()) < 0) {
     fprintf (stderr, "Creating the socket file failed\n");
     goto out;
   }
 
-  if ((ctx.sockfd = create_sock_file()) < 0) {
+  if ((ret = create_sock_file(ctx.sockfd)) < 0) {
     fprintf (stderr, "Failed to create and bind sock fd.\n");
     ret = ctx.sockfd;
     goto out;

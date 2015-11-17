@@ -7,6 +7,8 @@ do_repeated_task()
 {
   char      payload[PAYLOAD_SIZE] = {0,};
   vminfo_t  *vmincontact          = NULL;
+  char      srcip[MAX_IP_LEN]     = {0,};
+  int       port, *srcport = &port;
 
   while (42) {
     memset(payload, 0, sizeof(payload));
@@ -15,10 +17,10 @@ do_repeated_task()
       return -1;
     }
 
-    vmincontact = get_vminfo(atoi(payload));
+    vmincontact = get_vminfo(&ctx, atoi(payload));
 
     fprintf (stdout, "Server at node vm%d responding to request from vm%d\n",
-              MYID, payload);
+              MYID, atoi(payload));
 
     memset (payload, 0, sizeof(payload));
     sprintf (payload, "%d", MYID);

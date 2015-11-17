@@ -1,7 +1,8 @@
+#include "header.h"
 #include	"hw_addrs.h"
 
 int
-main (int argc, char **argv)
+prhwaddrs(int argc, char **argv)
 {
 	struct hwa_info	*hwa, *hwahead;
 	struct sockaddr	*sa;
@@ -11,12 +12,12 @@ main (int argc, char **argv)
 	printf("\n");
 
 	for (hwahead = hwa = Get_hw_addrs(); hwa != NULL; hwa = hwa->hwa_next) {
-		
+
 		printf("%s :%s", hwa->if_name, ((hwa->ip_alias) == IP_ALIAS) ? " (alias)\n" : "\n");
-		
+
 		if ( (sa = hwa->ip_addr) != NULL)
 			printf("         IP addr = %s\n", Sock_ntop_host(sa, sizeof(*sa)));
-				
+
 		prflag = 0;
 		i = 0;
 		do {
@@ -39,5 +40,4 @@ main (int argc, char **argv)
 	}
 
 	free_hwa_info(hwahead);
-	exit(0);
 }

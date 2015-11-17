@@ -3,6 +3,7 @@
 #include <net/if.h>             /* generic interface structures */
 
 #include "hw_addrs.h"
+#include "header.h"
 
 
 struct hwa_info *
@@ -38,12 +39,12 @@ get_hw_addrs()
 	hwahead = NULL;
 	hwapnext = &hwahead;
 	lastname[0] = 0;
-    
+
 	ifr = ifc.ifc_req;
 	nInterfaces = ifc.ifc_len / sizeof(struct ifreq);
 	for(i = 0; i < nInterfaces; i++)  {
 		item = &ifr[i];
- 		alias = 0; 
+ 		alias = 0;
 		hwa = (struct hwa_info *) Calloc(1, sizeof(struct hwa_info));
 		memcpy(hwa->if_name, item->ifr_name, IF_NAME);		/* interface name */
 		hwa->if_name[IF_NAME-1] = '\0';

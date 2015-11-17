@@ -19,28 +19,27 @@
 #
 # Modify it as needed, and include it with your submission.
 
-LINUX_STEVENS_BASE = ~cse533/Stevens/unpv13e/
+LINUX_STEVENS_BASE = /users/cse533/Stevens/unpv13e/
 SOLARIS_STEVENS_BASE = ../Stevens/unpv13e_solaris2.10/
 
 CC = gcc
 
-LIBS = -lresolv -lsocket -lnsl -lpthread -lm\
-	${LINUX_STEVENS_BASE}/libunp.a\
+LIBS = -lpthread -lm ${LINUX_STEVENS_BASE}/libunp.a\
 
 FLAGS = -g -O2
 
 CFLAGS = ${FLAGS} -I${LINUX_STEVENS_BASE}/lib
 
-all: prhwaddrs prhwaddrs.o get_hw_addrs.o rtt.o dg_send_recv.o window.o server client
+all: readline.o prhwaddrs.o get_hw_addrs.o header.o server client
 
-prhwaddrs: prhwaddrs.o get_hw_addrs.o
-	${CC} -o prhwaddrs prhwaddrs.o get_hw_addrs.o ${LIBS}
+## Packed
 
 get_hw_addrs.o: get_hw_addrs.c
-	${CC} ${FLAGS} -c get_hw_addrs.c
+	${CC} ${CFLAGS} -c get_hw_addrs.c
 
 prhwaddrs.o: prhwaddrs.c
-	${CC} ${FLAGS} -c prhwaddrs.c
+	${CC} ${CFLAGS} -c prhwaddrs.c
+## End packed.
 
 header.o: header.h header.c
 	${CC} ${CFLAGS} -c header.c
@@ -62,6 +61,6 @@ readline.o: ${LINUX_STEVENS_BASE}/threads/readline.c
 	${CC} ${CFLAGS} -c ${LINUX_STEVENS_BASE}/threads/readline.c
 
 clean:
-	rm server server.o client client.o readline.o header.o prhwaddrs \
+	rm server server.o client client.o readline.o header.o \
 	    prhwaddrs.o get_hw_addrs.o header.h.gch
 
