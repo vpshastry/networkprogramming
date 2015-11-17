@@ -30,7 +30,7 @@ FLAGS = -g -O2
 
 CFLAGS = ${FLAGS} -I${LINUX_STEVENS_BASE}/lib
 
-all: readline.o prhwaddrs.o get_hw_addrs.o header.o server client
+all: readline.o prhwaddrs.o get_hw_addrs.o header.o server client odr
 
 ## Packed
 
@@ -55,6 +55,11 @@ client: client.o header.o prhwaddrs.o get_hw_addrs.o
 client.o: client.c header.h
 	${CC} ${CFLAGS} -c client.c header.h
 
+odr: odr.o header.o prhwaddrs.o get_hw_addrs.o
+	${CC} ${FLAGS} -o odr odr.o prhwaddrs.o get_hw_addrs.o header.o ${LIBS}
+odr.o: odr.c header.h
+	${CC} ${CFLAGS} -c odr.c header.h
+
 # pick up the thread-safe version of readline.c from directory "threads"
 
 readline.o: ${LINUX_STEVENS_BASE}/threads/readline.c
@@ -62,5 +67,5 @@ readline.o: ${LINUX_STEVENS_BASE}/threads/readline.c
 
 clean:
 	rm server server.o client client.o readline.o header.o \
-	    prhwaddrs.o get_hw_addrs.o header.h.gch
+	    prhwaddrs.o get_hw_addrs.o header.h.gch odr.o odr
 

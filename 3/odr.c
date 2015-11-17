@@ -1,5 +1,7 @@
 #include "header.h"
 
+static ctx_t ctx;
+
 int
 parsecommandline(int argc, char *argv[])
 {
@@ -14,5 +16,8 @@ parsecommandline(int argc, char *argv[])
 int
 main(int argc, char *argv[])
 {
-  int staleness = parsecommandline(argc, argv);
+  int             staleness = parsecommandline(argc, argv);
+  struct hwa_info *hwaddrs  = NULL;
+
+  prhwaddrs();
 }

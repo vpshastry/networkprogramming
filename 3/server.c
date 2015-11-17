@@ -5,10 +5,10 @@ static ctx_t ctx;
 int
 do_repeated_task()
 {
-  char      payload[PAYLOAD_SIZE] = {0,};
-  vminfo_t  *vmincontact          = NULL;
-  char      srcip[MAX_IP_LEN]     = {0,};
-  int       port, *srcport = &port;
+  char        payload[PAYLOAD_SIZE] = {0,};
+  peerinfo_t  *peerincontact        = NULL;
+  char        srcip[MAX_IP_LEN]     = {0,};
+  int         port, *srcport        = &port;
 
   while (42) {
     memset(payload, 0, sizeof(payload));
@@ -17,14 +17,14 @@ do_repeated_task()
       return -1;
     }
 
-    vmincontact = get_vminfo(&ctx, atoi(payload));
+    peerincontact = get_peerinfo(&ctx, atoi(payload));
 
     fprintf (stdout, "Server at node vm%d responding to request from vm%d\n",
               MYID, atoi(payload));
 
     memset (payload, 0, sizeof(payload));
     sprintf (payload, "%d", MYID);
-    if (msg_send(ctx.sockfd, vmincontact->ip, vmincontact->port, payload, 0) < 0) {
+    if (msg_send(ctx.sockfd, peerincontact->ip, peerincontact->port, payload, 0) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
     }

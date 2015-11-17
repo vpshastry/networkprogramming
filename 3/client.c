@@ -70,15 +70,15 @@ create_and_bind_socket()
 int
 do_repeated_task()
 {
-  int       vm                    = -1;
-  int       vmno                  = -1;
-  int       resendcnt             = 0;
-  int       srcport               = 0;
-  char      ch                    = '\0';
-  char      in[MAXLINE +1]        = {0,};
-  char      inmsg[PAYLOAD_SIZE]   = {0,};
-  vminfo_t  *vminfo               = NULL;
-  char      payload[PAYLOAD_SIZE] = {0,};
+  int         vm                    = -1;
+  int         vmno                  = -1;
+  int         resendcnt             = 0;
+  int         srcport               = 0;
+  char        ch                    = '\0';
+  char        in[MAXLINE +1]        = {0,};
+  char        inmsg[PAYLOAD_SIZE]   = {0,};
+  peerinfo_t  *pinfo                = NULL;
+  char        payload[PAYLOAD_SIZE] = {0,};
 
   while (42) {
     fflush(stdin);
@@ -91,13 +91,13 @@ do_repeated_task()
     }
 
     vmno = atoi(in);
-    if (!(vminfo = get_vminfo(&ctx, vmno))) {
+    if (!(pinfo = get_peerinfo(&ctx, vmno))) {
       fprintf (stderr, "Entered value out of range. Try again.\n");
       continue;
     }
 
 resend:
-    if (msg_send(ctx.sockfd, vminfo->ip, vminfo->port, payload, 0) < 0) {
+    if (msg_send(ctx.sockfd, pinfo->ip, pinfo->port, payload, 0) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
     }
@@ -118,7 +118,7 @@ resend:
       goto resend;
     }
 
-    if (msg_recv(ctx.sockfd, inmsg, vminfo->ip, &srcport) < 0) {
+    if (msg_recv(ctx.sockfd, inmsg, pinfo->ip, &srcport) < 0) {
       fprintf (stderr, "Failed to receive message: %s\n", strerror(errno));
       return -1;
     }

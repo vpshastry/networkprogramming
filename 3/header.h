@@ -2,6 +2,7 @@
 #define _HEADER_H_
 
 #include "unp.h"
+#include "hw_addrs.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -26,6 +27,7 @@
 
 // 3 * 4 + 3 + 5 Extra
 #define MAX_IP_LEN 20
+#define MAX_HWADDR_LEN IF_HADDR
 
 #define DEBUG 1
 
@@ -38,9 +40,18 @@ typedef unsigned short uint16;
 typedef struct CTX ctx_t;
 
 typedef struct {
-  char ip[MAX_IP_LEN];
-  int port;
+  int if_index;
+  char ipstr[MAX_IP_LEN];
+  char hwaddr[MAX_HWADDR_LEN];
+  struct sockaddr ip;
+
+  struct hwa_info hwa_info;
 } vminfo_t;
+
+typedef struct {
+  int port;
+  char ip[MAX_IP_LEN];
+} peerinfo_t;
 
 typedef struct {
   uint32 dummy;
