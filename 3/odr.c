@@ -18,6 +18,8 @@ main(int argc, char *argv[])
 {
   int             staleness = parsecommandline(argc, argv);
   struct hwa_info *hwaddrs  = NULL;
+  int             ret       = -1;
 
+  ret = build_vminfos();
   prhwaddrs();
 }
