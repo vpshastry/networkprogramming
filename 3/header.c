@@ -1,8 +1,21 @@
 #include "header.h"
 
 int
-msg_send(int sock, char *ip, int port, char *buffer, int reroute)
+msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
 {
+  struct sockaddr_un odraddr;
+  sequence_t seq;
+
+  bzero(&odraddr, sizeof(odraddr));
+  odraddr.sun_family = AF_LOCAL;
+  strcpy(odraddr.sun_path, ODR_SUNPATH); 
+
+  strncpy(seq.ip, ip, sizeof(ip));
+  seq.port = port;
+  strncpy(seq.buffer, buffer, sizeof(buffer));
+  seq.reroute = reroute;
+
+  Sendto(sockfd, (void*) &seq, sizeof(seq), 0, (SA*) &odraddr, sizeof(odraddr));
   return 0;
 }
 
@@ -19,7 +32,7 @@ get_vminfo(ctx_t *ctx, int vmno)
 }
 
 int
-build_vminfos(ctx_t *ctx)
+build_vminfos(vminfo_t* vminfos)
 {
   struct hwa_info *hwa;
   struct hwa_info *hwahead;
@@ -35,17 +48,26 @@ build_vminfos(ctx_t *ctx)
       continue;
     }
 
-    ctx->vminfos[i].if_index = hwa->if_index;
-    memcpy(&ctx->vminfos[i].hwa_info, &hwa, sizeof(struct hwa_info));
-    memcpy(&ctx->vminfos[i].ip, &hwa->ip_addr, sizeof(struct sockaddr));
-    memcpy(ctx->vminfos[i].hwaddr, hwa->if_haddr,
-            sizeof(ctx->vminfos[i].hwaddr));
-    strncpy(ctx->vminfos[i].ipstr,
+    vminfos[i].if_index = hwa->if_index;
+    //memcpy(vminfos[i].hwa_info, &hwa, sizeof(struct hwa_info));
+    //memcpy(vminfos[i].ip, &hwa->ip_addr, sizeof(struct sockaddr));
+    //memcpy(vminfos[i].hwaddr, hwa->if_haddr,
+            //sizeof(vminfos[i].hwaddr));
+    strncpy(vminfos[i].hwaddr, hwa->if_haddr, sizeof(hwa->if_haddr));
+    strncpy(vminfos[i].ipstr,
             Sock_ntop_host(hwa->ip_addr, sizeof(hwa->ip_addr)),
-            sizeof(ctx->vminfos[i].ipstr));
+            sizeof(vminfos[i].ipstr));
     ++i;
   }
   return i;
+}
+
+void print_vminfos(vminfo_t* vminfos, int num_interfaces)
+{
+  int i;
+  for (i = 0; i < num_interfaces; i++) {
+    printf("VM%d\t%s\n", vminfos[i].if_index, vminfos[i].ipstr);
+  }
 }
 
 peerinfo_t *
@@ -64,3 +86,34 @@ cleanup_sock_file(char *sockfile)
   }
   return 0;
 }
+
+void get_ip_of_vm(int vmno, char* final_ip, int length){
+  
+  struct hostent *hptr;
+  char **pptr;
+  char str [INET_ADDRSTRLEN];
+  char vmno_str[6];
+  sprintf(vmno_str, "vm%d", vmno);
+  if ( (hptr = gethostbyname (vmno_str) ) == NULL) {
+      err_msg ("gethostbyname error for host: %s: %s",
+               vmno_str, hstrerror (h_errno) );
+      exit(0);
+  }
+  //printf ("The VM IP address is ");
+  switch (hptr->h_addrtype) {
+  case AF_INET:
+      pptr = hptr->h_addr_list;
+      for (; *pptr != NULL; pptr++) {
+          printf("%s\n", Inet_ntop(hptr->h_addrtype, *pptr, str, sizeof (str)));
+          strncpy(final_ip, str, length - 1);
+          final_ip[length - 1] = '\0';
+      }
+      break;
+  default:
+      err_ret ("unknown address type");
+      break;
+  }
+  
+  //return final_ip;
+}
+

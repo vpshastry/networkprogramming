@@ -1,6 +1,6 @@
 #include <errno.h>		/* error numbers */
 #include <sys/ioctl.h>          /* ioctls */
-#include <net/if.h>             /* generic interface structures */
+//#include <net/if.h>             /* generic interface structures */
 
 #include "hw_addrs.h"
 #include "header.h"

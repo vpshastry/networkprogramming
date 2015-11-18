@@ -49,26 +49,22 @@ create_sock_file(int sockfd)
 int
 create_and_bind_socket()
 {
-  int                 sockfd      = -1;
-  int                 err         = -1;
-  struct sockaddr_in  clientaddr  = {0,};
+  int                 sockfd;
+  struct sockaddr_un  servaddr;
 
-  clientaddr.sin_family = AF_INET;
-  clientaddr.sin_port = htons(0);
-  if ((err = inet_pton(AF_INET, "0.0.0.0", &clientaddr.sin_addr)) != 1) {
-    fprintf (stderr, "inet pton failed for 0.0.0.0\n");
-    return -1;
-  }
+  sockfd = Socket (AF_LOCAL, SOCK_DGRAM, 0);
 
-  sockfd = Socket (AF_INET, SOCK_DGRAM, 0);
+  bzero(&servaddr, sizeof(servaddr));
+  servaddr.sun_family = AF_LOCAL;
+  strcpy(servaddr.sun_path, tmpnam(NULL)); /* TO-DO (@any) - use mkstemp instead of this deprecated tmpnam */
 
-  Bind(sockfd, (SA *) &clientaddr, sizeof(clientaddr));
+  Bind(sockfd, (SA *) &servaddr, sizeof(servaddr));
 
-  return sockfd;
+  return sockfd; /* TO-DO (@any) - see what pointers to return in arguments, if any.*/
 }
 
 int
-do_repeated_task()
+do_repeated_task(int sockfd)
 {
   int         vm                    = -1;
   int         vmno                  = -1;
@@ -79,32 +75,41 @@ do_repeated_task()
   char        inmsg[PAYLOAD_SIZE]   = {0,};
   peerinfo_t  *pinfo                = NULL;
   char        payload[PAYLOAD_SIZE] = {0,};
+  char        vm_ip[MAX_IP_LEN];
+  char        my_hostname[MAXLINE];
 
   while (42) {
-    fflush(stdin);
-    fprintf (stdin, "Choose the server from vm1..vm10 (1-10 or e to exit): ");
-    Fgets(in, MAXLINE, stdin);
-
-    if (strncmp (in, "e", strlen("e"))) {
+    //fflush(stdin); why?
+    fprintf (stdout, "Choose the server from vm1..vm10 (1-10 or e to exit): ");
+    if (fgets(in, MAXLINE, stdin) != NULL){
+      printf("You entered %s\n", in);
+    } else {
+      printf("fgets error\n");
+      continue;
+    }
+    if (strncmp (in, "e", strlen(in)) == 0) {
       fprintf (stdout, "\nExiting... Bye.\n");
       return 0;
     }
 
     vmno = atoi(in);
-    if (!(pinfo = get_peerinfo(&ctx, vmno))) {
+    /*if (!(pinfo = get_peerinfo(&ctx, vmno))) {
       fprintf (stderr, "Entered value out of range. Try again.\n");
       continue;
-    }
-
+    }*/
 resend:
-    if (msg_send(ctx.sockfd, pinfo->ip, pinfo->port, payload, 0) < 0) {
+    get_ip_of_vm(vmno, vm_ip, sizeof(vm_ip));
+    printf("IP of VM%d is %s\n", vmno, vm_ip);
+    gethostname(my_hostname, sizeof(my_hostname));
+    //printf("My hostname = %s\n", my_hostname);
+    
+    fprintf (stdout, "TRACE: client at node %s sending request to server "
+              "at vm%d\n", my_hostname, vmno);
+    if (msg_send(sockfd, vm_ip, 40383, "Hi", 0) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
     }
-
-    fprintf (stdout, "TRACE: client at node vm %d sending request to server "
-              "at vm %d\n", MYID, vmno);
-
+    printf("Message Sent\n");
     if (sigsetjmp(waitbuf, 1) != 0) {
       if (resendcnt >= MAX_RESEND) {
         fprintf (stderr, "Max resend count reached, %d times. No more "
@@ -118,33 +123,32 @@ resend:
       goto resend;
     }
 
-    if (msg_recv(ctx.sockfd, inmsg, pinfo->ip, &srcport) < 0) {
+    /*if (msg_recv(ctx.sockfd, inmsg, pinfo->ip, &srcport) < 0) {
       fprintf (stderr, "Failed to receive message: %s\n", strerror(errno));
       return -1;
-    }
+    }*/
   }
 }
 
 int
 main(int *argc, char *argv[])
 {
-  int ret = -1;
+  int ret, sockfd;
 
-  if ((ret = create_and_bind_socket()) < 0) {
-    fprintf (stderr, "Creating the socket file failed\n");
-    goto out;
+  if ((sockfd= create_and_bind_socket()) < 0) {
+    fprintf (stdout, "Creating the socket file failed\n");
+    //goto out;
   }
 
-  if ((ret = create_sock_file(ctx.sockfd)) < 0) {
+  /*if ((ret = create_sock_file(ctx.sockfd)) < 0) {
     fprintf (stderr, "Failed to create and bind sock fd.\n");
     ret = ctx.sockfd;
     goto out;
-  }
+  }*/
+  printf("Going to do_repeated_task()\n");
+  do_repeated_task(sockfd);
 
-  if ((ret = do_repeated_task()))
-    goto out;
-
-out:
-  cleanup_sock_file(ctx.sockfile);
-  return ret;
+//out:
+  //cleanup_sock_file(ctx.sockfile);
+  return 0;
 }

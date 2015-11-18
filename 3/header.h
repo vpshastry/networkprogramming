@@ -15,7 +15,13 @@
 #include <sys/time.h>
 #include <setjmp.h>
 
-#define SERVER_SUNPATH "~/workspace/var/serversunpath.sock"
+// Includes for PF_PACKET
+//#include <sys/socket.h>
+#include <linux/if_packet.h>
+#include <linux/if_ether.h>
+#include <linux/if_arp.h>
+
+#define ODR_SUNPATH "/tmp/serversunpath_40383.sock"
 #define SOCK_DIR "~/workspace/var/"
 #define MKOSTEMP_SFX "XXXXXX"
 
@@ -33,6 +39,9 @@
 
 #define MYID 1
 
+//#define ETH_FRAME_LEN 1518
+#define USID_PROTO 4383
+
 typedef unsigned int uint32;
 typedef unsigned char uint8;
 typedef unsigned short uint16;
@@ -43,9 +52,9 @@ typedef struct {
   int if_index;
   char ipstr[MAX_IP_LEN];
   char hwaddr[MAX_HWADDR_LEN];
-  struct sockaddr ip;
+  //struct sockaddr ip;
 
-  struct hwa_info hwa_info;
+  //struct hwa_info hwa_info;
 } vminfo_t;
 
 typedef struct {
@@ -76,4 +85,12 @@ struct CTX {
   int sockfd;
   vminfo_t *vminfos;
 };
+
+typedef struct {
+  char ip[MAX_IP_LEN];
+  int port;
+  char buffer[MAXLINE];
+  int reroute;
+} sequence_t;
+
 #endif
