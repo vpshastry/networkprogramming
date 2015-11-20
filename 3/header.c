@@ -1,5 +1,7 @@
 #include "header.h"
 
+extern char my_ip_addr[MAX_IP_LEN];
+
 int
 msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
 {
@@ -10,11 +12,11 @@ msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
   odraddr.sun_family = AF_LOCAL;
   strcpy(odraddr.sun_path, ODR_SUNPATH); 
 
-  strncpy(seq.ip, ip, sizeof(ip));
+  strncpy(seq.ip, ip, MAX_IP_LEN);
   seq.port = port;
   strncpy(seq.buffer, buffer, sizeof(buffer));
   seq.reroute = reroute;
-
+  //printf("msg_send: dest IP = %s\n, Redv_dest_ip=%s\n", seq.ip, ip);
   Sendto(sockfd, (void*) &seq, sizeof(seq), 0, (SA*) &odraddr, sizeof(odraddr));
   return 0;
 }
@@ -32,41 +34,99 @@ get_vminfo(ctx_t *ctx, int vmno)
 }
 
 int
-build_vminfos(vminfo_t* vminfos)
+build_vminfos(struct hwa_info* vminfo)
 {
-  struct hwa_info *hwa;
-  struct hwa_info *hwahead;
-  int             i = 0;
+  struct hwa_info	*hwa, *hwahead;
+  struct sockaddr	*sa;
+  char   *ptr;
+  int    i, prflag;
+  int vm_count = 0, index;
 
-  for (hwahead = hwa = Get_hw_addrs(), i = 0;
-        hwa != NULL;
-        hwa = hwa->hwa_next) {
+  printf("\n");
 
-    if (!strcmp("lo", hwa->if_name) || !strcmp("eth0", hwa->if_name)) {
+  for (hwahead = hwa = Get_hw_addrs(), vm_count = 0; hwa != NULL; hwa = hwa->hwa_next) {
+ 
+    if (!strcmp("lo", hwa->if_name)) {
       if (DEBUG)
         fprintf (stdout, "Skipping %s\n", hwa->if_name);
       continue;
     }
 
-    vminfos[i].if_index = hwa->if_index;
-    //memcpy(vminfos[i].hwa_info, &hwa, sizeof(struct hwa_info));
-    //memcpy(vminfos[i].ip, &hwa->ip_addr, sizeof(struct sockaddr));
-    //memcpy(vminfos[i].hwaddr, hwa->if_haddr,
-            //sizeof(vminfos[i].hwaddr));
-    strncpy(vminfos[i].hwaddr, hwa->if_haddr, sizeof(hwa->if_haddr));
-    strncpy(vminfos[i].ipstr,
-            Sock_ntop_host(hwa->ip_addr, sizeof(hwa->ip_addr)),
-            sizeof(vminfos[i].ipstr));
-    ++i;
+    if (!strcmp("eth0", hwa->if_name)) {
+      sa = hwa->ip_addr;
+      sprintf(my_ip_addr, "%s", Sock_ntop_host(sa, sizeof(*sa)));
+      //printf("MY IP = %s\n", my_ip_addr);
+      if (DEBUG)
+        fprintf (stdout, "Skipping %s\n", hwa->if_name);
+
+      continue;
+    }
+    printf("%s :%s", hwa->if_name, ((hwa->ip_alias) == IP_ALIAS) ? " (alias)\n" : "\n");
+    //index = hwa->if_index; // I may need this later.
+    index = vm_count;
+    strncpy(vminfo[index].if_name, hwa->if_name, IF_NAME);
+    vminfo[index].ip_alias = hwa->ip_alias;
+    
+    vminfo[index].ip_addr = (struct sockaddr *) Calloc(1, sizeof(struct sockaddr)); /* Init memory for IP address */
+    
+    memcpy(vminfo[index].ip_addr, hwa->ip_addr, sizeof(struct sockaddr));	/* IP address */
+    
+    if ( (sa = hwa->ip_addr) != NULL)
+      printf("         IP addr = %s\n", Sock_ntop_host(sa, sizeof(*sa)));
+
+    prflag = 0;
+    i = 0;
+    do {
+      if (hwa->if_haddr[i] != '\0') {
+        prflag = 1;
+        break;
+      }
+    } while (++i < IF_HADDR);
+
+    if (prflag) {
+      printf("         HW addr = ");
+      ptr = hwa->if_haddr;
+      i = IF_HADDR;
+      do {
+        printf("%.2x%s", *ptr++ & 0xff, (i == 1) ? " " : ":");
+      } while (--i > 0);
+    }
+    memcpy(vminfo[index].if_haddr, hwa->if_haddr, IF_HADDR);
+    printf("\n         interface index = %d\n\n", hwa->if_index);
+    vminfo[index].if_index = hwa->if_index;
+    vm_count++;
   }
-  return i;
+
+  free_hwa_info(hwahead);
+  
+  return vm_count;
 }
 
-void print_vminfos(vminfo_t* vminfos, int num_interfaces)
+void print_vminfos(struct hwa_info* vminfos, int num_interfaces)
 {
-  int i;
+  int i, prflag, j = 0;
+  char   *ptr;
+  struct sockaddr	*sa;
   for (i = 0; i < num_interfaces; i++) {
-    printf("VM%d\t%s\n", vminfos[i].if_index, vminfos[i].ipstr);
+    if ( (sa = vminfos[i].ip_addr) != NULL) {
+      printf("Interface index = %d\t%s\t", vminfos[i].if_index, Sock_ntop_host(sa, sizeof(*sa)), vminfos[i]);
+      do {
+        if (vminfos[i].if_haddr[j] != '\0') {
+          prflag = 1;
+          break;
+        }
+      } while (++j < IF_HADDR);
+
+      if (prflag) {
+        printf("\tHW addr = ");
+        ptr = vminfos[i].if_haddr;
+        j = IF_HADDR;
+        do {
+          printf("%.2x%s", *ptr++ & 0xff, (j == 1) ? " " : ":");
+        } while (--j > 0);
+      }
+    }
+    printf("\n");
   }
 }
 

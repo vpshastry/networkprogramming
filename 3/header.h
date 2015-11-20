@@ -54,7 +54,7 @@ typedef struct {
   char hwaddr[MAX_HWADDR_LEN];
   //struct sockaddr ip;
 
-  //struct hwa_info hwa_info;
+  struct hwa_info h_info;
 } vminfo_t;
 
 typedef struct {
@@ -69,11 +69,21 @@ typedef struct {
 #define PACKET_SIZE 512
 #define PAYLOAD_SIZE (PACKET_SIZE - sizeof(header_t) - sizeof(uint32)) /*lenth*/
 
+#define RREQ 0
+#define RREP 1
+#define APP_PAYLOAD 3
+#define YES 0
+#define NO 1
 typedef struct {
-  header_t header;
-  unsigned char payload[PAYLOAD_SIZE];
-  uint32 length;
-} packet_t;
+  int type;
+  char source_ip[MAX_IP_LEN];
+  char dest_ip[MAX_IP_LEN];
+  int broadcast_id;
+  int rrep_already_sent;
+  int force_discovery;
+  int hop_count;
+} odr_packet_t;
+
 
 int msg_send(int, char *, int, char *, int);
 int msg_recv(int, char *, char *, int *);
@@ -92,5 +102,8 @@ typedef struct {
   char buffer[MAXLINE];
   int reroute;
 } sequence_t;
+
+
+char my_ip_addr[MAX_IP_LEN];
 
 #endif
