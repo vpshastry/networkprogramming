@@ -1,5 +1,7 @@
 #include "header.h"
 
+#define DUP_RREQ 1
+
 static ctx_t ctx;
 extern char my_ip_addr[MAX_IP_LEN];
 
@@ -11,10 +13,11 @@ typedef struct {
   char next_hop[IF_HADDR];
   int if_index;
   int num_hops;
+  int last_bcast_id_seen;
   // TO-DO (@any) - timestamp field.
 
   // Bookeeping info
-  int is_valid;
+  //int is_valid;
 } route_table_t;
 
 route_table_t route_table[20];
@@ -46,6 +49,16 @@ int create_bind_odr_sun_path() {
   Bind(sockfd, (SA*) &addr, sizeof(addr));
   
   return sockfd;
+}
+
+void print_mac_adrr(char mac_addr[6]) {
+  int i = 0;
+  char* ptr;
+  i = IF_HADDR;
+  ptr = mac_addr;
+  do {
+      printf("%.2x:", *ptr++ & 0xff);
+  } while (--i > 0);
 }
 
 void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac, odr_packet_t odr_packet)
@@ -151,19 +164,91 @@ void broadcast_to_all_interfaces(int pf_packet_sockfd, struct hwa_info* vminfo, 
     send_pf_packet(pf_packet_sockfd, vminfo[i], broadcast_ip, odr_packet);
   }
 }
+
+int is_ip_in_route_table (char ip[MAX_IP_LEN], route_table_t* table_entry) {
+  int i;
+  for (i = 0; i < route_table_len; i++) {
+    if (strcmp(route_table[i].dest_ip, ip) == 0) {
+      printf("This IP is in routing table\n");
+      strcpy(table_entry->dest_ip, route_table[i].dest_ip);
+      memcpy((void*)table_entry->next_hop, (void*)route_table[i].next_hop, ETH_ALEN);
+      table_entry->if_index = route_table[i].if_index;
+      table_entry->num_hops = route_table[i].num_hops;
+      table_entry->last_bcast_id_seen = route_table[i].last_bcast_id_seen;
+      return YES;
+    }
+  }
+  return NO;
+
+}
+void print_routing_table() {
+  int i;
+  printf("-------------ROUTING TABLE--------------\n");
+  //printf("DEST_IP               NEXT_HOP            IF_INDEX\t\t\tNUM_HOPS\t\t\tLAST_BCAST_ID\n");
+  for (i = 0; i < route_table_len; i++) {
+    printf("%15s", route_table[i].dest_ip);
+    printf("%15s", "");
+    print_mac_adrr(route_table[i].next_hop);
+    //printf("\t");
+    printf("%15d", route_table[i].if_index);
+    printf("%15d", route_table[i].num_hops);
+    printf("%15d\n", route_table[i].last_bcast_id_seen);
+  }
+}
+int update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_address, unsigned char src_mac[6]) {
+
+  route_table_t table_entry;
+  if (strcmp(odr_packet.source_ip, my_ip_addr) == 0) {
+    printf("I have only sent this request.\n");
+    return DUP_RREQ;
+  }
+  if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) == YES) {
+    printf("Routing information to this source is already there\n");
+    if (table_entry.last_bcast_id_seen == odr_packet.broadcast_id) {
+      printf("Already seen this RREQ\n");
+      return DUP_RREQ;
+    }
+  } else {
+    printf("Adding new entry into routing table\n");
+    strcpy(route_table[route_table_len].dest_ip, odr_packet.source_ip);
+    memcpy((void*) route_table[route_table_len].next_hop, (void*) src_mac, ETH_ALEN);
+    route_table[route_table_len].if_index = socket_address.sll_ifindex;
+    route_table[route_table_len].num_hops = odr_packet.hop_count + 1;
+    route_table[route_table_len].last_bcast_id_seen = odr_packet.broadcast_id;
+    route_table_len++;
+  }
+  print_routing_table();
+}
+
 void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_interfaces)
 {
   struct sockaddr_ll socket_address;
   socklen_t sock_len = sizeof(socket_address);
+  unsigned char src_mac[6];
+  unsigned char dest_mac[6];
   /*buffer for ethernet frame*/
   void* buffer = (void*)malloc(ETH_FRAME_LEN);
   odr_packet_t *odr_packet_ptr;
   odr_packet_t odr_packet;
+  route_table_t table_entry;
 
   int length = 0; /*length of the received frame*/ 
   length = recvfrom(pf_packet_sockfd, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, &sock_len);
   if (length == -1) { printf("PF_PACKET recv error\n");}
   printf("----Recvd PF_PACKET----\n");
+  printf("recving if_index = %d\n", socket_address.sll_ifindex);
+
+  memcpy((void*)src_mac, (void *)buffer+ETH_ALEN, ETH_ALEN);
+  memcpy((void*)dest_mac, (void *)buffer, ETH_ALEN);
+
+  printf("src_mac =");
+  print_mac_adrr(src_mac);
+  printf("\n");
+
+  printf("dest_mac =");
+  print_mac_adrr(dest_mac);
+  printf("\n");
+  
   odr_packet_ptr = buffer+14;
   odr_packet = *odr_packet_ptr;
   printf("type = %d\n", odr_packet.type);
@@ -175,8 +260,13 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
     printf("This packet is for me\n");
   } else {
     printf("This packet is not for me.. check routing table\n");
-    if (route_table_len == 0) {
-      printf("Not in routing table... broadcasting.");
+
+    if (update_routing_table(odr_packet, socket_address, src_mac) == DUP_RREQ) {
+      printf("IGNORING..\n");
+      return;
+    }
+    if (is_ip_in_route_table(odr_packet.dest_ip, &table_entry) == NO) {
+      printf("Not in routing table... broadcasting.\n");
       odr_packet.hop_count++;
       broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, NULL, &odr_packet);
     }
