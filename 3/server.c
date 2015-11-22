@@ -3,43 +3,62 @@
 static ctx_t ctx;
 
 int
-do_repeated_task()
+do_repeated_task(int server_sock_fd)
 {
-  char        payload[PAYLOAD_SIZE] = {0,};
+  char        buffer[100];
   peerinfo_t  *peerincontact        = NULL;
-  char        srcip[MAX_IP_LEN]     = {0,};
-  int         port, *srcport        = &port;
+  char        src_ip[MAX_IP_LEN];
+  int         src_port;
 
   while (42) {
-    memset(payload, 0, sizeof(payload));
-    if (msg_recv(ctx.sockfd, payload, srcip, srcport) < 0) {
+    //memset(payload, 0, sizeof(payload));
+    if (msg_recv(server_sock_fd, buffer, src_ip, &src_port) < 0) {
       fprintf (stderr, "Failed to receive message: %s\n", strerror(errno));
       return -1;
     }
 
-    peerincontact = get_peerinfo(&ctx, atoi(payload));
+    //peerincontact = get_peerinfo(&ctx, atoi(payload));
 
-    fprintf (stdout, "Server at node vm%d responding to request from vm%d\n",
-              MYID, atoi(payload));
+    /*fprintf (stdout, "Server at node vm%d responding to request from vm%d\n",
+              MYID, atoi(payload));*/
 
-    memset (payload, 0, sizeof(payload));
+    /*memset (payload, 0, sizeof(payload));
     sprintf (payload, "%d", MYID);
     if (msg_send(ctx.sockfd, peerincontact->ip, peerincontact->port, payload, 0) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
-    }
+    }*/
   }
 }
 
 int
+create_and_bind_socket()
+{
+  int                 sockfd;
+  struct sockaddr_un  servaddr;
+
+  sockfd = Socket (AF_LOCAL, SOCK_DGRAM, 0);
+  
+  unlink(SERVER_SUNPATH);
+  bzero(&servaddr, sizeof(servaddr));
+  servaddr.sun_family = AF_LOCAL;
+  strcpy(servaddr.sun_path, SERVER_SUNPATH);
+
+  Bind(sockfd, (SA *) &servaddr, sizeof(servaddr));
+
+  return sockfd; /* TO-DO (@any) - see what pointers to return in arguments, if any.*/
+}
+int
 main(int *argc, char *argv[])
 {
-  int ret = -1;
+  int server_sock_fd;
 
-  if ((ret = do_repeated_task()))
+  server_sock_fd = create_and_bind_socket();
+  do_repeated_task(server_sock_fd);
+  /*if ((ret = do_repeated_task()))
     goto out;
 
 out:
-  cleanup_sock_file(ctx.sockfile);
-  return ret;
+  cleanup_sock_file(ctx.sockfile);*/
+  return 0;
 }

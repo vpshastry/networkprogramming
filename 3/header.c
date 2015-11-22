@@ -22,8 +22,16 @@ msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
 }
 
 int
-msg_recv(int sock, char *buffer, char *srcip, int *srcport)
-{
+msg_recv(int sockfd, char *buffer, char *src_ip, int *src_port)
+{ 
+  sequence_t seq;
+
+  Read(sockfd, (void*) &seq, sizeof(seq));
+
+  strncpy(src_ip, seq.ip, MAX_IP_LEN);
+  strncpy(buffer, seq.buffer, sizeof(seq.buffer));
+  *src_port = seq.port;
+  printf("msg_recvd\n");
   return 0;
 }
 

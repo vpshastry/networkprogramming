@@ -246,7 +246,7 @@ int update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_addr
   print_routing_table();
 }
 
-void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_interfaces)
+void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_interfaces, int odr_sun_path_sockfd)
 {
   struct sockaddr_ll socket_address;
   socklen_t sock_len = sizeof(socket_address);
@@ -259,6 +259,8 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
   odr_packet_t rrep;
   route_table_t table_entry;
   struct hwa_info sending_if_info;
+  struct sockaddr_un serveraddr;
+  sequence_t seq;
 
   int length = 0; /*length of the received frame*/ 
   length = recvfrom(pf_packet_sockfd, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, &sock_len);
@@ -321,7 +323,6 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
     }
   }
   if (odr_packet.type == RREP) {
-    printf("Got an RREP\n Write code to handle me.\n");
     if (strcmp (odr_packet.dest_ip, my_ip_addr) == 0) {
       printf("This RREP is for me. Should fwd to client here.\n"); // TO-DO.
       // Update routing table first.
@@ -329,6 +330,17 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
         printf("RREP Already handled. IGNORE.\n");
         return;
       }
+      bzero(&serveraddr, sizeof(serveraddr));
+      serveraddr.sun_family = AF_LOCAL;
+      strcpy(serveraddr.sun_path, SERVER_SUNPATH); 
+
+      strncpy(seq.ip, odr_packet.source_ip, MAX_IP_LEN);
+      seq.port = 40383;// tmp- TO-DO
+      strncpy(seq.buffer, "Hello_from_ODR", sizeof(buffer));
+      //seq.reroute = reroute;
+      //printf("msg_send: dest IP = %s\n, Redv_dest_ip=%s\n", seq.ip, ip);
+      Sendto(odr_sun_path_sockfd, (void*) &seq, sizeof(seq), 0, (SA*) &serveraddr, sizeof(serveraddr));
+
     } else {
 
       printf("This RREP is not for me.. Routing it after updating Routing table\n");
@@ -398,7 +410,7 @@ main(int argc, char *argv[])
 
     }
     if (FD_ISSET(pf_packet_sockfd, &cur_set)) {
-      recv_pf_packet(pf_packet_sockfd, vminfo, num_interfaces);
+      recv_pf_packet(pf_packet_sockfd, vminfo, num_interfaces, odr_sun_path_sockfd);
     }
   }
 }

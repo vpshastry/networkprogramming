@@ -21,7 +21,8 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 
-#define ODR_SUNPATH "/tmp/serversunpath_40383.sock"
+#define ODR_SUNPATH "/tmp/odrsunpath_40383.sock"
+#define SERVER_SUNPATH "/tmp/serversunpath_40383_aashray.sock"
 #define SOCK_DIR "~/workspace/var/"
 #define MKOSTEMP_SFX "XXXXXX"
 
