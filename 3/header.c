@@ -130,6 +130,18 @@ void print_vminfos(struct hwa_info* vminfos, int num_interfaces)
   }
 }
 
+void get_vminfo_by_ifindex(struct hwa_info* vminfo, int num_interfaces, int find_index, struct hwa_info* return_vminfo) {
+  int i;
+  for (i = 0; i < num_interfaces; i++) {
+    if(vminfo[i].if_index == find_index) {
+      memcpy((void*)return_vminfo, (void*) &vminfo[i], sizeof(struct hwa_info));
+      return;
+    }
+  }
+  printf("ERROR: interface index not found in get_vminfo_by_index\n");
+}
+
+
 peerinfo_t *
 get_peerinfo(ctx_t *ctx, int no)
 {

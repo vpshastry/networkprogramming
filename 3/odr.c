@@ -195,8 +195,10 @@ void print_routing_table() {
     printf("%15d\n", route_table[i].last_bcast_id_seen);
   }
 }
+
 int update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_address, unsigned char src_mac[6]) {
 
+  int i;
   route_table_t table_entry;
   if (strcmp(odr_packet.source_ip, my_ip_addr) == 0) {
     printf("I have only sent this request.\n");
@@ -205,15 +207,36 @@ int update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_addr
   if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) == YES) {
     printf("Routing information to this source is already there\n");
     if (table_entry.last_bcast_id_seen == odr_packet.broadcast_id) {
-      printf("Already seen this RREQ\n");
-      return DUP_RREQ;
+      printf("Same bcast ID, Already seen this RREQ\n");
+      if (table_entry.num_hops < (odr_packet.hop_count + 1)) {
+        printf("Greater hop_count. No update\n");
+        return DUP_RREQ;
+      }
+      else if (table_entry.num_hops > (odr_packet.hop_count + 1)) {
+        printf("Lesser hop_count. Update Table\n");      
+        for (i = 0; i < route_table_len; i++) {
+          if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
+            memcpy((void*)route_table[i].next_hop, (void*) src_mac, ETH_ALEN);
+            route_table[i].if_index = socket_address.sll_ifindex;
+            route_table[i].num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
+            route_table[i].last_bcast_id_seen = odr_packet.broadcast_id;
+          }
+        }
+      } else {
+        printf("Same number of hops\n");
+        if (strcmp(table_entry.next_hop, src_mac) == 0) {
+          printf("Same neightbour. No update\n.");
+        } else {
+          printf("Different neighbour, need to update\n"); // TO-DO
+        }
+      }
     }
   } else {
     printf("Adding new entry into routing table\n");
     strcpy(route_table[route_table_len].dest_ip, odr_packet.source_ip);
     memcpy((void*) route_table[route_table_len].next_hop, (void*) src_mac, ETH_ALEN);
     route_table[route_table_len].if_index = socket_address.sll_ifindex;
-    route_table[route_table_len].num_hops = odr_packet.hop_count + 1;
+    route_table[route_table_len].num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
     route_table[route_table_len].last_bcast_id_seen = odr_packet.broadcast_id;
     route_table_len++;
   }
@@ -230,7 +253,9 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
   void* buffer = (void*)malloc(ETH_FRAME_LEN);
   odr_packet_t *odr_packet_ptr;
   odr_packet_t odr_packet;
+  odr_packet_t rrep;
   route_table_t table_entry;
+  struct hwa_info sending_if_info;
 
   int length = 0; /*length of the received frame*/ 
   length = recvfrom(pf_packet_sockfd, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, &sock_len);
@@ -256,20 +281,45 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
   printf("dest IP = %s\n", odr_packet.dest_ip);
   printf("broadcast id = %d\n", odr_packet.broadcast_id);
   printf("hop count = %d\n", odr_packet.hop_count);
-  if (strcmp (odr_packet.dest_ip, my_ip_addr) == 0) {
-    printf("This packet is for me\n");
-  } else {
-    printf("This packet is not for me.. check routing table\n");
+  if (odr_packet.type == RREQ) {
+    if (strcmp (odr_packet.dest_ip, my_ip_addr) == 0) {
+      printf("This packet is for me. Sending RREP.\n");
+      // Update routing table first.
+      if (update_routing_table(odr_packet, socket_address, src_mac) == DUP_RREQ) {
+        printf("Already handled. IGNORE.\n");
+        return;
+      }
+      // Now need to send RREP (if not already sent flag - TO-DO)
+      // Building RREP
+      rrep.type = RREP;
+      strcpy(rrep.source_ip, odr_packet.dest_ip);
+      strcpy(rrep.dest_ip, odr_packet.source_ip);
+      rrep.hop_count = 0;
+      // get the table entry to send it to.
+      if (is_ip_in_route_table(rrep.dest_ip, &table_entry) == NO) {
+        printf("Something is seriously wrong, no path in routing table for rrep?\n");
+        exit(0);
+      }
+      printf("Need to send to index: %d\n", table_entry.if_index);
+      get_vminfo_by_ifindex(vminfo, num_interfaces, table_entry.if_index, &sending_if_info);
+      printf("temp: sending_if_info.if_index = %d\n", sending_if_info.if_index);
+      send_pf_packet(pf_packet_sockfd, sending_if_info, table_entry.next_hop, rrep);
+    } else {
+      printf("This packet is not for me.. check routing table\n");
 
-    if (update_routing_table(odr_packet, socket_address, src_mac) == DUP_RREQ) {
-      printf("IGNORING..\n");
-      return;
+      if (update_routing_table(odr_packet, socket_address, src_mac) == DUP_RREQ) {
+        printf("IGNORING..\n");
+        return;
+      }
+      if (is_ip_in_route_table(odr_packet.dest_ip, &table_entry) == NO) {
+        printf("Not in routing table... broadcasting.\n");
+        odr_packet.hop_count++; // Increment hop_count for the hop it just made to get to me.
+        broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, NULL, &odr_packet);
+      }
     }
-    if (is_ip_in_route_table(odr_packet.dest_ip, &table_entry) == NO) {
-      printf("Not in routing table... broadcasting.\n");
-      odr_packet.hop_count++;
-      broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, NULL, &odr_packet);
-    }
+  }
+  if (odr_packet.type == RREP) {
+    printf("Got an RREP\n Write code to handle me.\n");
   }
 }
 
