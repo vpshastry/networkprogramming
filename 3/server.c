@@ -5,10 +5,11 @@ static ctx_t ctx;
 int
 do_repeated_task(int server_sock_fd)
 {
-  char        buffer[100];
+  char        buffer[200];
   peerinfo_t  *peerincontact        = NULL;
   char        src_ip[MAX_IP_LEN];
   int         src_port;
+  time_t ticks;
 
   while (42) {
     //memset(payload, 0, sizeof(payload));
@@ -16,18 +17,20 @@ do_repeated_task(int server_sock_fd)
       fprintf (stderr, "Failed to receive message: %s\n", strerror(errno));
       return -1;
     }
-
+    ticks = time(NULL);
+    snprintf(buffer, sizeof(buffer), "%.24s\r\n", ctime(&ticks));
+    printf("I will send %s\n", buffer);
     //peerincontact = get_peerinfo(&ctx, atoi(payload));
 
     /*fprintf (stdout, "Server at node vm%d responding to request from vm%d\n",
               MYID, atoi(payload));*/
 
     /*memset (payload, 0, sizeof(payload));
-    sprintf (payload, "%d", MYID);
-    if (msg_send(ctx.sockfd, peerincontact->ip, peerincontact->port, payload, 0) < 0) {
+    sprintf (payload, "%d", MYID); */
+    if (msg_send(server_sock_fd, src_ip, src_port, buffer, 0) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
-    }*/
+    }
   }
 }
 

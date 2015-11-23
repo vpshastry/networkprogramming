@@ -69,7 +69,7 @@ do_repeated_task(int sockfd)
   int         vm                    = -1;
   int         vmno                  = -1;
   int         resendcnt             = 0;
-  int         srcport               = 0;
+  int         src_port;
   char        ch                    = '\0';
   char        in[MAXLINE +1]        = {0,};
   char        inmsg[PAYLOAD_SIZE]   = {0,};
@@ -77,6 +77,8 @@ do_repeated_task(int sockfd)
   char        payload[PAYLOAD_SIZE] = {0,};
   char        vm_ip[MAX_IP_LEN];
   char        my_hostname[MAXLINE];
+  char        buffer[200];
+  char        src_ip[MAX_IP_LEN];
 
   while (42) {
     //fflush(stdin); why?
@@ -123,10 +125,11 @@ resend:
       goto resend;
     }
 
-    /*if (msg_recv(ctx.sockfd, inmsg, pinfo->ip, &srcport) < 0) {
+    if (msg_recv(sockfd, buffer, src_ip, &src_port) < 0) {
       fprintf (stderr, "Failed to receive message: %s\n", strerror(errno));
       return -1;
-    }*/
+    }
+    printf("I recvd %s\n", buffer);
   }
 }
 

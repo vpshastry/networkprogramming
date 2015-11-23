@@ -14,7 +14,8 @@ msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
 
   strncpy(seq.ip, ip, MAX_IP_LEN);
   seq.port = port;
-  strncpy(seq.buffer, buffer, sizeof(buffer));
+  strcpy(seq.buffer, buffer);
+  printf("msg_send msg = %s, in seq is %s\n", buffer, seq.buffer);
   seq.reroute = reroute;
   //printf("msg_send: dest IP = %s\n, Redv_dest_ip=%s\n", seq.ip, ip);
   Sendto(sockfd, (void*) &seq, sizeof(seq), 0, (SA*) &odraddr, sizeof(odraddr));
@@ -31,7 +32,7 @@ msg_recv(int sockfd, char *buffer, char *src_ip, int *src_port)
   strncpy(src_ip, seq.ip, MAX_IP_LEN);
   strncpy(buffer, seq.buffer, sizeof(seq.buffer));
   *src_port = seq.port;
-  printf("msg_recvd\n");
+  printf("msg_recvd : %s\n", buffer);
   return 0;
 }
 

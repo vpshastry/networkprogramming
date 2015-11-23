@@ -75,6 +75,9 @@ typedef struct {
 #define APP_PAYLOAD 3
 #define YES 0
 #define NO 1
+#define AREQ 0
+#define AREP 1
+
 typedef struct {
   int type;
   char source_ip[MAX_IP_LEN];
@@ -83,6 +86,8 @@ typedef struct {
   int rrep_already_sent;
   int force_discovery;
   int hop_count;
+  char app_message[200];
+  int app_req_or_rep;
 } odr_packet_t;
 
 
@@ -100,7 +105,7 @@ struct CTX {
 typedef struct {
   char ip[MAX_IP_LEN];
   int port;
-  char buffer[MAXLINE];
+  char buffer[200];
   int reroute;
 } sequence_t;
 
