@@ -12,7 +12,7 @@ do_repeated_task(int server_sock_fd)
   time_t ticks;
 
   while (42) {
-    //memset(payload, 0, sizeof(payload));
+    memset(buffer, 0, sizeof(buffer));
     if (msg_recv(server_sock_fd, buffer, src_ip, &src_port) < 0) {
       fprintf (stderr, "Failed to receive message: %s\n", strerror(errno));
       return -1;
@@ -20,13 +20,10 @@ do_repeated_task(int server_sock_fd)
     ticks = time(NULL);
     snprintf(buffer, sizeof(buffer), "%.24s\r\n", ctime(&ticks));
     printf("I will send %s\n", buffer);
-    //peerincontact = get_peerinfo(&ctx, atoi(payload));
 
-    /*fprintf (stdout, "Server at node vm%d responding to request from vm%d\n",
-              MYID, atoi(payload));*/
+    fprintf (stdout, "Server at node vm%s responding to request from vm%s\n",
+              buffer, src_ip);
 
-    /*memset (payload, 0, sizeof(payload));
-    sprintf (payload, "%d", MYID); */
     if (msg_send(server_sock_fd, src_ip, src_port, buffer, 0) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
@@ -49,7 +46,7 @@ create_and_bind_socket()
 
   Bind(sockfd, (SA *) &servaddr, sizeof(servaddr));
 
-  return sockfd; /* TO-DO (@any) - see what pointers to return in arguments, if any.*/
+  return sockfd;
 }
 int
 main(int *argc, char *argv[])
