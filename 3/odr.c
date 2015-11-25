@@ -32,7 +32,7 @@ parsecommandline(int argc, char *argv[])
   if (argc < 2) {
     fprintf (stdout, "Usage: %s <staleness>\n", argv[0]);
     //exit(0);
-    return 0;
+	return 0;
   }
 
   return atoi(argv[1]);
@@ -55,7 +55,7 @@ struct queue {
 static peer_proc_table_t *pptablehead, *pptabletail;
 static struct queue *queue_head;
 
-  odr_packet_t *
+odr_packet_t *
 get_from_queue(char *ip)
 {
   if (!queue_head) {
@@ -84,11 +84,11 @@ get_from_queue(char *ip)
   free(trav);
 
   printf ("Remove queue: source: %d, dest: %d\n", ret->dest_port,
-      ret->source_port);
+                                                  ret->source_port);
   return ret;
 }
 
-  void
+void
 add_to_queue(odr_packet_t *newpckt)
 {
   struct queue *newq = Calloc(1, sizeof(struct queue));
@@ -98,7 +98,7 @@ add_to_queue(odr_packet_t *newpckt)
   printf ("Add queue: source: %d, dest: %d\n", newpckt->dest_port, newpckt->source_port);
 }
 
-  int
+int
 get_rand_port()
 {
   static unsigned char firsttimeonly = 1;
@@ -121,7 +121,7 @@ repeat:
 }
 
 // Currently only the server is well known port (TODO: or isn't it?).
-  int
+int
 build_peer_process_table()
 {
   pptabletail = pptablehead = Calloc(1, sizeof(peer_proc_table_t));
@@ -132,7 +132,7 @@ build_peer_process_table()
   pptablehead->ispermanent = 1;
 }
 
-  void
+void
 purge_if_time_expired()
 {
   struct timeval tv;
@@ -142,17 +142,17 @@ purge_if_time_expired()
 
   if (PPTAB_DEBUG)
     printf ("-----\nport: %d\nsunpath: %s\ntimetolive: %ld\ncurtime: %ld\n-----\n",
-        prev->port, prev->sun_path, prev->time_to_live, tv.tv_sec);
+            prev->port, prev->sun_path, prev->time_to_live, tv.tv_sec);
 
   for (; trav; trav = trav->next) {
     if (PPTAB_DEBUG)
       printf ("-----\nport: %d\nsunpath: %s\ntimetolive: %ld\ncurtime: %ld\n-----\n",
-          trav->port, trav->sun_path, trav->time_to_live, tv.tv_sec);
+              trav->port, trav->sun_path, trav->time_to_live, tv.tv_sec);
 
     if (trav->time_to_live < tv.tv_sec) {
       if (PPTAB_DEBUG)
         printf ("Purging the time expired peer with port(%d), path(%s)\n",
-            trav->port, trav->sun_path);
+                trav->port, trav->sun_path);
 
       prev->next = trav->next;
       free(trav);
@@ -162,7 +162,7 @@ purge_if_time_expired()
   }
 }
 
-  int
+int
 add_to_peer_process_table(struct sockaddr_un *cliaddr)
 {
   int i = 0;
@@ -203,7 +203,7 @@ out:
   return ephemeral_port;
 }
 
-  char *
+char *
 get_sun_path_from_port(int port)
 {
   peer_proc_table_t *trav = pptablehead;
@@ -244,14 +244,14 @@ void print_mac_adrr(char mac_addr[6]) {
   i = IF_HADDR;
   ptr = mac_addr;
   do {
-    printf("%.2x:", *ptr++ & 0xff);
+      printf("%.2x:", *ptr++ & 0xff);
   } while (--i > 0);
 }
 
-  void
+void
 broadcast_to_all_interfaces (int pf_packet_sockfd, struct hwa_info* vminfo,
-    int num_interfaces, char dest_ip[MAX_IP_LEN],
-    odr_packet_t* fwd_odr_packet)
+                              int num_interfaces, char dest_ip[MAX_IP_LEN],
+                              odr_packet_t* fwd_odr_packet)
 {
   int i;
   odr_packet_t odr_packet;
@@ -273,7 +273,7 @@ broadcast_to_all_interfaces (int pf_packet_sockfd, struct hwa_info* vminfo,
     send_pf_packet(pf_packet_sockfd, vminfo[i], broadcast_ip, &odr_packet);
 }
 
-  int
+int
 is_ip_in_route_table (char ip[MAX_IP_LEN], route_table_t* table_entry)
 {
   int i;
@@ -308,7 +308,7 @@ void print_routing_table() {
     printf("%15d\n", route_table[i].last_bcast_id_seen);
   }
 }
-  void
+void
 print_odr_packet(odr_packet_t *odr_packet)
 {
   printf("type = %d\n", odr_packet->type);
@@ -318,7 +318,7 @@ print_odr_packet(odr_packet_t *odr_packet)
   printf("hop count = %d\n", odr_packet->hop_count);
 }
 
-  int
+int
 update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_address, unsigned char src_mac[6])
 {
   int i;
@@ -431,10 +431,10 @@ out:
   return ret;
 }
 
-  int
+int
 send_rrep(odr_packet_t *odr_packet, int r_table_update, int pf_packet_sockfd,
-    struct hwa_info *vminfo, int num_interfaces, int hops,
-    route_table_t *table_entry)
+          struct hwa_info *vminfo, int num_interfaces, int hops,
+          route_table_t *table_entry)
 {
   odr_packet_t rrep, app_payload;
   struct hwa_info sending_if_info;
@@ -454,11 +454,11 @@ send_rrep(odr_packet_t *odr_packet, int r_table_update, int pf_packet_sockfd,
   send_pf_packet(pf_packet_sockfd, sending_if_info, table_entry->next_hop, &rrep);
 }
 
-  int
+int
 handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
-    unsigned char src_mac[6], int pf_packet_sockfd,
-    struct hwa_info* vminfo, int num_interfaces,
-    int odr_sun_path_sockfd)
+            unsigned char src_mac[6], int pf_packet_sockfd,
+            struct hwa_info* vminfo, int num_interfaces,
+            int odr_sun_path_sockfd)
 {
   socklen_t sock_len = sizeof(socket_address);
   route_table_t table_entry;
@@ -484,15 +484,15 @@ handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
 
     // Do we
     send_rrep(odr_packet, r_table_update, pf_packet_sockfd,
-        vminfo, num_interfaces, 0, &table_entry);
+              vminfo, num_interfaces, 0, &table_entry);
 
-    // It's not for me.
+  // It's not for me.
   } else {
     printf("This rreq is not for me.\n");
 
     if (r_table_update == DUP_ENTRY || r_table_update == SELF_ORIGIN) {
       printf("Received(%s). IGNORING..\n",
-          (r_table_update == DUP_ENTRY)? "DUP_ENTRY": "SELF_ORIGIN");
+              (r_table_update == DUP_ENTRY)? "DUP_ENTRY": "SELF_ORIGIN");
       return;
     }
 
@@ -503,14 +503,14 @@ handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
       printf("I know path to dest, should send RREP\n");
 
       send_rrep(odr_packet, r_table_update, pf_packet_sockfd, vminfo,
-          num_interfaces, table_entry.num_hops, &table_entry);
+                num_interfaces, table_entry.num_hops, &table_entry);
 
       printf("Intermediate RREP sent, Checking if I knew the source node\n");
 
       printf("This was a new/better path to the src node... continue-ing to flood RREQ with rrep_already_sent = YES;.\n");
       odr_packet->rrep_already_sent = YES;
 
-      // Just an error check.
+    // Just an error check.
     } else if (odr_packet->rrep_already_sent != YES) {
       fprintf (stderr, "Blunder!! not = YES is not equal to NO\n");
       exit(0);
@@ -526,7 +526,7 @@ handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
   return 0;
 }
 
-  odr_packet_t *
+odr_packet_t *
 build_app_payload(odr_packet_t *app_payload, char *ip)
 {
   odr_packet_t *msgtosend;
@@ -547,11 +547,11 @@ build_app_payload(odr_packet_t *app_payload, char *ip)
   return app_payload;
 }
 
-  int
+int
 handle_rrep(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
-    unsigned char src_mac[6], int pf_packet_sockfd,
-    struct hwa_info* vminfo, int num_interfaces,
-    int odr_sun_path_sockfd)
+             unsigned char src_mac[6], int pf_packet_sockfd,
+             struct hwa_info* vminfo, int num_interfaces,
+             int odr_sun_path_sockfd)
 {
   socklen_t sock_len = sizeof(socket_address);
   odr_packet_t *send_packet;
@@ -589,11 +589,11 @@ handle_rrep(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
   return;
 }
 
-  int
+int
 handle_app_payload(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
-    unsigned char src_mac[6], int pf_packet_sockfd,
-    struct hwa_info* vminfo, int num_interfaces,
-    int odr_sun_path_sockfd)
+                   unsigned char src_mac[6], int pf_packet_sockfd,
+                   struct hwa_info* vminfo, int num_interfaces,
+                   int odr_sun_path_sockfd)
 {
   socklen_t sock_len = sizeof(socket_address);
   route_table_t table_entry;
@@ -651,9 +651,9 @@ handle_app_payload(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
   return;
 }
 
-  void
+void
 recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
-    int num_interfaces, int odr_sun_path_sockfd)
+                int num_interfaces, int odr_sun_path_sockfd)
 {
   struct sockaddr_ll socket_address;
   socklen_t sock_len = sizeof(socket_address);
@@ -686,18 +686,18 @@ recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
   switch (odr_packet.type) {
     case RREQ:
       handle_rreq(&odr_packet, socket_address, src_mac, pf_packet_sockfd,
-          vminfo, num_interfaces, odr_sun_path_sockfd);
+                  vminfo, num_interfaces, odr_sun_path_sockfd);
       break;
 
     case RREP:
       handle_rrep(&odr_packet, socket_address, src_mac, pf_packet_sockfd,
-          vminfo, num_interfaces, odr_sun_path_sockfd);
+                  vminfo, num_interfaces, odr_sun_path_sockfd);
       break;
 
     case APP_PAYLOAD:
       handle_app_payload (&odr_packet, socket_address, src_mac,
-          pf_packet_sockfd, vminfo, num_interfaces,
-          odr_sun_path_sockfd);
+                          pf_packet_sockfd, vminfo, num_interfaces,
+                          odr_sun_path_sockfd);
       break;
 
     default:
@@ -706,10 +706,10 @@ recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
   }
 }
 
-  void
+void
 process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
-    int num_interfaces, int pf_packet_sockfd,
-    int odr_sun_path_sockfd)
+                    int num_interfaces, int pf_packet_sockfd,
+                    int odr_sun_path_sockfd)
 {
   route_table_t table_entry;
   struct sockaddr_un servaddr;
@@ -779,7 +779,7 @@ int create_bind_pf_packet()
   return s;
 }
 
-  int
+int
 main(int argc, char *argv[])
 {
   //int             staleness = parsecommandline(argc, argv);
