@@ -26,6 +26,7 @@
 #define SERVER_SUNPATH "/tmp/serversunpath_40383_aashray.sock"
 #define SOCK_DIR "~/workspace/var/"
 #define MKOSTEMP_SFX "XXXXXX"
+#define TMP_TEMPLATE "/tmp/tmp.XXXXXX"
 
 #define SERVER_PORT 51476
 
