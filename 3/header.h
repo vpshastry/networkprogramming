@@ -96,11 +96,18 @@ typedef struct {
   int app_req_or_rep;
 } odr_packet_t;
 
-
 int msg_send(int, char *, int, char *, int);
 int msg_recv(int, char *, char *, int *);
 vminfo_t * get_vminfo(ctx_t *, int vmno);
 int cleanup_sock_file(char *sockfile);
+
+typedef enum{
+  FIRST_ARG_EQUAL = 0,
+  FIRST_ARG_LESSER,
+  FIRST_ARG_GREATER
+} hops_comp_t;
+
+hops_comp_t HOPS_CMP(int a, int b);
 
 void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
                     int num_interfaces, int odr_sun_path_sockfd);
@@ -119,7 +126,6 @@ typedef struct {
   char buffer[200];
   int reroute;
 } sequence_t;
-
 
 char my_ip_addr[MAX_IP_LEN];
 

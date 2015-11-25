@@ -36,6 +36,15 @@ msg_recv(int sockfd, char *buffer, char *src_ip, int *src_port)
   return 0;
 }
 
+hops_comp_t
+HOPS_CMP(int a, int b)
+{
+  if (a == b)
+    return FIRST_ARG_EQUAL;
+
+  return (a > b)? FIRST_ARG_GREATER: FIRST_ARG_LESSER;
+}
+
 vminfo_t *
 get_vminfo(ctx_t *ctx, int vmno)
 {

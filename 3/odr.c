@@ -323,20 +323,43 @@ update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
 {
   int i;
   route_table_t table_entry;
+  int ret = DUP_ENTRY;
 
-  if (strcmp(odr_packet.source_ip, my_ip_addr) == 0)
-    return SELF_ORIGIN;
+  if (strcmp(odr_packet.source_ip, my_ip_addr) == 0) {
+    ret = SELF_ORIGIN;
+    goto out;
+  }
 
-  if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) == YES) {
-    //printf("Routing information to this source is already there\n");
-    if (table_entry.last_bcast_id_seen == odr_packet.broadcast_id) {
-      //printf("Same bcast ID, Already seen this RREQ\n");
-      if (table_entry.num_hops < (odr_packet.hop_count + 1)) {
-        //printf("Greater hop_count. No update\n");
+  // NON-existing dest. Add new entry.
+  if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) == NO) {
+    memset(&route_table[route_table_len], 0, sizeof(route_table[route_table_len]));
+    strcpy(route_table[route_table_len].dest_ip, odr_packet.source_ip);
+    memcpy((void*) route_table[route_table_len].next_hop, (void*) src_mac, ETH_ALEN);
+    route_table[route_table_len].if_index = socket_address.sll_ifindex;
+    route_table[route_table_len].num_hops = odr_packet.hop_count + 1;
+
+    if (odr_packet.type == RREQ)
+      route_table[route_table_len].last_bcast_id_seen = odr_packet.broadcast_id;
+    route_table_len++;
+
+    printf ("4. Returning R_TABLE_UPDATED\n");
+    ret = R_TABLE_UPDATED;
+    goto out;
+  }
+
+  if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) != YES) {
+    fprintf (stderr, "This should never happen. != YES != NO\n");
+    exit(0);
+  }
+
+  if (table_entry.last_bcast_id_seen == odr_packet.broadcast_id) {
+    switch (HOPS_CMP(table_entry.num_hops, odr_packet.hop_count +1)) {
+      case FIRST_ARG_LESSER:
         printf ("1. Returning DUB_ENTRY\n");
-        return DUP_ENTRY;
-      }
-      else if (table_entry.num_hops > (odr_packet.hop_count + 1)) {
+        ret = DUP_ENTRY;
+        goto out;
+
+      case FIRST_ARG_GREATER:
         printf("Lesser hop_count. Update Table\n");
         for (i = 0; i < route_table_len; i++) {
           if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
@@ -350,65 +373,62 @@ update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
           }
         }
         printf ("1. Returning R_TABLE_UPDATED\n");
-        return R_TABLE_UPDATED;
-      } else {
+        ret = R_TABLE_UPDATED;
+        goto out;
+
+      case FIRST_ARG_EQUAL:
         printf("Same number of hops\n");
         if (strcmp(table_entry.next_hop, src_mac) == 0) {
           //printf("Same neightbour. No update\n.");
           printf ("2. Returning DUP_ENTRY\n");
-          return DUP_ENTRY;
+          ret = DUP_ENTRY;
+          goto out;
         } else {
           //printf("Different neighbour, need to update\n"); // TO-DO
           printf ("3. Returning DUP_ENTRY\n");
-          return DUP_ENTRY; // only for now, TO-DO
+          ret = DUP_ENTRY; // only for now, TO-DO
+          goto out;
         }
         printf ("2. Returning R_TABLE_UPDATED\n");
-        return R_TABLE_UPDATED;
-      }
-    } else if (table_entry.last_bcast_id_seen < odr_packet.broadcast_id) {
-      if (table_entry.num_hops > (odr_packet.hop_count + 1)) {
-        printf("Lesser hop_count. Update Table\n");
-        for (i = 0; i < route_table_len; i++) {
-          if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
-            printf ("Found\n");
-            memset (&route_table[i], 0, sizeof(route_table[i]));
-            memcpy((void*)route_table[i].next_hop, (void*) src_mac, ETH_ALEN);
-            route_table[i].if_index = socket_address.sll_ifindex;
-            route_table[i].num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
-            if (odr_packet.type == RREQ)
-              route_table[i].last_bcast_id_seen = odr_packet.broadcast_id;
-            break;
-          }
-        }
-      } else {
-        for (i = 0; i < route_table_len; i++) {
-          if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
-            if (odr_packet.type == RREQ)
-              route_table[i].last_bcast_id_seen = odr_packet.broadcast_id;
-            break;
-          }
+        ret = R_TABLE_UPDATED;
+        goto out;
+    }
+
+  } else if (table_entry.last_bcast_id_seen < odr_packet.broadcast_id) {
+    if (table_entry.num_hops > (odr_packet.hop_count + 1)) {
+      printf("Lesser hop_count. Update Table\n");
+      for (i = 0; i < route_table_len; i++) {
+        if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
+          printf ("Found\n");
+          memset (&route_table[i], 0, sizeof(route_table[i]));
+          memcpy((void*)route_table[i].next_hop, (void*) src_mac, ETH_ALEN);
+          route_table[i].if_index = socket_address.sll_ifindex;
+          route_table[i].num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
+          if (odr_packet.type == RREQ)
+            route_table[i].last_bcast_id_seen = odr_packet.broadcast_id;
+          break;
         }
       }
 
-      printf ("3. Returning R_TABLE_UPDATED\n");
-      return R_TABLE_UPDATED;
+    } else {
+      for (i = 0; i < route_table_len; i++) {
+        if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
+          if (odr_packet.type == RREQ)
+            route_table[i].last_bcast_id_seen = odr_packet.broadcast_id;
+          break;
+        }
+      }
     }
-  } else {
-    //printf("Adding new entry into routing table\n");
-    memset(&route_table[route_table_len], 0, sizeof(route_table[route_table_len]));
-    strcpy(route_table[route_table_len].dest_ip, odr_packet.source_ip);
-    memcpy((void*) route_table[route_table_len].next_hop, (void*) src_mac, ETH_ALEN);
-    route_table[route_table_len].if_index = socket_address.sll_ifindex;
-    route_table[route_table_len].num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
-    if (odr_packet.type == RREQ)
-      route_table[route_table_len].last_bcast_id_seen = odr_packet.broadcast_id;
-    route_table_len++;
-    printf ("4. Returning R_TABLE_UPDATED\n");
-    return R_TABLE_UPDATED;
+
+    printf ("3. Returning R_TABLE_UPDATED\n");
+    ret = R_TABLE_UPDATED;
+    goto out;
   }
+
+out:
   print_routing_table();
-  printf ("5. Returning DUP_ENTRY\n");
-  return DUP_ENTRY;
+  printf ("Returning %d\n", ret);
+  return ret;
 }
 
 int
