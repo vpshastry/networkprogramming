@@ -689,13 +689,34 @@ process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
                     int odr_sun_path_sockfd)
 {
   route_table_t table_entry;
+  struct sockaddr_un servaddr;
   struct hwa_info sending_if_info;
   odr_packet_t *odr_packet = Calloc(1, sizeof(odr_packet_t));
   int ephemeral_port;
+  sequence_t seq;
 
   printf("New Message recvd for IP:%s, now routing...\n", recvseq.ip);
 
   ephemeral_port = add_to_peer_process_table(&my_client_addr);
+
+  // If it's local send it here it self.
+  if (strcmp(recvseq.ip, my_ip_addr) == 0) {
+    bzero(&servaddr, sizeof(servaddr));
+    seq.port = ephemeral_port;
+    strcpy(seq.ip, my_ip_addr);
+    strncpy(seq.buffer, recvseq.buffer, sizeof(seq.buffer));
+    //seq.reroute = reroute;
+
+    servaddr.sun_family = AF_LOCAL;
+    if (!get_sun_path_from_port(recvseq.port)) {
+      fprintf (stderr, "Some random packet has received to me. %d\n", odr_packet->dest_port);
+      exit(0);
+    }
+    strcpy(servaddr.sun_path, get_sun_path_from_port(recvseq.port));
+
+    Sendto(odr_sun_path_sockfd, (void*)&seq, sizeof(seq), 0, (SA*)&servaddr, sizeof(servaddr));
+    return;
+  }
 
   odr_packet->type = APP_PAYLOAD;
   strcpy(odr_packet->dest_ip, recvseq.ip);
