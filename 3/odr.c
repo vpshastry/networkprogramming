@@ -17,7 +17,7 @@ typedef struct {
   int if_index;
   int num_hops;
   int last_bcast_id_seen;
-  struct timeval timestamp;
+  struct timeval tv;
 
   // Bookeeping info
   //int is_valid;
@@ -346,11 +346,14 @@ update_routing_table(odr_packet_t odr_packet,
   route_table_t table_entry;
   route_table_t *rtable;
   int ret = DUP_ENTRY;
+  struct timeval tv;
 
   if (strcmp(odr_packet.source_ip, my_ip_addr) == 0) {
     ret = SELF_ORIGIN;
     goto out;
   }
+
+  Gettimeofday(&tv, NULL);
 
   // NON-existing dest. Add new entry.
   if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) == NO) {
@@ -360,6 +363,7 @@ update_routing_table(odr_packet_t odr_packet,
     memcpy((void*) rtable->next_hop, (void*) src_mac, ETH_ALEN);
     rtable->if_index = socket_address.sll_ifindex;
     rtable->num_hops = odr_packet.hop_count + 1;
+    memcpy(&rtable->tv, &tv, sizeof(struct timeval));
 
     if (odr_packet.type == RREQ)
       rtable->last_bcast_id_seen = odr_packet.broadcast_id;
@@ -396,9 +400,9 @@ update_routing_table(odr_packet_t odr_packet,
           memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
           rtable->if_index = socket_address.sll_ifindex;
           rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
-
           if (odr_packet.type == RREQ)
             rtable->last_bcast_id_seen = odr_packet.broadcast_id;
+          memcpy(&rtable->tv, &tv, sizeof(struct timeval));
 
           printf ("Modified table entry for %s\n", rtable->dest_ip);
           print_routing_table();
@@ -434,9 +438,10 @@ update_routing_table(odr_packet_t odr_packet,
           memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
           rtable->if_index = socket_address.sll_ifindex;
           rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
-
           if (odr_packet.type == RREQ)
             rtable->last_bcast_id_seen = odr_packet.broadcast_id;
+
+          memcpy(&rtable->tv, &tv, sizeof(struct timeval));
 
           printf ("Modified table entry bcz of new bid for %s\n", rtable->dest_ip);
           print_routing_table();
@@ -444,9 +449,11 @@ update_routing_table(odr_packet_t odr_packet,
           break;
 
         default:
-          if (odr_packet.type == RREQ)
+          if (odr_packet.type == RREQ) {
             get_route_table_entry(table_entry.dest_ip)->last_bcast_id_seen =
                                                       odr_packet.broadcast_id;
+            memcpy(&rtable->tv, &tv, sizeof(struct timeval));
+          }
           break;
       }
 
@@ -499,13 +506,13 @@ handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
 
   // Update routing table first.
   r_table_update = update_routing_table(*odr_packet, socket_address, src_mac);
+  if (r_table_update == DUP_ENTRY) {
+    printf("Already handled. IGNORE.\n");
+    return 0;
+  }
 
   if (strcmp (odr_packet->dest_ip, my_ip_addr) == 0) {
     printf("This packet is for me. Sending RREP.\n");
-    if (r_table_update == DUP_ENTRY) {
-      printf("Already handled. IGNORE.\n");
-      return 0;
-    }
 
     if (is_ip_in_route_table(odr_packet->source_ip, &table_entry) == NO) {
       printf("Something is seriously wrong, no path in routing table for rrep?\n");
@@ -515,43 +522,43 @@ handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
     send_rrep(odr_packet, r_table_update, pf_packet_sockfd,
               vminfo, num_interfaces, 0, &table_entry);
 
-  // It's not for me.
-  } else {
-    printf("This rreq is not for me.\n");
-
-    if (r_table_update == DUP_ENTRY || r_table_update == SELF_ORIGIN) {
-      printf("Received(%s). IGNORING..\n",
-              (r_table_update == DUP_ENTRY)? "DUP_ENTRY": "SELF_ORIGIN");
-      return;
-    }
-
-    if (is_ip_in_route_table(odr_packet->dest_ip, &table_entry) == NO) {
-      printf("Not in routing table... broadcasting.\n");
-
-    } else if (odr_packet->rrep_already_sent == NO) {
-      printf("I know path to dest, should send RREP\n");
-
-      send_rrep(odr_packet, r_table_update, pf_packet_sockfd, vminfo,
-                num_interfaces, table_entry.num_hops, &table_entry);
-
-      printf("Intermediate RREP sent, Checking if I knew the source node\n");
-
-      printf("This was a new/better path to the src node... continue-ing to flood RREQ with rrep_already_sent = YES;.\n");
-      odr_packet->rrep_already_sent = YES;
-
-    // Just an error check.
-    } else if (odr_packet->rrep_already_sent != YES) {
-      fprintf (stderr, "Blunder!! not = YES is not equal to NO\n");
-      exit(0);
-
-    } else {
-      printf("rrep is already sent.\nThis was a new/better path to the src node... continue-ing to flood RREQ with rrep_already_sent = YES;.\n");
-      //TODO: ??odr_packet->rrep_already_sent = YES;
-    }
-
-    odr_packet->hop_count++;
-    broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, NULL, odr_packet);
+    return 0;
   }
+
+  // It's not for me.
+  printf("This rreq is not for me.\n");
+
+  if (r_table_update == SELF_ORIGIN) {
+    printf("Received SELF_ORIGIN. IGNORING..\n",);
+    return;
+  }
+
+  if (is_ip_in_route_table(odr_packet->dest_ip, &table_entry) == NO) {
+    printf("Not in routing table... broadcasting.\n");
+
+  } else if (odr_packet->rrep_already_sent == NO) {
+    printf("I know path to dest, should send RREP\n");
+
+    send_rrep(odr_packet, r_table_update, pf_packet_sockfd, vminfo,
+              num_interfaces, table_entry.num_hops, &table_entry);
+
+    printf("Intermediate RREP sent, Checking if I knew the source node\n");
+
+    printf("This was a new/better path to the src node... continue-ing to flood RREQ with rrep_already_sent = YES;.\n");
+    odr_packet->rrep_already_sent = YES;
+
+  // Just an error check.
+  } else if (odr_packet->rrep_already_sent != YES) {
+    fprintf (stderr, "Blunder!! not = YES is not equal to NO\n");
+    exit(0);
+
+  } else {
+    printf("rrep is already sent.\nThis was a new/better path to the src node... continue-ing to flood RREQ with rrep_already_sent = YES;.\n");
+    //TODO: ??odr_packet->rrep_already_sent = YES;
+  }
+
+  odr_packet->hop_count++;
+  broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, NULL, odr_packet);
   return 0;
 }
 
