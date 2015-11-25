@@ -114,6 +114,7 @@ typedef enum {
 } broad_id_t;
 
 hops_comp_t CMP(int a, int b);
+int timed_out(struct timeval *tv);
 
 void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
                     int num_interfaces, int odr_sun_path_sockfd);
