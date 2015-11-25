@@ -194,7 +194,8 @@ add_to_peer_process_table(struct sockaddr_un *cliaddr)
   pptableentry->time_to_live = tv.tv_sec + DEFAULT_TIME_TO_LIVE;
   strncpy(pptableentry->sun_path, cliaddr->sun_path, strlen(cliaddr->sun_path));
   if (PPTAB_DEBUG)
-    printf ("Adding new peer with sun_path(%s)\n", pptableentry->sun_path);
+    printf ("Adding new peer with sun_path(%s) cliaddr(%s)\n",
+            pptableentry->sun_path, cliaddr->sun_path);
 
   pptabletail->next = pptableentry;
   pptabletail = pptableentry;
@@ -365,6 +366,8 @@ update_routing_table(odr_packet_t odr_packet,
 
     route_table_len++;
 
+    printf ("Added table entry for %s\n", rtable->dest_ip);
+    print_routing_table();
     printf ("4. Returning R_TABLE_UPDATED\n");
     ret = R_TABLE_UPDATED;
     goto out;
@@ -390,13 +393,15 @@ update_routing_table(odr_packet_t odr_packet,
 
           rtable = get_route_table_entry(table_entry.dest_ip);
 
-          memset (rtable, 0, sizeof(route_table_t));
           memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
           rtable->if_index = socket_address.sll_ifindex;
           rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
 
           if (odr_packet.type == RREQ)
             rtable->last_bcast_id_seen = odr_packet.broadcast_id;
+
+          printf ("Modified table entry for %s\n", rtable->dest_ip);
+          print_routing_table();
 
           printf ("1. Returning R_TABLE_UPDATED\n");
           ret = R_TABLE_UPDATED;
@@ -426,13 +431,15 @@ update_routing_table(odr_packet_t odr_packet,
           printf("Lesser hop_count. Update Table\n");
           rtable = get_route_table_entry(table_entry.dest_ip);
 
-          memset (rtable, 0, sizeof(route_table_t));
           memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
           rtable->if_index = socket_address.sll_ifindex;
           rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
 
           if (odr_packet.type == RREQ)
             rtable->last_bcast_id_seen = odr_packet.broadcast_id;
+
+          printf ("Modified table entry bcz of new bid for %s\n", rtable->dest_ip);
+          print_routing_table();
 
           break;
 
@@ -760,6 +767,7 @@ process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
     }
     strcpy(servaddr.sun_path, get_sun_path_from_port(recvseq.port));
 
+    printf ("Request server is local. Sending to %s\n", servaddr.sun_path);
     Sendto(odr_sun_path_sockfd, (void*)&seq, sizeof(seq), 0, (SA*)&servaddr, sizeof(servaddr));
     return;
   }
@@ -834,6 +842,7 @@ main(int argc, char *argv[])
 
     if (FD_ISSET(odr_sun_path_sockfd, &cur_set)) {
       printf("Data recvd from client/Server\n");
+      memset(&my_client_addr, 0, sizeof(struct sockaddr_un));
       n = recvfrom(odr_sun_path_sockfd, &recvseq, sizeof(recvseq), 0, (SA*) &my_client_addr, &client_addr_len);
       process_client_req(recvseq, vminfo, num_interfaces, pf_packet_sockfd, odr_sun_path_sockfd);
     }
