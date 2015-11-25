@@ -262,7 +262,7 @@ broadcast_to_all_interfaces (int pf_packet_sockfd, struct hwa_info* vminfo,
     strcpy(odr_packet.dest_ip, dest_ip);
     odr_packet.broadcast_id = ++my_broadcast_id;
     odr_packet.rrep_already_sent = NO;
-    odr_packet.force_discovery = NO;
+    odr_packet.force_discovery = 0;
     odr_packet.hop_count = 0;
 
   } else {
@@ -428,6 +428,7 @@ send_rrep(odr_packet_t *odr_packet, int r_table_update, int pf_packet_sockfd,
   rrep.dest_port = odr_packet->source_port;
   rrep.source_port = odr_packet->dest_port;
   rrep.hop_count = hops;
+  rrep.force_discovery = odr_packet->force_discovery;
 
   get_vminfo_by_ifindex(vminfo, num_interfaces, table_entry->if_index, &sending_if_info);
   send_pf_packet(pf_packet_sockfd, sending_if_info, table_entry->next_hop, &rrep);
@@ -520,6 +521,7 @@ build_app_payload(odr_packet_t *app_payload, char *ip)
   app_payload->source_port = msgtosend->source_port;
   strcpy(app_payload->app_message, msgtosend->app_message);
   app_payload->app_req_or_rep = AREQ;
+  app_payload->force_discovery = msgtosend->force_discovery;
 
   free(msgtosend);
   return app_payload;
@@ -599,6 +601,7 @@ handle_app_payload(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
     strcpy(serveraddr.sun_path, get_sun_path_from_port(odr_packet->dest_port));
     strncpy(seq.ip, odr_packet->source_ip, MAX_IP_LEN);
     seq.port = odr_packet->source_port;
+    seq.reroute = odr_packet->force_discovery;
     strncpy(seq.buffer, odr_packet->app_message, sizeof(seq.buffer));
     //seq.reroute = reroute;
 
@@ -691,7 +694,7 @@ process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
   route_table_t table_entry;
   struct sockaddr_un servaddr;
   struct hwa_info sending_if_info;
-  odr_packet_t *odr_packet = Calloc(1, sizeof(odr_packet_t));
+  odr_packet_t *odr_packet;
   int ephemeral_port;
   sequence_t seq;
 
@@ -703,13 +706,14 @@ process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
   if (strcmp(recvseq.ip, my_ip_addr) == 0) {
     bzero(&servaddr, sizeof(servaddr));
     seq.port = ephemeral_port;
+    seq.reroute = recvseq.reroute;
     strcpy(seq.ip, my_ip_addr);
     strncpy(seq.buffer, recvseq.buffer, sizeof(seq.buffer));
     //seq.reroute = reroute;
 
     servaddr.sun_family = AF_LOCAL;
     if (!get_sun_path_from_port(recvseq.port)) {
-      fprintf (stderr, "Some random packet has received to me. %d\n", odr_packet->dest_port);
+      fprintf (stderr, "Some random packet has received to me. %d\n", recvseq.port);
       exit(0);
     }
     strcpy(servaddr.sun_path, get_sun_path_from_port(recvseq.port));
@@ -718,6 +722,7 @@ process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
     return;
   }
 
+  odr_packet = Calloc(1, sizeof(odr_packet_t));
   odr_packet->type = APP_PAYLOAD;
   strcpy(odr_packet->dest_ip, recvseq.ip);
   strcpy(odr_packet->source_ip, my_ip_addr);
@@ -725,9 +730,8 @@ process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
   odr_packet->source_port = ephemeral_port;
   odr_packet->hop_count = 0;
   strcpy(odr_packet->app_message, recvseq.buffer);
-  if (strcmp(my_client_addr.sun_path, SERVER_SUNPATH) == 0)
-    odr_packet->app_req_or_rep = AREP;
-  else odr_packet->app_req_or_rep = AREQ;
+  odr_packet->app_req_or_rep = (strcmp(my_client_addr.sun_path, SERVER_SUNPATH) == 0)? AREP: AREQ;
+  odr_packet->force_discovery = recvseq.reroute;
 
   printf("New Message recvd for IP:%s, now routing...\n", recvseq.ip);
 
