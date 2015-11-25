@@ -41,7 +41,7 @@ create_and_bind_socket()
   struct sockaddr_un  servaddr;
 
   sockfd = Socket (AF_LOCAL, SOCK_DGRAM, 0);
-  
+
   unlink(SERVER_SUNPATH);
   bzero(&servaddr, sizeof(servaddr));
   servaddr.sun_family = AF_LOCAL;

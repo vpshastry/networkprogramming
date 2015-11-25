@@ -104,7 +104,7 @@ resend:
     printf("IP of VM%d is %s\n", vmno, vm_ip);
     gethostname(my_hostname, sizeof(my_hostname));
     //printf("My hostname = %s\n", my_hostname);
-    
+
     fprintf (stdout, "TRACE: client at node %s sending request to server "
               "at vm%d\n", my_hostname, vmno);
     if (msg_send(sockfd, vm_ip, 40383, "Hi", 0) < 0) {

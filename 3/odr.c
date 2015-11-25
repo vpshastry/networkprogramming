@@ -43,14 +43,14 @@ int create_bind_odr_sun_path() {
   socklen_t len;
   struct sockaddr_un addr;
   sockfd = Socket(AF_LOCAL, SOCK_DGRAM, 0);
-  
+
   unlink(ODR_SUNPATH);
   bzero(&addr, sizeof(addr));
   addr.sun_family = AF_LOCAL;
   strcpy(addr.sun_path, ODR_SUNPATH);
 
   Bind(sockfd, (SA*) &addr, sizeof(addr));
-  
+
   return sockfd;
 }
 
@@ -73,22 +73,22 @@ void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac, odr_
 
   /*buffer for ethernet frame*/
   void* buffer = (void*)malloc(ETH_FRAME_LEN);
-   
+
   /*pointer to ethenet header*/
   unsigned char* etherhead = buffer;
-    
+
   /*userdata in ethernet frame*/
   odr_packet_t* odr_packet_ptr = buffer + 14;
   *odr_packet_ptr = odr_packet;
-      
+
   /*another pointer to ethernet header*/
   struct ethhdr *eh = (struct ethhdr *)etherhead;
-       
+
   int send_result = 0;
 
   /*our MAC address*/
   unsigned char src_mac[6];
-  
+
   do {
     if (vminfo.if_haddr[j] != '\0') {
       prflag = 1;
@@ -111,22 +111,22 @@ void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac, odr_
   /*prepare sockaddr_ll*/
 
   /*RAW communication*/
-  socket_address.sll_family   = PF_PACKET; 
+  socket_address.sll_family   = PF_PACKET;
   /*we don't use a protocoll above ethernet layer->just use anything here*/
-  socket_address.sll_protocol = htons(USID_PROTO); 
+  socket_address.sll_protocol = htons(USID_PROTO);
   /*index of the network device see full code later how to retrieve it*/
   socket_address.sll_ifindex  = vminfo.if_index;
   /*ARP hardware identifier is ethernet*/
   socket_address.sll_hatype   = ARPHRD_ETHER;
-          
+
   /*target is another host*/
   socket_address.sll_pkttype  = PACKET_OTHERHOST;
 
   /*address length*/
-  socket_address.sll_halen    = ETH_ALEN;   
+  socket_address.sll_halen    = ETH_ALEN;
   /*MAC - begin*/
-  socket_address.sll_addr[0]  = dest_mac[0];   
-  socket_address.sll_addr[1]  = dest_mac[1];   
+  socket_address.sll_addr[0]  = dest_mac[0];
+  socket_address.sll_addr[1]  = dest_mac[1];
   socket_address.sll_addr[2]  = dest_mac[2];
   socket_address.sll_addr[3]  = dest_mac[3];
   socket_address.sll_addr[4]  = dest_mac[4];
@@ -140,16 +140,16 @@ void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac, odr_
   memcpy((void*)buffer, (void*)dest_mac, ETH_ALEN);
   memcpy((void*)(buffer+ETH_ALEN), (void*)src_mac, ETH_ALEN);
   eh->h_proto = htons(USID_PROTO);
-  
+
   /*send the packet*/
   send_result = sendto(s, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, sizeof(socket_address));
   if (send_result == -1) { printf("PF_PACKET sending error\n");}
-  
+
   printf("Sent PF_PACKET\n");
 }
 
 void broadcast_to_all_interfaces(int pf_packet_sockfd, struct hwa_info* vminfo, int num_interfaces, char dest_ip[MAX_IP_LEN], odr_packet_t* fwd_odr_packet) {
-  
+
   int i;
   odr_packet_t odr_packet;
   if (fwd_odr_packet == NULL) {
@@ -217,7 +217,7 @@ int update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_addr
         return DUP_ENTRY;
       }
       else if (table_entry.num_hops > (odr_packet.hop_count + 1)) {
-        //printf("Lesser hop_count. Update Table\n");      
+        //printf("Lesser hop_count. Update Table\n");
         for (i = 0; i < route_table_len; i++) {
           if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
             memcpy((void*)route_table[i].next_hop, (void*) src_mac, ETH_ALEN);
@@ -269,7 +269,7 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
   sequence_t seq;
   int r_table_update;
 
-  int length = 0; /*length of the received frame*/ 
+  int length = 0; /*length of the received frame*/
   length = recvfrom(pf_packet_sockfd, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, &sock_len);
   if (length == -1) { printf("PF_PACKET recv error\n");}
   printf("----Recvd PF_PACKET----\n");
@@ -285,7 +285,7 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
   printf("dest_mac =");
   print_mac_adrr(dest_mac);
   printf("\n");
-  
+
   odr_packet_ptr = buffer+14;
   odr_packet = *odr_packet_ptr;
   printf("type = %d\n", odr_packet.type);
@@ -297,7 +297,7 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
     if (strcmp (odr_packet.dest_ip, my_ip_addr) == 0) {
       printf("This packet is for me. Sending RREP.\n");
       // Update routing table first.
-      r_table_update = update_routing_table(odr_packet, socket_address, src_mac); 
+      r_table_update = update_routing_table(odr_packet, socket_address, src_mac);
       if (r_table_update == DUP_ENTRY) {
         printf("Already handled. IGNORE.\n");
         return;
@@ -319,7 +319,7 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
       send_pf_packet(pf_packet_sockfd, sending_if_info, table_entry.next_hop, rrep);
     } else {
       printf("This rreq is not for me.. check routing table\n");
-      r_table_update = update_routing_table(odr_packet, socket_address, src_mac); 
+      r_table_update = update_routing_table(odr_packet, socket_address, src_mac);
       if (r_table_update == DUP_ENTRY) {
         printf("IGNORING..\n");
         return; // recvd. a dupicate RREQ
@@ -353,7 +353,7 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
             broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, NULL, &odr_packet);
           }
       } else {
-        if (r_table_update == R_TABLE_UPDATED) { 
+        if (r_table_update == R_TABLE_UPDATED) {
           printf("rrep is already sent.\nThis was a new/better path to the src node... continue-ing to flood RREQ with rrep_already_sent = YES;.\n");
           odr_packet.hop_count++; // Increment hop_count for the hop it just made to get to me.
           //odr_packet.rrep_already_sent = YES;
@@ -405,11 +405,11 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
     }
   }
   if (odr_packet.type == APP_PAYLOAD) {
-    printf("Recvd application payload msg\n"); 
+    printf("Recvd application payload msg\n");
     if (strcmp (odr_packet.dest_ip, my_ip_addr) == 0) {
       printf("This APP_PAYLOAD MSG is for me.\n");
       // Update routing table first.
-      r_table_update = update_routing_table(odr_packet, socket_address, src_mac); 
+      r_table_update = update_routing_table(odr_packet, socket_address, src_mac);
       if (r_table_update == DUP_ENTRY) {
         printf("Info Already in routing table. IGNORE.\n");
         //return;
@@ -417,7 +417,7 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
       bzero(&serveraddr, sizeof(serveraddr));
       serveraddr.sun_family = AF_LOCAL;
       if (odr_packet.app_req_or_rep == AREQ) {
-        strcpy(serveraddr.sun_path, SERVER_SUNPATH); 
+        strcpy(serveraddr.sun_path, SERVER_SUNPATH);
 
         strncpy(seq.ip, odr_packet.source_ip, MAX_IP_LEN);
         seq.port = 40383;// tmp- TO-DO
@@ -431,7 +431,7 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
 
       else if (odr_packet.app_req_or_rep == AREP) {
 
-        strcpy(serveraddr.sun_path, my_client_addr.sun_path); 
+        strcpy(serveraddr.sun_path, my_client_addr.sun_path);
 
         strncpy(seq.ip, odr_packet.source_ip, MAX_IP_LEN);
         seq.port = 40383;// tmp- TO-DO
@@ -442,7 +442,7 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
         Sendto(odr_sun_path_sockfd, (void*) &seq, sizeof(seq), 0, (SA*) &serveraddr, sizeof(serveraddr));
 
         return;
-      } 
+      }
     } else {
       printf("Not for me, fwd to next hop.\n");
 
@@ -469,7 +469,7 @@ void process_client_req(sequence_t recvseq, struct hwa_info* vminfo, int num_int
   odr_packet_t odr_packet;
   struct hwa_info sending_if_info;
 
-  printf("New Message recvd for IP:%s, now routing...\n", recvseq.ip);  
+  printf("New Message recvd for IP:%s, now routing...\n", recvseq.ip);
   if (is_ip_in_route_table(recvseq.ip, &table_entry) == NO) {
     printf("IP not in routing table, broadcasting to all interfaces...\n");
     broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, recvseq.ip, NULL);
@@ -483,7 +483,7 @@ void process_client_req(sequence_t recvseq, struct hwa_info* vminfo, int num_int
     if (strcmp(my_client_addr.sun_path, SERVER_SUNPATH) == 0)
       odr_packet.app_req_or_rep = AREP;
     else odr_packet.app_req_or_rep = AREQ;
-    
+
     get_vminfo_by_ifindex(vminfo, num_interfaces, table_entry.if_index, &sending_if_info);
     send_pf_packet(pf_packet_sockfd, sending_if_info, table_entry.next_hop, odr_packet);
   }

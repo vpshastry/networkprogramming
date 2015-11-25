@@ -10,7 +10,7 @@ msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
 
   bzero(&odraddr, sizeof(odraddr));
   odraddr.sun_family = AF_LOCAL;
-  strcpy(odraddr.sun_path, ODR_SUNPATH); 
+  strcpy(odraddr.sun_path, ODR_SUNPATH);
 
   strncpy(seq.ip, ip, MAX_IP_LEN);
   seq.port = port;
@@ -24,7 +24,7 @@ msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
 
 int
 msg_recv(int sockfd, char *buffer, char *src_ip, int *src_port)
-{ 
+{
   sequence_t seq;
 
   Read(sockfd, (void*) &seq, sizeof(seq));
@@ -54,7 +54,7 @@ build_vminfos(struct hwa_info* vminfo)
   printf("\n");
 
   for (hwahead = hwa = Get_hw_addrs(), vm_count = 0; hwa != NULL; hwa = hwa->hwa_next) {
- 
+
     if (!strcmp("lo", hwa->if_name)) {
       if (DEBUG)
         fprintf (stdout, "Skipping %s\n", hwa->if_name);
@@ -75,11 +75,11 @@ build_vminfos(struct hwa_info* vminfo)
     index = vm_count;
     strncpy(vminfo[index].if_name, hwa->if_name, IF_NAME);
     vminfo[index].ip_alias = hwa->ip_alias;
-    
+
     vminfo[index].ip_addr = (struct sockaddr *) Calloc(1, sizeof(struct sockaddr)); /* Init memory for IP address */
-    
+
     memcpy(vminfo[index].ip_addr, hwa->ip_addr, sizeof(struct sockaddr));	/* IP address */
-    
+
     if ( (sa = hwa->ip_addr) != NULL)
       printf("         IP addr = %s\n", Sock_ntop_host(sa, sizeof(*sa)));
 
@@ -107,7 +107,7 @@ build_vminfos(struct hwa_info* vminfo)
   }
 
   free_hwa_info(hwahead);
-  
+
   return vm_count;
 }
 
@@ -169,7 +169,7 @@ cleanup_sock_file(char *sockfile)
 }
 
 void get_ip_of_vm(int vmno, char* final_ip, int length){
-  
+
   struct hostent *hptr;
   char **pptr;
   char str [INET_ADDRSTRLEN];
@@ -194,7 +194,7 @@ void get_ip_of_vm(int vmno, char* final_ip, int length){
       err_ret ("unknown address type");
       break;
   }
-  
+
   //return final_ip;
 }
 
