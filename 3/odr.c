@@ -5,6 +5,7 @@
 #define SELF_ORIGIN 3
 
 static ctx_t ctx;
+static int staleness;
 extern char my_ip_addr[MAX_IP_LEN];
 
 unsigned char broadcast_ip[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -33,7 +34,8 @@ parsecommandline(int argc, char *argv[])
   if (argc < 2) {
     fprintf (stdout, "Usage: %s <staleness>\n", argv[0]);
     //exit(0);
-	return 0;
+    printf ("Currently using default staleness: %d\n", DEFAULT_STALENESS);
+    return DEFAULT_STALENESS;
   }
 
   return atoi(argv[1]);
@@ -282,8 +284,10 @@ is_ip_in_route_table (char ip[MAX_IP_LEN], route_table_t* table_entry)
 
   for (i = 0; i < route_table_len; i++)
     if (strcmp(route_table[i].dest_ip, ip) == 0) {
-      printf("This IP is in routing table\n");
+      printf("This IP(%s) is in routing table\n", ip);
       memset(table_entry, 0, sizeof(route_table_t));
+      memcpy(table_entry, &route_table[i], sizeof(route_table_t));
+      return YES;
 
       strcpy(table_entry->dest_ip, route_table[i].dest_ip);
       memcpy((void*)table_entry->next_hop, (void*)route_table[i].next_hop, ETH_ALEN);
@@ -302,16 +306,19 @@ print_routing_table()
 {
   int i;
   printf("-------------ROUTING TABLE--------------\n");
-  printf("DEST_IP               NEXT_HOP            IF_INDEX\t\t\tNUM_HOPS\t\t\tLAST_BCAST_ID\n");
+  printf("DEST_IP          NEXT_HOP         IF_INDEX\t\tNUM_HOPS\t\tLAST_BCAST_ID\tTIME\n");
   for (i = 0; i < route_table_len; i++) {
     printf("%15s", route_table[i].dest_ip);
-    printf("%15s", "");
+    printf("%10s", "");
     print_mac_adrr(route_table[i].next_hop);
     //printf("\t");
-    printf("%15d", route_table[i].if_index);
-    printf("%15d", route_table[i].num_hops);
-    printf("%15d\n", route_table[i].last_bcast_id_seen);
+    printf("%5d", route_table[i].if_index);
+    printf("%5d", route_table[i].num_hops);
+    printf("%5d\t", route_table[i].last_bcast_id_seen);
+    printf("(%lu:%lu)", route_table[i].tv.tv_sec, route_table[i].tv.tv_usec);
+    printf("\n");
   }
+  printf("---------------------------\n");
 }
 
 void
@@ -339,14 +346,26 @@ get_route_table_entry(char *ip)
 }
 
 int
+is_stale_or_force_rediscovery(route_table_t *tentry, int force_discovery)
+{
+  if (force_discovery || timed_out(&tentry->tv, staleness)) {
+    printf ("Got force update(%d) or timeout(%lu)\n", force_discovery, tentry->tv.tv_sec);
+    return 1;
+  }
+  return 0;
+}
+
+int
 update_routing_table(odr_packet_t odr_packet,
                       struct sockaddr_ll socket_address,
                       unsigned char src_mac[6])
 {
   route_table_t table_entry;
-  route_table_t *rtable;
+  route_table_t *rtable = NULL;
   int ret = DUP_ENTRY;
   struct timeval tv;
+  int exists;
+  int existing_entry = 0;
 
   if (strcmp(odr_packet.source_ip, my_ip_addr) == 0) {
     ret = SELF_ORIGIN;
@@ -354,10 +373,22 @@ update_routing_table(odr_packet_t odr_packet,
   }
 
   Gettimeofday(&tv, NULL);
+  exists = is_ip_in_route_table(odr_packet.source_ip, &table_entry);
 
+  if (exists == YES) {
+    if (is_stale_or_force_rediscovery(&table_entry, odr_packet.force_discovery)) {
+      rtable = get_route_table_entry(table_entry.dest_ip);
+      printf ("Replacing IP: %s\n", table_entry.dest_ip);
+      exists = NO;
+      existing_entry = 1;
+    }
+  }
   // NON-existing dest. Add new entry.
-  if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) == NO) {
-    rtable = &route_table[route_table_len];
+  if (exists == NO) {
+    // This is to handle the case from forced rediscovery and/or stale entry.
+    if (!rtable)
+      rtable = &route_table[route_table_len];
+
     memset(rtable, 0, sizeof(route_table_t));
     strcpy(rtable->dest_ip, odr_packet.source_ip);
     memcpy((void*) rtable->next_hop, (void*) src_mac, ETH_ALEN);
@@ -368,7 +399,8 @@ update_routing_table(odr_packet_t odr_packet,
     if (odr_packet.type == RREQ)
       rtable->last_bcast_id_seen = odr_packet.broadcast_id;
 
-    route_table_len++;
+    if (!existing_entry)
+      route_table_len++;
 
     printf ("Added table entry for %s\n", rtable->dest_ip);
     print_routing_table();
@@ -529,7 +561,7 @@ handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
   printf("This rreq is not for me.\n");
 
   if (r_table_update == SELF_ORIGIN) {
-    printf("Received SELF_ORIGIN. IGNORING..\n",);
+    printf("Received SELF_ORIGIN. IGNORING..\n");
     return;
   }
 
@@ -819,11 +851,12 @@ int create_bind_pf_packet()
 int
 main(int argc, char *argv[])
 {
-  //int             staleness = parsecommandline(argc, argv);
   struct hwa_info vminfo[50];
   int             num_interfaces, odr_sun_path_sockfd, pf_packet_sockfd, n, maxfdp1;
   fd_set cur_set, org_set;
   socklen_t client_addr_len = sizeof(my_client_addr);
+
+  staleness = parsecommandline(argc, argv);
 
   sequence_t recvseq;
 

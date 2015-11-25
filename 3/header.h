@@ -37,11 +37,12 @@
 #define MAX_IP_LEN 20
 #define MAX_HWADDR_LEN IF_HADDR
 #define DEFAULT_TIME_TO_LIVE 120
+#define DEFAULT_STALENESS 120 // seconds
 #define CLIENT_TIMEOUT 5 //seconds
 
 #define PPTAB_DEBUG 1
-
 #define DEBUG 1
+#define TRACE 1
 
 #define MYID 1
 
@@ -114,6 +115,7 @@ typedef enum {
 } broad_id_t;
 
 hops_comp_t CMP(int a, int b);
+int timed_out(struct timeval *tv, int staleness);
 
 void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
                     int num_interfaces, int odr_sun_path_sockfd);
