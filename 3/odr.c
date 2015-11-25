@@ -17,7 +17,7 @@ typedef struct {
   int if_index;
   int num_hops;
   int last_bcast_id_seen;
-  // TO-DO (@any) - timestamp field.
+  struct timeval timestamp;
 
   // Bookeeping info
   //int is_valid;
@@ -27,6 +27,7 @@ route_table_t route_table[20];
 int route_table_len = 0;
 int my_broadcast_id = 0;
 
+int
 parsecommandline(int argc, char *argv[])
 {
   if (argc < 2) {
@@ -294,10 +295,13 @@ is_ip_in_route_table (char ip[MAX_IP_LEN], route_table_t* table_entry)
 
   return NO;
 }
-void print_routing_table() {
+
+void
+print_routing_table()
+{
   int i;
   printf("-------------ROUTING TABLE--------------\n");
-  //printf("DEST_IP               NEXT_HOP            IF_INDEX\t\t\tNUM_HOPS\t\t\tLAST_BCAST_ID\n");
+  printf("DEST_IP               NEXT_HOP            IF_INDEX\t\t\tNUM_HOPS\t\t\tLAST_BCAST_ID\n");
   for (i = 0; i < route_table_len; i++) {
     printf("%15s", route_table[i].dest_ip);
     printf("%15s", "");
@@ -308,6 +312,7 @@ void print_routing_table() {
     printf("%15d\n", route_table[i].last_bcast_id_seen);
   }
 }
+
 void
 print_odr_packet(odr_packet_t *odr_packet)
 {
@@ -318,11 +323,27 @@ print_odr_packet(odr_packet_t *odr_packet)
   printf("hop count = %d\n", odr_packet->hop_count);
 }
 
-int
-update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_address, unsigned char src_mac[6])
+route_table_t *
+get_route_table_entry(char *ip)
 {
   int i;
+
+  for (i = 0; i < route_table_len; i++)
+    if (strcmp(route_table[i].dest_ip, ip) == 0)
+      return &route_table[i];
+
+  printf ("This shouldn't happen.\n");
+  exit(0);
+  return NULL;
+}
+
+int
+update_routing_table(odr_packet_t odr_packet,
+                      struct sockaddr_ll socket_address,
+                      unsigned char src_mac[6])
+{
   route_table_t table_entry;
+  route_table_t *rtable;
   int ret = DUP_ENTRY;
 
   if (strcmp(odr_packet.source_ip, my_ip_addr) == 0) {
@@ -332,14 +353,16 @@ update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
 
   // NON-existing dest. Add new entry.
   if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) == NO) {
-    memset(&route_table[route_table_len], 0, sizeof(route_table[route_table_len]));
-    strcpy(route_table[route_table_len].dest_ip, odr_packet.source_ip);
-    memcpy((void*) route_table[route_table_len].next_hop, (void*) src_mac, ETH_ALEN);
-    route_table[route_table_len].if_index = socket_address.sll_ifindex;
-    route_table[route_table_len].num_hops = odr_packet.hop_count + 1;
+    rtable = &route_table[route_table_len];
+    memset(rtable, 0, sizeof(route_table_t));
+    strcpy(rtable->dest_ip, odr_packet.source_ip);
+    memcpy((void*) rtable->next_hop, (void*) src_mac, ETH_ALEN);
+    rtable->if_index = socket_address.sll_ifindex;
+    rtable->num_hops = odr_packet.hop_count + 1;
 
     if (odr_packet.type == RREQ)
-      route_table[route_table_len].last_bcast_id_seen = odr_packet.broadcast_id;
+      rtable->last_bcast_id_seen = odr_packet.broadcast_id;
+
     route_table_len++;
 
     printf ("4. Returning R_TABLE_UPDATED\n");
@@ -347,82 +370,82 @@ update_routing_table(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
     goto out;
   }
 
+  // Just some integrity check.
   if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) != YES) {
     fprintf (stderr, "This should never happen. != YES != NO\n");
     exit(0);
   }
 
-  if (table_entry.last_bcast_id_seen == odr_packet.broadcast_id) {
-    switch (HOPS_CMP(table_entry.num_hops, odr_packet.hop_count +1)) {
-      case FIRST_ARG_LESSER:
-        printf ("1. Returning DUB_ENTRY\n");
-        ret = DUP_ENTRY;
-        goto out;
-
-      case FIRST_ARG_GREATER:
-        printf("Lesser hop_count. Update Table\n");
-        for (i = 0; i < route_table_len; i++) {
-          if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
-            memset (&route_table[i], 0, sizeof(route_table[i]));
-            memcpy((void*)route_table[i].next_hop, (void*) src_mac, ETH_ALEN);
-            route_table[i].if_index = socket_address.sll_ifindex;
-            route_table[i].num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
-            if (odr_packet.type == RREQ)
-              route_table[i].last_bcast_id_seen = odr_packet.broadcast_id;
-            break;
-          }
-        }
-        printf ("1. Returning R_TABLE_UPDATED\n");
-        ret = R_TABLE_UPDATED;
-        goto out;
-
-      case FIRST_ARG_EQUAL:
-        printf("Same number of hops\n");
-        if (strcmp(table_entry.next_hop, src_mac) == 0) {
-          //printf("Same neightbour. No update\n.");
-          printf ("2. Returning DUP_ENTRY\n");
+  // If we're here, the dest ip is there in the table.
+  switch (CMP(table_entry.last_bcast_id_seen, odr_packet.broadcast_id)) {
+    case SAME_BROADID:
+      switch (CMP(table_entry.num_hops, odr_packet.hop_count +1)) {
+        case NEWONE_IS_BAD:
+          printf ("1. Returning DUB_ENTRY\n");
           ret = DUP_ENTRY;
           goto out;
-        } else {
-          //printf("Different neighbour, need to update\n"); // TO-DO
-          printf ("3. Returning DUP_ENTRY\n");
-          ret = DUP_ENTRY; // only for now, TO-DO
+
+        case NEWONE_IS_BETTER:
+          printf("Lesser hop_count. Update Table\n");
+
+          rtable = get_route_table_entry(table_entry.dest_ip);
+
+          memset (rtable, 0, sizeof(route_table_t));
+          memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
+          rtable->if_index = socket_address.sll_ifindex;
+          rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
+
+          if (odr_packet.type == RREQ)
+            rtable->last_bcast_id_seen = odr_packet.broadcast_id;
+
+          printf ("1. Returning R_TABLE_UPDATED\n");
+          ret = R_TABLE_UPDATED;
           goto out;
-        }
-        printf ("2. Returning R_TABLE_UPDATED\n");
-        ret = R_TABLE_UPDATED;
-        goto out;
-    }
 
-  } else if (table_entry.last_bcast_id_seen < odr_packet.broadcast_id) {
-    if (table_entry.num_hops > (odr_packet.hop_count + 1)) {
-      printf("Lesser hop_count. Update Table\n");
-      for (i = 0; i < route_table_len; i++) {
-        if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
-          printf ("Found\n");
-          memset (&route_table[i], 0, sizeof(route_table[i]));
-          memcpy((void*)route_table[i].next_hop, (void*) src_mac, ETH_ALEN);
-          route_table[i].if_index = socket_address.sll_ifindex;
-          route_table[i].num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
-          if (odr_packet.type == RREQ)
-            route_table[i].last_bcast_id_seen = odr_packet.broadcast_id;
-          break;
-        }
+        default:
+          printf("Same number of hops\n");
+          if (strcmp(table_entry.next_hop, src_mac) == 0) {
+            //printf("Same neightbour. No update\n.");
+            printf ("2. Returning DUP_ENTRY\n");
+            ret = DUP_ENTRY;
+            goto out;
+          } else {
+            //printf("Different neighbour, need to update\n"); // TO-DO
+            printf ("3. Returning DUP_ENTRY\n");
+            ret = DUP_ENTRY; // only for now, TO-DO
+            goto out;
+          }
+          printf ("2. Returning R_TABLE_UPDATED\n");
+          ret = R_TABLE_UPDATED;
+          goto out;
       }
 
-    } else {
-      for (i = 0; i < route_table_len; i++) {
-        if (strcmp(route_table[i].dest_ip, table_entry.dest_ip) == 0) {
-          if (odr_packet.type == RREQ)
-            route_table[i].last_bcast_id_seen = odr_packet.broadcast_id;
-          break;
-        }
-      }
-    }
+    case NEWBROAD_ID_RCVD:
+      switch (CMP(table_entry.num_hops, (odr_packet.hop_count +1))) {
+        case NEWONE_IS_BETTER:
+          printf("Lesser hop_count. Update Table\n");
+          rtable = get_route_table_entry(table_entry.dest_ip);
 
-    printf ("3. Returning R_TABLE_UPDATED\n");
-    ret = R_TABLE_UPDATED;
-    goto out;
+          memset (rtable, 0, sizeof(route_table_t));
+          memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
+          rtable->if_index = socket_address.sll_ifindex;
+          rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
+
+          if (odr_packet.type == RREQ)
+            rtable->last_bcast_id_seen = odr_packet.broadcast_id;
+
+          break;
+
+        default:
+          if (odr_packet.type == RREQ)
+            get_route_table_entry(table_entry.dest_ip)->last_bcast_id_seen =
+                                                      odr_packet.broadcast_id;
+          break;
+      }
+
+      printf ("3. Returning R_TABLE_UPDATED\n");
+      ret = R_TABLE_UPDATED;
+      goto out;
   }
 
 out:
@@ -482,7 +505,6 @@ handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
       exit(0);
     }
 
-    // Do we
     send_rrep(odr_packet, r_table_update, pf_packet_sockfd,
               vminfo, num_interfaces, 0, &table_entry);
 
@@ -517,10 +539,10 @@ handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
 
     } else {
       printf("rrep is already sent.\nThis was a new/better path to the src node... continue-ing to flood RREQ with rrep_already_sent = YES;.\n");
-      //odr_packet->rrep_already_sent = YES;
+      //TODO: ??odr_packet->rrep_already_sent = YES;
     }
 
-    odr_packet->hop_count++; // Increment hop_count for the hop it just made to get to me.
+    odr_packet->hop_count++;
     broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, NULL, odr_packet);
   }
   return 0;
@@ -722,7 +744,7 @@ process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
 
   ephemeral_port = add_to_peer_process_table(&my_client_addr);
 
-  // If it's local send it here it self.
+  // If it's local send it here itself.
   if (strcmp(recvseq.ip, my_ip_addr) == 0) {
     bzero(&servaddr, sizeof(servaddr));
     seq.port = ephemeral_port;

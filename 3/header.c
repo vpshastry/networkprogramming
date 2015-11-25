@@ -37,12 +37,12 @@ msg_recv(int sockfd, char *buffer, char *src_ip, int *src_port)
 }
 
 hops_comp_t
-HOPS_CMP(int a, int b)
+CMP(int a, int b)
 {
   if (a == b)
-    return FIRST_ARG_EQUAL;
+    return SAME_BROADID;
 
-  return (a > b)? FIRST_ARG_GREATER: FIRST_ARG_LESSER;
+  return (a > b)? OLDBROAD_ID_RCVD: NEWBROAD_ID_RCVD;
 }
 
 vminfo_t *

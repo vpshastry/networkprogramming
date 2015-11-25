@@ -102,12 +102,17 @@ vminfo_t * get_vminfo(ctx_t *, int vmno);
 int cleanup_sock_file(char *sockfile);
 
 typedef enum{
-  FIRST_ARG_EQUAL = 0,
-  FIRST_ARG_LESSER,
-  FIRST_ARG_GREATER
+  EQUAL_NHOPS = 0,
+  NEWONE_IS_BAD = 1,
+  NEWONE_IS_BETTER = 2,
 } hops_comp_t;
+typedef enum {
+  SAME_BROADID = 0,
+  NEWBROAD_ID_RCVD = 1,
+  OLDBROAD_ID_RCVD = 2,
+} broad_id_t;
 
-hops_comp_t HOPS_CMP(int a, int b);
+hops_comp_t CMP(int a, int b);
 
 void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
                     int num_interfaces, int odr_sun_path_sockfd);
