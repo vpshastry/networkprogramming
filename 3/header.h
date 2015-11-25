@@ -35,6 +35,9 @@
 // 3 * 4 + 3 + 5 Extra
 #define MAX_IP_LEN 20
 #define MAX_HWADDR_LEN IF_HADDR
+#define DEFAULT_TIME_TO_LIVE 120
+
+#define PPTAB_DEBUG 1
 
 #define DEBUG 1
 
@@ -82,6 +85,8 @@ typedef struct {
   int type;
   char source_ip[MAX_IP_LEN];
   char dest_ip[MAX_IP_LEN];
+  int source_port;
+  int dest_port;
   int broadcast_id;
   int rrep_already_sent;
   int force_discovery;

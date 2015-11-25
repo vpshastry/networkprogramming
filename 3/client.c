@@ -107,7 +107,7 @@ resend:
 
     fprintf (stdout, "TRACE: client at node %s sending request to server "
               "at vm%d\n", my_hostname, vmno);
-    if (msg_send(sockfd, vm_ip, 40383, "Hi", 0) < 0) {
+    if (msg_send(sockfd, vm_ip, SERVER_PORT, "AB", 0) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
     }

@@ -38,6 +38,183 @@ parsecommandline(int argc, char *argv[])
   return atoi(argv[1]);
 }
 
+// Peer proc table code start..
+// ---------------------------------------------------------------------
+struct struct_peer_proc_table {
+  unsigned int port;
+  char sun_path[PATH_MAX];
+  unsigned long time_to_live;
+  unsigned char ispermanent;
+  struct struct_peer_proc_table *next;
+};
+typedef struct struct_peer_proc_table peer_proc_table_t;
+struct queue {
+  odr_packet_t *packet;
+  struct queue *next;
+};
+static peer_proc_table_t *pptablehead, *pptabletail;
+static struct queue *queue_head;
+
+odr_packet_t *
+get_from_queue(char *ip)
+{
+  if (!queue_head)
+    return NULL;
+
+  struct queue *trav = queue_head;
+  struct queue *prev = queue_head;
+  odr_packet_t *ret;
+
+  for (; trav; trav = trav->next) {
+    if (strcmp(trav->packet->dest_ip, ip) == 0) {
+      ret = trav->packet;
+      prev->next = trav->next;
+
+      if (trav == queue_head)
+        queue_head = trav->next;
+
+      break;
+    }
+    prev = trav;
+  }
+
+  free(trav);
+
+  printf ("Remove queue: source: %d, dest: %d\n", ret->dest_port,
+                                                  ret->source_port);
+  return ret;
+}
+
+void
+add_to_queue(odr_packet_t *newpckt)
+{
+  struct queue *newq = Calloc(1, sizeof(struct queue));
+  newq->packet = newpckt;
+  newq->next = queue_head;
+  queue_head = newq;
+  printf ("Add queue: source: %d, dest: %d\n", newpckt->dest_port, newpckt->source_port);
+}
+
+int
+get_rand_port()
+{
+  static unsigned char firsttimeonly = 1;
+  peer_proc_table_t *trav;
+  int rand_num;
+
+  if (firsttimeonly) {
+    firsttimeonly = 0;
+    srand(time(NULL));
+  }
+
+repeat:
+  rand_num = (((rand_num = rand() % 65000) < 1025)? rand_num +1025: rand_num);
+
+  for (trav = pptablehead; trav; trav = trav->next)
+    if (trav->port == rand_num)
+      goto repeat;
+
+  return rand_num;
+}
+
+// Currently only the server is well known port (TODO: or isn't it?).
+int
+build_peer_process_table()
+{
+  pptabletail = pptablehead = Calloc(1, sizeof(peer_proc_table_t));
+
+  pptablehead->port = SERVER_PORT;
+  memcpy(pptablehead->sun_path, SERVER_SUNPATH, strlen(SERVER_SUNPATH));
+  pptablehead->time_to_live = 0;
+  pptablehead->ispermanent = 1;
+}
+
+void
+purge_if_time_expired()
+{
+  struct timeval tv;
+  peer_proc_table_t *trav = pptablehead->next, *prev = pptablehead;
+
+  gettimeofday(&tv, NULL);
+
+  if (PPTAB_DEBUG)
+    printf ("-----\nport: %d\nsunpath: %s\ntimetolive: %ld\ncurtime: %ld\n-----\n",
+            prev->port, prev->sun_path, prev->time_to_live, tv.tv_sec);
+
+  for (; trav; trav = trav->next) {
+    if (PPTAB_DEBUG)
+      printf ("-----\nport: %d\nsunpath: %s\ntimetolive: %ld\ncurtime: %ld\n-----\n",
+              trav->port, trav->sun_path, trav->time_to_live, tv.tv_sec);
+
+    if (trav->time_to_live < tv.tv_sec) {
+      if (PPTAB_DEBUG)
+        printf ("Purging the time expired peer with port(%d), path(%s)\n",
+                trav->port, trav->sun_path);
+
+      prev->next = trav->next;
+      free(trav);
+    } else {
+      prev = trav;
+    }
+  }
+}
+
+int
+add_to_peer_process_table(struct sockaddr_un *cliaddr)
+{
+  int i = 0;
+  struct timeval tv;
+  unsigned char couldcopy = 0;
+  peer_proc_table_t *pptableentry;
+  peer_proc_table_t *trav;
+  int ephemeral_port;
+
+  gettimeofday(&tv, NULL);
+
+  for (trav = pptablehead; trav; trav = trav->next) {
+    if (!strncmp(trav->sun_path, cliaddr->sun_path, strlen(cliaddr->sun_path)+1))
+      break;
+  }
+  if (trav) {
+    if (PPTAB_DEBUG)
+      printf ("Found existing peer with sun_path(%s)\n", trav->sun_path);
+
+    trav->time_to_live = tv.tv_sec + DEFAULT_TIME_TO_LIVE;
+    ephemeral_port = trav->port;
+    goto out;
+  }
+
+  pptableentry = Calloc(1, sizeof(peer_proc_table_t));
+  pptableentry->port = ephemeral_port = get_rand_port();
+  pptableentry->ispermanent = 0;
+  pptableentry->time_to_live = tv.tv_sec + DEFAULT_TIME_TO_LIVE;
+  strncpy(pptableentry->sun_path, cliaddr->sun_path, strlen(cliaddr->sun_path));
+  if (PPTAB_DEBUG)
+    printf ("Adding new peer with sun_path(%s)\n", pptableentry->sun_path);
+
+  pptabletail->next = pptableentry;
+  pptabletail = pptableentry;
+
+out:
+  purge_if_time_expired();
+  return ephemeral_port;
+}
+
+char *
+get_sun_path_from_port(int port)
+{
+  peer_proc_table_t *trav = pptablehead;
+
+  for (; trav; trav = trav->next)
+    if (trav->port == port)
+      return trav->sun_path;
+
+  return NULL;
+}
+
+// ---------------------------------------------------------------------
+// Peer proc table code end.
+
 int create_bind_odr_sun_path() {
   int sockfd;
   socklen_t len;
@@ -268,6 +445,7 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
   struct sockaddr_un serveraddr;
   sequence_t seq;
   int r_table_update;
+  odr_packet_t *msgtosend;
 
   int length = 0; /*length of the received frame*/
   length = recvfrom(pf_packet_sockfd, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, &sock_len);
@@ -308,6 +486,8 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
       rrep.type = RREP;
       strcpy(rrep.source_ip, odr_packet.dest_ip);
       strcpy(rrep.dest_ip, odr_packet.source_ip);
+      rrep.dest_port = odr_packet.source_port;
+      rrep.source_port = odr_packet.dest_port;
       rrep.hop_count = 0;
       // get the table entry to send it to.
       if (is_ip_in_route_table(rrep.dest_ip, &table_entry) == NO) {
@@ -336,6 +516,8 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
           rrep.type = RREP;
           strcpy(rrep.source_ip, odr_packet.dest_ip);
           strcpy(rrep.dest_ip, odr_packet.source_ip);
+          rrep.source_port = odr_packet.dest_port;
+          rrep.dest_port = odr_packet.source_port;
           rrep.hop_count = table_entry.num_hops;
           // get the table entry to send it to.
           if (is_ip_in_route_table(rrep.dest_ip, &table_entry) == NO) {
@@ -372,11 +554,15 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
       }
       // Send app_payload here.
       app_payload.type = APP_PAYLOAD;
-      strcpy(app_payload.source_ip, odr_packet.dest_ip);
-      strcpy(app_payload.dest_ip, odr_packet.source_ip);
+      msgtosend = get_from_queue(odr_packet.source_ip);
+      strcpy(app_payload.source_ip, my_ip_addr);
+      strcpy(app_payload.dest_ip, msgtosend->dest_ip);
+      app_payload.dest_port = msgtosend->dest_port;
+      app_payload.source_port = msgtosend->source_port;
       app_payload.hop_count = 0;
-      strcpy(app_payload.app_message, "hi"); //temp sending hi for now.
+      strcpy(app_payload.app_message, msgtosend->app_message);
       app_payload.app_req_or_rep = AREQ;
+      free(msgtosend);
 
       if (is_ip_in_route_table(app_payload.dest_ip, &table_entry) == NO) {
         printf("Something is seriously wrong, no path in routing table for app_payload msg?\n");
@@ -414,35 +600,30 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
         printf("Info Already in routing table. IGNORE.\n");
         //return;
       }
+
       bzero(&serveraddr, sizeof(serveraddr));
       serveraddr.sun_family = AF_LOCAL;
+      if (!get_sun_path_from_port(odr_packet.dest_port)) {
+        fprintf (stderr, "Some random packet has received to me. %d\n", odr_packet.dest_port);
+        exit(0);
+      }
+      strcpy(serveraddr.sun_path, get_sun_path_from_port(odr_packet.dest_port));
+      strncpy(seq.ip, odr_packet.source_ip, MAX_IP_LEN);
+      seq.port = odr_packet.source_port;
+      strncpy(seq.buffer, odr_packet.app_message, sizeof(seq.buffer));
+      //seq.reroute = reroute;
+
       if (odr_packet.app_req_or_rep == AREQ) {
-        strcpy(serveraddr.sun_path, SERVER_SUNPATH);
-
-        strncpy(seq.ip, odr_packet.source_ip, MAX_IP_LEN);
-        seq.port = 40383;// tmp- TO-DO
-        strncpy(seq.buffer, "Hello_from_ODR", sizeof(seq.buffer));
-        //seq.reroute = reroute;
         printf("Send to server\n");
-        Sendto(odr_sun_path_sockfd, (void*) &seq, sizeof(seq), 0, (SA*) &serveraddr, sizeof(serveraddr));
 
-        return;
-      }
-
-      else if (odr_packet.app_req_or_rep == AREP) {
-
-        strcpy(serveraddr.sun_path, my_client_addr.sun_path);
-
-        strncpy(seq.ip, odr_packet.source_ip, MAX_IP_LEN);
-        seq.port = 40383;// tmp- TO-DO
+      } else if (odr_packet.app_req_or_rep == AREP) {
         printf("msg from Server to client: %s\n", odr_packet.app_message);
-        strncpy(seq.buffer, odr_packet.app_message, sizeof(odr_packet.app_message));
-        //seq.reroute = reroute;
         printf("Send to Client\n");
-        Sendto(odr_sun_path_sockfd, (void*) &seq, sizeof(seq), 0, (SA*) &serveraddr, sizeof(serveraddr));
-
-        return;
       }
+
+      Sendto(odr_sun_path_sockfd, (void*) &seq, sizeof(seq), 0, (SA*) &serveraddr, sizeof(serveraddr));
+      return;
+
     } else {
       printf("Not for me, fwd to next hop.\n");
 
@@ -466,26 +647,33 @@ void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo, int num_inter
 void process_client_req(sequence_t recvseq, struct hwa_info* vminfo, int num_interfaces, int pf_packet_sockfd) {
 
   route_table_t table_entry;
-  odr_packet_t odr_packet;
   struct hwa_info sending_if_info;
+  odr_packet_t *odr_packet = Calloc(1, sizeof(odr_packet_t));
+  int ephemeral_port = add_to_peer_process_table(&my_client_addr);
+
+  printf("New Message recvd for IP:%s, now routing...\n", recvseq.ip);
+
+  odr_packet->type = APP_PAYLOAD;
+  strcpy(odr_packet->dest_ip, recvseq.ip);
+  strcpy(odr_packet->source_ip, my_ip_addr);
+  odr_packet->dest_port = recvseq.port;
+  odr_packet->source_port = ephemeral_port;
+  odr_packet->hop_count = 0;
+  strcpy(odr_packet->app_message, recvseq.buffer); //temp sending hi for now.
+  //printf("Sending new app_messge: recvseq = %s, odr_pack = %s\n", recvseq.buffer, odr_packet.app_message);
+  if (strcmp(my_client_addr.sun_path, SERVER_SUNPATH) == 0)
+    odr_packet->app_req_or_rep = AREP;
+  else odr_packet->app_req_or_rep = AREQ;
 
   printf("New Message recvd for IP:%s, now routing...\n", recvseq.ip);
   if (is_ip_in_route_table(recvseq.ip, &table_entry) == NO) {
     printf("IP not in routing table, broadcasting to all interfaces...\n");
     broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, recvseq.ip, NULL);
+    add_to_queue(odr_packet);
   } else {
-    odr_packet.type = APP_PAYLOAD;
-    strcpy(odr_packet.dest_ip, recvseq.ip);
-    strcpy(odr_packet.source_ip, my_ip_addr);
-    odr_packet.hop_count = 0;
-    strcpy(odr_packet.app_message, recvseq.buffer); //temp sending hi for now.
-    //printf("Sending new app_messge: recvseq = %s, odr_pack = %s\n", recvseq.buffer, odr_packet.app_message);
-    if (strcmp(my_client_addr.sun_path, SERVER_SUNPATH) == 0)
-      odr_packet.app_req_or_rep = AREP;
-    else odr_packet.app_req_or_rep = AREQ;
 
     get_vminfo_by_ifindex(vminfo, num_interfaces, table_entry.if_index, &sending_if_info);
-    send_pf_packet(pf_packet_sockfd, sending_if_info, table_entry.next_hop, odr_packet);
+    send_pf_packet(pf_packet_sockfd, sending_if_info, table_entry.next_hop, *odr_packet);
   }
   //printf("Message is:%s\n", recvseq.buffer);
   //get_mac_id_and_if_index_by_ip(recvseq, vminfo, num_interfaces);
@@ -509,6 +697,7 @@ main(int argc, char *argv[])
 
   sequence_t recvseq;
 
+  build_peer_process_table();
   num_interfaces = build_vminfos(vminfo);
   printf("----Print VMINFOS----\n");
   print_vminfos(vminfo, num_interfaces);
