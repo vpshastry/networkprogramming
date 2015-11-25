@@ -14,6 +14,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <setjmp.h>
+#include <assert.h>
 
 // Includes for PF_PACKET
 //#include <sys/socket.h>
@@ -100,6 +101,11 @@ int msg_send(int, char *, int, char *, int);
 int msg_recv(int, char *, char *, int *);
 vminfo_t * get_vminfo(ctx_t *, int vmno);
 int cleanup_sock_file(char *sockfile);
+
+void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
+                    int num_interfaces, int odr_sun_path_sockfd);
+void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
+                    odr_packet_t *odr_packet);
 
 struct CTX {
   char sockfile[PATH_MAX];
