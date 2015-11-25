@@ -37,6 +37,7 @@
 #define MAX_IP_LEN 20
 #define MAX_HWADDR_LEN IF_HADDR
 #define DEFAULT_TIME_TO_LIVE 120
+#define CLIENT_TIMEOUT 5 //seconds
 
 #define PPTAB_DEBUG 1
 

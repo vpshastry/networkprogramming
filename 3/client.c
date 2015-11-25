@@ -2,7 +2,27 @@
 
 static ctx_t ctx;
 static sigjmp_buf waitbuf;
+static void sig_alrm(int signo);
 char sockfile[PATH_MAX];
+
+static void
+sig_alrm(int signo)
+{
+  siglongjmp(waitbuf, 1);
+}
+
+/* 1. For TIMEOUT from now, 0 for cancel. */
+void
+mysetitimer(int waittime /* in micro seconds */)
+{
+  struct itimerval timer;
+
+  timer.it_value.tv_usec = waittime /1000000;
+  timer.it_value.tv_sec = waittime % 1000000;
+  timer.it_interval.tv_sec = timer.it_interval.tv_usec = 0;
+
+  setitimer(ITIMER_REAL, &timer, NULL);
+}
 
 int
 create_and_bind_socket()
@@ -28,6 +48,7 @@ do_repeated_task(int sockfd)
 {
   int         vm                    = -1;
   int         vmno                  = -1;
+  int         reroute               = 0;
   int         resendcnt             = 0;
   int         src_port;
   char        ch                    = '\0';
@@ -39,8 +60,15 @@ do_repeated_task(int sockfd)
   char        my_hostname[MAXLINE];
   char        buffer[200];
   char        src_ip[MAX_IP_LEN];
+  struct sigaction sa;
+
+  /* Install timer_handler as the signal handler for SIGVTALRM. */
+  memset (&sa, 0, sizeof (sa));
+  sa.sa_handler = &sig_alrm;
+  sigaction (SIGALRM, &sa, NULL);
 
   while (42) {
+    reroute = 0;
     //fflush(stdin); why?
     fprintf (stdout, "Choose the server from vm1..vm10 (1-10 or e to exit): ");
     if (fgets(in, MAXLINE, stdin) != NULL){
@@ -62,22 +90,26 @@ resend:
 
     fprintf (stdout, "TRACE: client at node %s sending request to server "
               "at vm%d\n", my_hostname, vmno);
-    if (msg_send(sockfd, vm_ip, SERVER_PORT, "AB", 0) < 0) {
+    if (msg_send(sockfd, vm_ip, SERVER_PORT, "AB", reroute) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
     }
 
     printf("Message Sent\n");
+    mysetitimer(CLIENT_TIMEOUT);
+
     if (sigsetjmp(waitbuf, 1) != 0) {
       if (resendcnt >= MAX_RESEND) {
         fprintf (stderr, "Max resend count reached, %d times. No more "
                   "trying.\n", resendcnt);
+        mysetitimer(0);
         continue;
       }
 
       resendcnt ++;
       fprintf (stdout, "TRACE: client at node vm %d timeout on response from "
                 "server at vm %d\n", MYID, vmno);
+      reroute = 1;
       goto resend;
     }
 
@@ -86,6 +118,7 @@ resend:
       return -1;
     }
     printf("I recvd %s\n", buffer);
+    mysetitimer(0);
   }
 }
 
