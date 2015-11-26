@@ -1,0 +1,95 @@
+README
+Network Programming Fall 2015, Assignment 2 - Stony Brook University.
+Authors: <Aashray Arora. SBU ID: 109940382, NETID: aaarora> and <Varun Shastry. SBU ID: 109951476, NETID: vshastry>
+
+Included files:
+client.c
+get_hw_addrs.c
+header.c
+header.h
+hw_addrs.h
+Makefile
+odr.c
+prhwaddrs.c
+Readme
+server.c
+
+------------------
+User Documentation
+------------------
+All the source files can be compiled using the "make" command.
+The Makefile uses the required libraries and compiles the programs.
+Just to be safe, do a make clean before another make.
+
+Run the odr process using the odr executable:
+
+./odr
+
+Run the server using the server executatble as shown below:
+
+./server
+
+Run the client using the client executable as shown below:
+
+./client
+
+Make sure you have the server running before you start the client.
+
+---------------------
+System Documentation
+---------------------
+There are three parts to this system. The odr, server and the client.
+
+---
+ODR
+---
+1. It takes the staleness as parameter, and defaults to 120 seconds if it is
+   not provided.
+2. Goes to infinite loop to listen on both pf packets and client/server packets.
+3. Once the client request packet is received, it generates a ephemeral port
+   and puts it in the table.
+   Now if there is an entry to the destination in the routing table, it
+   directly sends the APP_PAYLOAD.
+   Else it puts it in a queue and goes to route table building (RREQ &RREP).
+4. Once the PF_PACKET is received, it has logic based on the type.
+   i. RREQ.
+    We update the routing table.
+      * If the destination is the received node. We'll prepare and send RREP.
+      * If I've the latest routing information I'll reply the RREP.
+      * Broadcast it to all the nodes.
+   ii. RREP
+    We update the routing table.
+      * If the dest is me, send the APP_PAYLOAD that's in the queue.
+      * Else forward the packet to the destination after increasing the hop count.
+   iii. APP_PAYLOAD
+    We get the entry from the routing table.
+      * If it is for me, I would send it to the server/client based on the
+        port to sun_path table maintained.
+      * Else forward the packet after increasing the hop_count.
+5. Routing table update.
+   Routing table is updated mainly based on two parameters. Broadcast id and
+   hop count.
+   * If the ip is not in table, it creates a new entry.
+   * If it is same broad cast id as it is in the table.
+    -> If the hop count is lesser. Updates the routing table.
+    -> If the hop count is greater. Just ignores it.
+    -> If the hop count is same, updates only if the source mac is different
+       than the exisiting one.
+   * If it is the new broad cast id compared to which is in the table,
+    -> Updates if the new one hop count is lesser.
+    -> Updates only the broadcast id if the message is of type RREQ in case of
+       hop count is same or greater.
+
+-------
+Server
+-------
+
+Server starts and starts listening on the well-known port. Whenever it gets a
+message replies to the same source with the timestamp.
+
+-------
+Client
+-------
+Starts and sends the message to server. Also fires up and alarm for 5 seconds.
+If no reply received from the destination within this time. Sends again with
+the reroute flag set.
