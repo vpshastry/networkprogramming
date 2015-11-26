@@ -2,20 +2,6 @@
 
 extern char my_ip_addr[MAX_IP_LEN];
 
-int timed_out(struct timeval *tv)
-{
-  struct timeval ltv;
-  Gettimeofday(&ltv, NULL);
-
-  if (ltv.tv_sec > (tv->tv_sec + staleness)) {
-    return 1;
-  } else if (ltv.tv_sec == (tv->tv_sec + staleness) &&
-              ltv.tv_usec > tv->tv_usec) {
-    return 1;
-  }
-  return 0;
-}
-
 int
 msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
 {

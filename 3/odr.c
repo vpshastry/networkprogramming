@@ -338,23 +338,15 @@ get_route_table_entry(char *ip)
   return NULL;
 }
 
-void
-handle_stale_and_force_rediscovery(route_table_t *tentry, int force_discovery)
-{
-  if (force_discovery || timed_out(&tentry->tv))
-    memset(tentry, 0, sizeof(route_table_t));
-}
-
 int
 update_routing_table(odr_packet_t odr_packet,
                       struct sockaddr_ll socket_address,
                       unsigned char src_mac[6])
 {
   route_table_t table_entry;
-  route_table_t *rtable = NULL;
+  route_table_t *rtable;
   int ret = DUP_ENTRY;
   struct timeval tv;
-  int exists;
 
   if (strcmp(odr_packet.source_ip, my_ip_addr) == 0) {
     ret = SELF_ORIGIN;
@@ -362,20 +354,10 @@ update_routing_table(odr_packet_t odr_packet,
   }
 
   Gettimeofday(&tv, NULL);
-  exists = is_ip_in_route_table(odr_packet.source_ip, &table_entry);
-
-  if (exists == YES) {
-    handle_stale_and_force_rediscovery(&table_entry, odr_packet.force_discovery);
-    rtable = &table_entry;
-    exists = NO;
-  }
 
   // NON-existing dest. Add new entry.
-  if (exists == NO) {
-    // This is to handle the case from forced rediscovery and/or stale entry.
-    if (!rtable)
-      rtable = &route_table[route_table_len];
-
+  if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) == NO) {
+    rtable = &route_table[route_table_len];
     memset(rtable, 0, sizeof(route_table_t));
     strcpy(rtable->dest_ip, odr_packet.source_ip);
     memcpy((void*) rtable->next_hop, (void*) src_mac, ETH_ALEN);
