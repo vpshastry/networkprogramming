@@ -529,7 +529,7 @@ handle_rreq(odr_packet_t *odr_packet, struct sockaddr_ll socket_address,
   printf("This rreq is not for me.\n");
 
   if (r_table_update == SELF_ORIGIN) {
-    printf("Received SELF_ORIGIN. IGNORING..\n",);
+    printf("Received SELF_ORIGIN. IGNORING..\n");
     return;
   }
 
