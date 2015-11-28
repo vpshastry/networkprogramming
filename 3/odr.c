@@ -24,7 +24,7 @@ typedef struct {
   int if_index;
   int num_hops;
   int last_bcast_id_seen;
-  struct timeval timestamp;
+  struct timeval tv;
 
   // Bookeeping info
   fr_t fr;
@@ -288,6 +288,7 @@ is_ip_in_route_table (char ip[MAX_IP_LEN], route_table_t* table_entry)
       table_entry->if_index = route_table[i].if_index;
       table_entry->num_hops = route_table[i].num_hops;
       table_entry->last_bcast_id_seen = route_table[i].last_bcast_id_seen;
+      memcpy(&table_entry->tv, &route_table[i].tv, sizeof(struct timeval));
 
       memcpy(&table_entry->fr, &route_table[i].fr, sizeof(fr_t));
 
@@ -302,15 +303,17 @@ print_routing_table()
 {
   int i;
   printf("-------------ROUTING TABLE--------------\n");
-  printf("DEST_IP               NEXT_HOP            IF_INDEX\t\t\tNUM_HOPS\t\t\tLAST_BCAST_ID\n");
+  printf("DEST_IP       NEXT_HOP      IF_INDEX\tNUM_HOPS\tLAST_BCAST_ID\tTIME\n");
   for (i = 0; i < route_table_len; i++) {
     printf("%15s", route_table[i].dest_ip);
     printf("%15s", "");
     print_mac_adrr(route_table[i].next_hop);
     //printf("\t");
-    printf("%15d", route_table[i].if_index);
-    printf("%15d", route_table[i].num_hops);
-    printf("%15d\n", route_table[i].last_bcast_id_seen);
+    printf("%10d", route_table[i].if_index);
+    printf("%10d", route_table[i].num_hops);
+    printf("%10d", route_table[i].last_bcast_id_seen);
+    printf("   %lu, %lu", route_table[i].tv.tv_sec, route_table[i].tv.tv_usec);
+    printf("\n");
     printf ("%5d, %s, %s\n", route_table[i].fr.force_discovery, route_table[i].fr.source_ip, route_table[i].fr.dest_ip);
   }
 }
@@ -352,11 +355,14 @@ update_routing_table(odr_packet_t odr_packet,
   int exists = NO;
   int fr = 0;
   int i = 0;
+  struct timeval tv = {0,};
 
   if (strcmp(odr_packet.source_ip, my_ip_addr) == 0) {
     ret = SELF_ORIGIN;
     goto out;
   }
+
+  Gettimeofday(&tv, NULL);
 
   exists = is_ip_in_route_table(odr_packet.source_ip, &table_entry);
 
@@ -376,6 +382,7 @@ update_routing_table(odr_packet_t odr_packet,
     memcpy((void*) rtable->next_hop, (void*) src_mac, ETH_ALEN);
     rtable->if_index = socket_address.sll_ifindex;
     rtable->num_hops = odr_packet.hop_count + 1;
+    memcpy(&rtable->tv, &tv, sizeof(struct timeval));
 
     if (odr_packet.type == RREQ && odr_packet.force_discovery) {
       rtable->fr.force_discovery = 1;
@@ -422,6 +429,7 @@ update_routing_table(odr_packet_t odr_packet,
           memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
           rtable->if_index = socket_address.sll_ifindex;
           rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
+          memcpy(&rtable->tv, &tv, sizeof(struct timeval));
 
           if (odr_packet.type == RREQ)
             rtable->last_bcast_id_seen = odr_packet.broadcast_id;
@@ -460,6 +468,7 @@ update_routing_table(odr_packet_t odr_packet,
           memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
           rtable->if_index = socket_address.sll_ifindex;
           rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
+          memcpy(&rtable->tv, &tv, sizeof(struct timeval));
 
           if (odr_packet.type == RREQ)
             rtable->last_bcast_id_seen = odr_packet.broadcast_id;
@@ -470,9 +479,11 @@ update_routing_table(odr_packet_t odr_packet,
           break;
 
         default:
-          if (odr_packet.type == RREQ)
+          if (odr_packet.type == RREQ) {
             get_route_table_entry(table_entry.dest_ip)->last_bcast_id_seen =
                                                       odr_packet.broadcast_id;
+            memcpy(&rtable->tv, &tv, sizeof(struct timeval));
+          }
           break;
       }
 
