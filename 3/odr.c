@@ -6,7 +6,7 @@
 
 static ctx_t ctx;
 extern char my_ip_addr[MAX_IP_LEN];
-
+int staleness;
 unsigned char broadcast_ip[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 struct sockaddr_un my_client_addr; // temp, table will solve this
@@ -39,9 +39,8 @@ int
 parsecommandline(int argc, char *argv[])
 {
   if (argc < 2) {
-    fprintf (stdout, "Usage: %s <staleness>\n", argv[0]);
-    //exit(0);
-	return 0;
+    fprintf (stdout, "Usage: %s <staleness>\nCurrently taking default time to live.", argv[0]);
+    return DEFAULT_TIME_TO_LIVE;
   }
 
   return atoi(argv[1]);
@@ -367,7 +366,9 @@ update_routing_table(odr_packet_t odr_packet,
   exists = is_ip_in_route_table(odr_packet.source_ip, &table_entry);
 
   // NON-existing dest. Add new entry.
-  if (exists == NO || (fr = (exists == YES && odr_packet.force_discovery && !table_entry.fr.force_discovery))) {
+  if (exists == NO ||
+      //(exists == YES && timed_out(table_entry.tv, tv, staleness)) ||
+      (fr = (exists == YES && odr_packet.force_discovery && !table_entry.fr.force_discovery))) {
     if (!fr)
       rtable = &route_table[route_table_len];
     else
@@ -378,7 +379,6 @@ update_routing_table(odr_packet_t odr_packet,
 
     memset(rtable, 0, sizeof(route_table_t));
     strcpy(rtable->dest_ip, odr_packet.source_ip);
-    printf ("Just before update-------->");print_mac_adrr(src_mac);
     memcpy((void*) rtable->next_hop, (void*) src_mac, ETH_ALEN);
     rtable->if_index = socket_address.sll_ifindex;
     rtable->num_hops = odr_packet.hop_count + 1;
@@ -533,7 +533,6 @@ handle_rreq(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
   struct sockaddr_un serveraddr;
   sequence_t seq;
   int r_table_update;
-  printf ("In handle rreq-------->");print_mac_adrr(src_mac);
 
   // Update routing table first.
   r_table_update = update_routing_table(odr_packet, socket_address, src_mac);
@@ -710,12 +709,14 @@ handle_app_payload(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
 
   printf("Not for me, fwd to next hop.\n");
 
-  odr_packet.hop_count++;
-
   if (is_ip_in_route_table(odr_packet.dest_ip, &table_entry) == NO) {
-    fprintf (stderr, "Blunder!!\n");
-    exit(0);
+    printf ("I've lost my entry to dest(%s). Sending RREQ to rebuild.\n", odr_packet.dest_ip);
+    broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, odr_packet.dest_ip, NULL, 0);
+    add_to_queue(odr_packet);
+    return;
   }
+
+  odr_packet.hop_count++;
 
   get_vminfo_by_ifindex(vminfo, num_interfaces, table_entry.if_index, &sending_if_info);
   send_pf_packet(pf_packet_sockfd, sending_if_info, table_entry.next_hop, &odr_packet);
@@ -842,7 +843,6 @@ int create_bind_pf_packet()
 int
 main(int argc, char *argv[])
 {
-  //int             staleness = parsecommandline(argc, argv);
   struct hwa_info vminfo[50];
   int             num_interfaces, odr_sun_path_sockfd, pf_packet_sockfd, n, maxfdp1;
   fd_set cur_set, org_set;
@@ -851,6 +851,8 @@ main(int argc, char *argv[])
   sequence_t recvseq;
 
   build_peer_process_table();
+
+  staleness = parsecommandline(argc, argv);
 
   num_interfaces = build_vminfos(vminfo);
   printf("----Print VMINFOS----\n");

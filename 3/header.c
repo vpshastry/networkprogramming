@@ -49,6 +49,16 @@ print_odr_packet(odr_packet_t *odr_packet)
 
 
 int
+timed_out(struct timeval tv, struct timeval now, int staleness)
+{
+  if ((tv.tv_sec + staleness) < now.tv_sec ||
+      ((tv.tv_sec + staleness) == now.tv_sec && tv.tv_usec < now.tv_usec))
+    return 1;
+
+  return 0;
+}
+
+int
 msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
 {
   struct sockaddr_un odraddr;

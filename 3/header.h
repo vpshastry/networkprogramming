@@ -101,6 +101,7 @@ int msg_send(int, char *, int, char *, int);
 int msg_recv(int, char *, char *, int *);
 vminfo_t * get_vminfo(ctx_t *, int vmno);
 int cleanup_sock_file(char *sockfile);
+int timed_out(struct timeval tv, struct timeval now, int staleness);
 
 typedef enum{
   EQUAL_NHOPS = 0,
