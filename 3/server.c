@@ -18,6 +18,7 @@ do_repeated_task(int server_sock_fd)
       return -1;
     }
     ticks = time(NULL);
+    memset(buffer, 0, sizeof(buffer));
     snprintf(buffer, sizeof(buffer), "%.24s\r\n", ctime(&ticks));
     printf("I will send %s\n", buffer);
 

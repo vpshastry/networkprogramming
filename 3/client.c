@@ -69,6 +69,7 @@ do_repeated_task(int sockfd)
 
   while (42) {
     reroute = 0;
+    resendcnt = 0;
     //fflush(stdin); why?
     fprintf (stdout, "Choose the server from vm1..vm10 (1-10 or e to exit): ");
     if (fgets(in, MAXLINE, stdin) != NULL){

@@ -2,12 +2,59 @@
 
 extern char my_ip_addr[MAX_IP_LEN];
 
+void
+print_mac_adrr(char mac_addr[6])
+{
+  int i = 0;
+  char* ptr;
+  i = IF_HADDR;
+  ptr = mac_addr;
+  do {
+      printf("%.2x:", *ptr++ & 0xff);
+  } while (--i > 0);
+}
+
+void
+print_pf_packet(struct sockaddr_ll socket_address, char *buffer,
+                odr_packet_t odr_packet)
+{
+  unsigned char src_mac[6];
+  unsigned char dest_mac[6];
+
+  printf("if_index = %d\n", socket_address.sll_ifindex);
+
+  memcpy((void*)dest_mac, (void *)buffer, ETH_ALEN);
+  memcpy((void*)src_mac, (void *)buffer+ETH_ALEN, ETH_ALEN);
+
+  printf("src_mac =");
+  print_mac_adrr(src_mac);
+  printf("\n");
+
+  printf("dest_mac =");
+  print_mac_adrr(dest_mac);
+  printf("\n");
+
+  print_odr_packet(&odr_packet);
+}
+
+void
+print_odr_packet(odr_packet_t *odr_packet)
+{
+  printf("type = %d\n", odr_packet->type);
+  printf("source IP = %s\n", odr_packet->source_ip);
+  printf("dest IP = %s\n", odr_packet->dest_ip);
+  printf("broadcast id = %d\n", odr_packet->broadcast_id);
+  printf("hop count = %d\n", odr_packet->hop_count);
+}
+
+
 int
 msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
 {
   struct sockaddr_un odraddr;
   sequence_t seq;
 
+  printf ("Sending to odr(%s).\n", buffer);
   bzero(&odraddr, sizeof(odraddr));
   odraddr.sun_family = AF_LOCAL;
   strcpy(odraddr.sun_path, ODR_SUNPATH);
@@ -217,6 +264,7 @@ void
 send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
                 odr_packet_t *odr_packet)
 {
+
   int k = 0, j = 0, prflag;
   char* ptr;
   /*target address*/
@@ -291,6 +339,9 @@ send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
   memcpy((void*)buffer, (void*)dest_mac, ETH_ALEN);
   memcpy((void*)(buffer+ETH_ALEN), (void*)src_mac, ETH_ALEN);
   eh->h_proto = htons(USID_PROTO);
+
+  printf("----Sending PF_PACKET----\n");
+  print_pf_packet(socket_address, buffer, *odr_packet);
 
   /*send the packet*/
   send_result = sendto(s, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, sizeof(socket_address));

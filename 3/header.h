@@ -114,6 +114,8 @@ typedef enum {
 } broad_id_t;
 
 hops_comp_t CMP(int a, int b);
+void print_mac_adrr(char mac_addr[6]);
+void print_odr_packet(odr_packet_t *odr_packet);
 
 void recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
                     int num_interfaces, int odr_sun_path_sockfd);
