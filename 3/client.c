@@ -86,17 +86,15 @@ do_repeated_task(int sockfd)
     vmno = atoi(in);
 resend:
     get_ip_of_vm(vmno, vm_ip, sizeof(vm_ip));
-    printf("IP of VM%d is %s\n", vmno, vm_ip);
     gethostname(my_hostname, sizeof(my_hostname));
 
     fprintf (stdout, "TRACE: client at node %s sending request to server "
-              "at vm%d\n", my_hostname, vmno);
+              "at vm%d(%s)\n", my_hostname, vmno, vm_ip);
     if (msg_send(sockfd, vm_ip, SERVER_PORT, "AB", reroute) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
       return -1;
     }
 
-    printf("Message Sent\n");
     mysetitimer(CLIENT_TIMEOUT);
 
     if (sigsetjmp(waitbuf, 1) != 0) {
@@ -118,7 +116,7 @@ resend:
       fprintf (stderr, "Failed to receive message: %s\n", strerror(errno));
       return -1;
     }
-    printf("I recvd %s\n", buffer);
+    printf("TRACE: I recvd %s\n", buffer);
     mysetitimer(0);
   }
 }

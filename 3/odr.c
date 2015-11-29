@@ -24,7 +24,7 @@ typedef struct {
   int if_index;
   int num_hops;
   int last_bcast_id_seen;
-  struct timeval tv;
+  //struct timeval tv;
 
   // Bookeeping info
   fr_t fr;
@@ -91,8 +91,8 @@ get_from_queue(char *ip)
 
   free(trav);
 
-  printf ("Remove queue: source: %d, dest: %d\n", ret->dest_port,
-                                                  ret->source_port);
+  //printf ("Remove queue: source: %d, dest: %d\n", ret->dest_port,
+                                                  //ret->source_port);
   return ret;
 }
 
@@ -103,7 +103,7 @@ add_to_queue(odr_packet_t newpckt)
   memcpy(&newq->packet, &newpckt, sizeof(odr_packet_t));
   newq->next = queue_head;
   queue_head = newq;
-  printf ("Add queue: source: %d, dest: %d\n", newpckt.dest_port, newpckt.source_port);
+  //printf ("Add queue: source: %d, dest: %d\n", newpckt.dest_port, newpckt.source_port);
 }
 
 int
@@ -148,14 +148,16 @@ purge_if_time_expired()
 
   gettimeofday(&tv, NULL);
 
+  /*
   if (PPTAB_DEBUG)
-    printf ("-----\nport: %d\nsunpath: %s\ntimetolive: %ld\ncurtime: %ld\n-----\n",
-            prev->port, prev->sun_path, prev->time_to_live, tv.tv_sec);
+    printf ("TRACE: port: %d, sunpath: %s\n", prev->port, prev->sun_path);
+    */
 
   for (; trav; trav = trav->next) {
+    /*
     if (PPTAB_DEBUG)
-      printf ("-----\nport: %d\nsunpath: %s\ntimetolive: %ld\ncurtime: %ld\n-----\n",
-              trav->port, trav->sun_path, trav->time_to_live, tv.tv_sec);
+      printf ("TRACE: port: %d, sunpath: %s\n", trav->port, trav->sun_path);
+      */
 
     if (trav->time_to_live < tv.tv_sec) {
       if (PPTAB_DEBUG)
@@ -188,7 +190,8 @@ add_to_peer_process_table(struct sockaddr_un *cliaddr)
   }
   if (trav) {
     if (PPTAB_DEBUG)
-      printf ("Found existing peer with sun_path(%s)\n", trav->sun_path);
+      printf ("Found existing peer with port:%d, sun_path:%s\n",
+                trav->port, trav->sun_path);
 
     trav->time_to_live = tv.tv_sec + DEFAULT_TIME_TO_LIVE;
     ephemeral_port = trav->port;
@@ -201,8 +204,7 @@ add_to_peer_process_table(struct sockaddr_un *cliaddr)
   pptableentry->time_to_live = tv.tv_sec + DEFAULT_TIME_TO_LIVE;
   strncpy(pptableentry->sun_path, cliaddr->sun_path, strlen(cliaddr->sun_path));
   if (PPTAB_DEBUG)
-    printf ("Adding new peer with sun_path(%s) cliaddr(%s)\n",
-            pptableentry->sun_path, cliaddr->sun_path);
+    printf ("Adding new peer with sun_path(%s)\n", pptableentry->sun_path);
 
   pptabletail->next = pptableentry;
   pptabletail = pptableentry;
@@ -287,7 +289,7 @@ is_ip_in_route_table (char ip[MAX_IP_LEN], route_table_t* table_entry)
       table_entry->if_index = route_table[i].if_index;
       table_entry->num_hops = route_table[i].num_hops;
       table_entry->last_bcast_id_seen = route_table[i].last_bcast_id_seen;
-      memcpy(&table_entry->tv, &route_table[i].tv, sizeof(struct timeval));
+      //memcpy(&table_entry->tv, &route_table[i].tv, sizeof(struct timeval));
 
       memcpy(&table_entry->fr, &route_table[i].fr, sizeof(fr_t));
 
@@ -302,18 +304,18 @@ print_routing_table()
 {
   int i;
   printf("-------------ROUTING TABLE--------------\n");
-  printf("DEST_IP       NEXT_HOP      IF_INDEX\tNUM_HOPS\tLAST_BCAST_ID\tTIME\n");
+  printf("DEST_IP\t\tNEXT_HOP\t\tIF_INDEX    NUM_HOPS    LAST_BCAST_ID\n");
   for (i = 0; i < route_table_len; i++) {
-    printf("%15s", route_table[i].dest_ip);
-    printf("%15s", "");
+    printf("%s\t", route_table[i].dest_ip);
+    printf("%s", "");
     print_mac_adrr(route_table[i].next_hop);
     //printf("\t");
     printf("%10d", route_table[i].if_index);
     printf("%10d", route_table[i].num_hops);
     printf("%10d", route_table[i].last_bcast_id_seen);
-    printf("   %lu, %lu", route_table[i].tv.tv_sec, route_table[i].tv.tv_usec);
+    //printf("   %lu, %lu", route_table[i].tv.tv_sec, route_table[i].tv.tv_usec);
     printf("\n");
-    printf ("%5d, %s, %s\n", route_table[i].fr.force_discovery, route_table[i].fr.source_ip, route_table[i].fr.dest_ip);
+    //printf ("%5d, %s, %s\n", route_table[i].fr.force_discovery, route_table[i].fr.source_ip, route_table[i].fr.dest_ip);
   }
 }
 
@@ -382,7 +384,7 @@ update_routing_table(odr_packet_t odr_packet,
     memcpy((void*) rtable->next_hop, (void*) src_mac, ETH_ALEN);
     rtable->if_index = socket_address.sll_ifindex;
     rtable->num_hops = odr_packet.hop_count + 1;
-    memcpy(&rtable->tv, &tv, sizeof(struct timeval));
+    //memcpy(&rtable->tv, &tv, sizeof(struct timeval));
 
     if (odr_packet.type == RREQ && odr_packet.force_discovery) {
       rtable->fr.force_discovery = 1;
@@ -429,13 +431,13 @@ update_routing_table(odr_packet_t odr_packet,
           memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
           rtable->if_index = socket_address.sll_ifindex;
           rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
-          memcpy(&rtable->tv, &tv, sizeof(struct timeval));
+          //memcpy(&rtable->tv, &tv, sizeof(struct timeval));
 
           if (odr_packet.type == RREQ)
             rtable->last_bcast_id_seen = odr_packet.broadcast_id;
 
           printf ("Modified table entry for %s\n", rtable->dest_ip);
-          print_routing_table();
+          //print_routing_table();
 
           //printf ("1. Returning R_TABLE_UPDATED\n");
           ret = R_TABLE_UPDATED;
@@ -468,7 +470,7 @@ update_routing_table(odr_packet_t odr_packet,
           memcpy((void*)rtable->next_hop, (void*) src_mac, ETH_ALEN);
           rtable->if_index = socket_address.sll_ifindex;
           rtable->num_hops = odr_packet.hop_count + 1; // +1 for the hop it made to get to me.
-          memcpy(&rtable->tv, &tv, sizeof(struct timeval));
+          //memcpy(&rtable->tv, &tv, sizeof(struct timeval));
 
           if (odr_packet.type == RREQ)
             rtable->last_bcast_id_seen = odr_packet.broadcast_id;
@@ -482,19 +484,23 @@ update_routing_table(odr_packet_t odr_packet,
           if (odr_packet.type == RREQ) {
             get_route_table_entry(table_entry.dest_ip)->last_bcast_id_seen =
                                                       odr_packet.broadcast_id;
-            memcpy(&rtable->tv, &tv, sizeof(struct timeval));
+            //memcpy(&rtable->tv, &tv, sizeof(struct timeval));
           }
           break;
       }
 
-      printf ("3. Returning R_TABLE_UPDATED\n");
+      //printf ("3. Returning R_TABLE_UPDATED\n");
       ret = R_TABLE_UPDATED;
       goto out;
   }
 
 out:
-  print_routing_table();
-  printf ("Returning %d\n", ret);
+  if (ret == R_TABLE_UPDATED) {
+    printf ("\nUpdated routing table for %s\n", odr_packet.source_ip);
+    print_routing_table();
+    printf ("\n");
+  }
+  //printf ("Returning %d\n", ret);
   return ret;
 }
 
@@ -534,16 +540,19 @@ handle_rreq(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
   sequence_t seq;
   int r_table_update;
 
+  printf("Recvd RREQ msg with source: %s, dest: %s, bid: %d, hops: %d\n",
+          odr_packet.source_ip, odr_packet.dest_ip, odr_packet.broadcast_id,
+          odr_packet.hop_count);
+
   // Update routing table first.
   r_table_update = update_routing_table(odr_packet, socket_address, src_mac);
+  if (r_table_update == DUP_ENTRY) {
+    printf("Already handled. IGNORE.\n");
+    return 0;
+  }
 
   if (strcmp (odr_packet.dest_ip, my_ip_addr) == 0) {
     printf("This packet is for me. Sending RREP.\n");
-    if (r_table_update == DUP_ENTRY) {
-      printf("Already handled. IGNORE.\n");
-      return 0;
-    }
-
     if (is_ip_in_route_table(odr_packet.source_ip, &table_entry) == NO) {
       printf("Something is seriously wrong, no path in routing table for rrep?\n");
       exit(0);
@@ -556,9 +565,8 @@ handle_rreq(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
   } else {
     printf("This rreq is not for me.\n");
 
-    if (r_table_update == DUP_ENTRY || r_table_update == SELF_ORIGIN) {
-      printf("Received DUP_ENTRY. IGNORING..\n",
-              (r_table_update == DUP_ENTRY)? "DUP_ENTRY": "SELF_ORIGIN");
+    if (r_table_update == SELF_ORIGIN) {
+      printf("Received SELF_ORIGIN RREQ. IGNORING..\n");
       return;
     }
 
@@ -586,8 +594,6 @@ handle_rreq(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
 
 simply_broadcast:
     odr_packet.hop_count++;
-    printf ("Broadcasting odr\n");
-    print_odr_packet(&odr_packet);
     broadcast_to_all_interfaces(pf_packet_sockfd, vminfo, num_interfaces, NULL, &odr_packet, 0);
   }
   return 0;
@@ -622,6 +628,10 @@ handle_rrep(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
   struct sockaddr_un serveraddr;
   sequence_t seq;
   int r_table_update;
+
+  printf("Recvd RREP msg with source: %s, dest: %s, bid: %d, hops: %d\n",
+          odr_packet.source_ip, odr_packet.dest_ip, odr_packet.broadcast_id,
+          odr_packet.hop_count);
 
   r_table_update = update_routing_table(odr_packet, socket_address, src_mac);
   if (r_table_update == DUP_ENTRY) {
@@ -663,12 +673,16 @@ handle_app_payload(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
   sequence_t seq;
   int r_table_update;
 
-  printf("Recvd application payload msg\n");
+  printf("Recvd APP Payload msg with source: %s, dest: %s\n",
+          odr_packet.source_ip, odr_packet.dest_ip);
+
+  /*
   r_table_update = update_routing_table(odr_packet, socket_address, src_mac);
   if (r_table_update == DUP_ENTRY) {
-    printf("Info Already in routing table. IGNORE.\n");
+    printf("Info Already in routing table.\n");
     // TODO: return??
   }
+  */
 
   if (strcmp (odr_packet.dest_ip, my_ip_addr) == 0) {
     printf("This APP_PAYLOAD MSG is for me.\n");
@@ -685,13 +699,6 @@ handle_app_payload(odr_packet_t odr_packet, struct sockaddr_ll socket_address,
     seq.reroute = odr_packet.force_discovery;
     strncpy(seq.buffer, odr_packet.app_message, sizeof(seq.buffer));
     //seq.reroute = reroute;
-
-    if (odr_packet.app_req_or_rep == AREQ) {
-      printf("Send to server\n");
-
-    } else if (odr_packet.app_req_or_rep == AREP) {
-      printf("Send to Client\n");
-    }
 
     Sendto(odr_sun_path_sockfd, (void*) &seq, sizeof(seq), 0, (SA*) &serveraddr, sizeof(serveraddr));
     return;
@@ -729,9 +736,9 @@ recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
   length = recvfrom(pf_packet_sockfd, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, &sock_len);
   if (length == -1) { printf("PF_PACKET recv error\n");}
   memcpy (&odr_packet, buffer+14, sizeof(odr_packet_t));
-  printf("----Recvd PF_PACKET----\n");
+  //printf("----Recvd PF_PACKET----\n");
   memcpy((void*)src_mac, (void *)buffer+ETH_ALEN, ETH_ALEN);
-  print_pf_packet(socket_address, buffer, odr_packet);
+  //print_pf_packet(socket_address, buffer, odr_packet);
 
   switch (odr_packet.type) {
     case RREQ:
@@ -754,7 +761,7 @@ recv_pf_packet(int pf_packet_sockfd, struct hwa_info* vminfo,
       fprintf (stderr, "Unknown type: %d\n", odr_packet.type);
       exit(0);
   }
-  free(buffer);
+  //free(buffer);
 }
 
 void
@@ -795,7 +802,7 @@ process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
   }
 
   odr_packet.type = APP_PAYLOAD;
-  printf ("strlen(recvseq.ip) = %lu\n", strlen(recvseq.ip));
+  //printf ("strlen(recvseq.ip) = %lu\n", strlen(recvseq.ip));
   strncpy(odr_packet.dest_ip, recvseq.ip, MAX_IP_LEN);
   strncpy(odr_packet.source_ip, my_ip_addr, MAX_IP_LEN);
   odr_packet.dest_port = recvseq.port;
@@ -861,7 +868,6 @@ main(int argc, char *argv[])
     Select(maxfdp1, &cur_set, NULL, NULL, NULL);
 
     if (FD_ISSET(odr_sun_path_sockfd, &cur_set)) {
-      printf("Data recvd from client/Server\n");
       memset(&my_client_addr, 0, sizeof(struct sockaddr_un));
       memset(&recvseq, 0, sizeof(sequence_t));
       n = recvfrom(odr_sun_path_sockfd, &recvseq, sizeof(recvseq), 0, (SA*) &my_client_addr, &client_addr_len);

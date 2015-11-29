@@ -48,6 +48,7 @@ print_odr_packet(odr_packet_t *odr_packet)
 }
 
 
+/*
 int
 timed_out(struct timeval tv, struct timeval now, int staleness)
 {
@@ -57,6 +58,7 @@ timed_out(struct timeval tv, struct timeval now, int staleness)
 
   return 0;
 }
+*/
 
 int
 msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
@@ -64,7 +66,6 @@ msg_send(int sockfd, char *ip, int port, char *buffer, int reroute)
   struct sockaddr_un odraddr;
   sequence_t seq;
 
-  printf ("Sending to odr(%s).\n", buffer);
   bzero(&odraddr, sizeof(odraddr));
   odraddr.sun_family = AF_LOCAL;
   strcpy(odraddr.sun_path, ODR_SUNPATH);
@@ -89,7 +90,6 @@ msg_recv(int sockfd, char *buffer, char *src_ip, int *src_port)
   strncpy(src_ip, seq.ip, MAX_IP_LEN);
   strncpy(buffer, seq.buffer, sizeof(seq.buffer));
   *src_port = seq.port;
-  printf("msg_recvd : %s\n", buffer);
   return 0;
 }
 
@@ -257,7 +257,7 @@ void get_ip_of_vm(int vmno, char* final_ip, int length){
   case AF_INET:
       pptr = hptr->h_addr_list;
       for (; *pptr != NULL; pptr++) {
-          printf("%s\n", Inet_ntop(hptr->h_addrtype, *pptr, str, sizeof (str)));
+          Inet_ntop(hptr->h_addrtype, *pptr, str, sizeof (str));
           strncpy(final_ip, str, length - 1);
           final_ip[length - 1] = '\0';
       }
@@ -350,12 +350,12 @@ send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
   memcpy((void*)(buffer+ETH_ALEN), (void*)src_mac, ETH_ALEN);
   eh->h_proto = htons(USID_PROTO);
 
-  printf("----Sending PF_PACKET----\n");
-  print_pf_packet(socket_address, buffer, *odr_packet);
+  //printf("----Sending PF_PACKET----\n");
+  //print_pf_packet(socket_address, buffer, *odr_packet);
 
   /*send the packet*/
   send_result = sendto(s, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, sizeof(socket_address));
   if (send_result == -1) { printf("PF_PACKET sending error\n");}
 
-  printf("Sent PF_PACKET\n");
+  //printf("Sent PF_PACKET\n");
 }

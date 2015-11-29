@@ -10,6 +10,9 @@ do_repeated_task(int server_sock_fd)
   char        src_ip[MAX_IP_LEN];
   int         src_port;
   time_t ticks;
+  char        my_hostname[MAXLINE];
+
+  gethostname(my_hostname, sizeof(my_hostname));
 
   while (42) {
     memset(buffer, 0, sizeof(buffer));
@@ -20,10 +23,10 @@ do_repeated_task(int server_sock_fd)
     ticks = time(NULL);
     memset(buffer, 0, sizeof(buffer));
     snprintf(buffer, sizeof(buffer), "%.24s\r\n", ctime(&ticks));
-    printf("I will send %s\n", buffer);
+    //printf("I will send %s\n", buffer);
 
-    fprintf (stdout, "Server at node vm%s responding to request from vm%s\n",
-              buffer, src_ip);
+    fprintf (stdout, "TRACE: Server at node %s responding to request from %s\n",
+              my_hostname, src_ip);
 
     if (msg_send(server_sock_fd, src_ip, src_port, buffer, 0) < 0) {
       fprintf (stderr, "Failed to send message: %s\n", strerror(errno));
