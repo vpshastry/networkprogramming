@@ -279,7 +279,7 @@ is_ip_in_route_table (char ip[MAX_IP_LEN], route_table_t* table_entry)
 
   for (i = 0; i < route_table_len; i++)
     if (strcmp(route_table[i].dest_ip, ip) == 0) {
-      printf("This IP is in routing table\n");
+      //printf("This IP is in routing table\n");
       memset(table_entry, 0, sizeof(route_table_t));
 
       strcpy(table_entry->dest_ip, route_table[i].dest_ip);
@@ -396,10 +396,10 @@ update_routing_table(odr_packet_t odr_packet,
     if (!fr)
       route_table_len++;
 
-    printf ("Added table entry for %s\n", rtable->dest_ip);
-    print_routing_table();
+    //printf ("Added table entry for %s\n", rtable->dest_ip);
+    //print_routing_table();
     ret = R_TABLE_UPDATED;
-    printf ("4. Returning R_TABLE_UPDATED\n");
+    //printf ("4. Returning R_TABLE_UPDATED\n");
     goto out;
   }
 
@@ -417,7 +417,7 @@ update_routing_table(odr_packet_t odr_packet,
     case SAME_BROADID:
       switch (CMP(table_entry.num_hops, odr_packet.hop_count +1)) {
         case NEWONE_IS_BAD:
-          printf ("1. Returning DUB_ENTRY\n");
+          //printf ("1. Returning DUB_ENTRY\n");
           ret = DUP_ENTRY;
           goto out;
 
@@ -437,7 +437,7 @@ update_routing_table(odr_packet_t odr_packet,
           printf ("Modified table entry for %s\n", rtable->dest_ip);
           print_routing_table();
 
-          printf ("1. Returning R_TABLE_UPDATED\n");
+          //printf ("1. Returning R_TABLE_UPDATED\n");
           ret = R_TABLE_UPDATED;
           goto out;
 
@@ -445,12 +445,12 @@ update_routing_table(odr_packet_t odr_packet,
           printf("Same number of hops\n");
           if (strcmp(table_entry.next_hop, src_mac) == 0) {
             //printf("Same neightbour. No update\n.");
-            printf ("2. Returning DUP_ENTRY\n");
+            //printf ("2. Returning DUP_ENTRY\n");
             ret = DUP_ENTRY;
             goto out;
           } else {
             //printf("Different neighbour, need to update\n"); // TO-DO
-            printf ("3. Returning DUP_ENTRY\n");
+            //printf ("3. Returning DUP_ENTRY\n");
             ret = DUP_ENTRY; // only for now, TO-DO
             goto out;
           }
@@ -474,7 +474,7 @@ update_routing_table(odr_packet_t odr_packet,
             rtable->last_bcast_id_seen = odr_packet.broadcast_id;
 
           printf ("Modified table entry bcz of new bid for %s\n", rtable->dest_ip);
-          print_routing_table();
+          //print_routing_table();
 
           break;
 
@@ -603,16 +603,6 @@ build_app_payload(odr_packet_t *app_payload, char *ip)
   memset(app_payload, 0, sizeof(odr_packet_t));
   memcpy(app_payload, msgtosend, sizeof(odr_packet_t));
   app_payload->app_req_or_rep = AREQ;
-
-  /*
-  app_payload->type = APP_PAYLOAD;
-  strcpy(app_payload->source_ip, msgtosend->source_ip);
-  strcpy(app_payload->dest_ip, msgtosend->dest_ip);
-  app_payload->dest_port = msgtosend->dest_port;
-  app_payload->source_port = msgtosend->source_port;
-  strcpy(app_payload->app_message, msgtosend->app_message);
-  app_payload->force_discovery = msgtosend->force_discovery;
-  */
 
   free(msgtosend);
   return app_payload;
@@ -813,8 +803,6 @@ process_client_req(sequence_t recvseq, struct hwa_info* vminfo,
   odr_packet.hop_count = 0;
   strcpy(odr_packet.app_message, recvseq.buffer);
   odr_packet.app_req_or_rep = (strcmp(my_client_addr.sun_path, SERVER_SUNPATH) == 0)? AREP: AREQ;
-
-  printf("New Message recvd for IP:%s, now routing...\n", recvseq.ip);
 
   if (is_ip_in_route_table(recvseq.ip, &table_entry) == NO || recvseq.reroute == 1) {
     printf("IP not in routing table, broadcasting to all interfaces...\n");
