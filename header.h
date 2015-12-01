@@ -21,5 +21,14 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 
+#define MAX_IP_LEN 20
+
+#define YES 0
+#define NO 1
+
+typedef struct {
+  char node_ip[MAX_IP_LEN];
+  int is_cur;
+} tour_list_node_t;
 
 #endif
