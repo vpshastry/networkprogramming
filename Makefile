@@ -9,7 +9,7 @@ FLAGS = -g -O2
 
 CFLAGS = ${FLAGS} -I${LINUX_STEVENS_BASE}/lib
 
-all: readline.o prhwaddrs.o get_hw_addrs.o header.o tour arp
+all: header.o readline.o prhwaddrs.o get_hw_addrs.o tour arp
 
 ## Packed
 
