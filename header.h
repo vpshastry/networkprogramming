@@ -20,11 +20,18 @@
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
+#include <netinet/ip.h>       // struct ip and IP_MAXPACKET (which is 65535)
 
 #define MAX_IP_LEN 20
 
 #define YES 0
 #define NO 1
+
+#define USID_PROTO 147
+
+#define ETH_HDRLEN 14  // Ethernet header length
+#define IP4_HDRLEN 20  // IPv4 header length
+#define ICMP_HDRLEN 8  // ICMP header length for echo request, excludes data
 
 typedef struct {
   char node_ip[MAX_IP_LEN];
