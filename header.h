@@ -15,6 +15,16 @@
 #include <sys/time.h>
 #include <setjmp.h>
 
+#include <netdb.h>            // struct addrinfo
+#include <sys/socket.h>       // needed for socket()
+#include <netinet/in.h>       // IPPROTO_UDP, INET_ADDRSTRLEN
+#include <netinet/ip.h>       // struct ip and IP_MAXPACKET (which is 65535)
+#include <netinet/udp.h>      // struct udphdr
+#include <arpa/inet.h>        // inet_pton() and inet_ntop()
+#include <sys/ioctl.h>        // macro ioctl is defined
+#include <bits/ioctls.h>      // defines values for argument "request" of ioctl.
+#include <net/if.h>           // struct ifreq
+
 // Includes for PF_PACKET
 //#include <sys/socket.h>
 #include <linux/if_packet.h>

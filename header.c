@@ -99,7 +99,7 @@ areq (struct sockaddr *IPaddr, socklen_t sockaddrlen, struct hwaddr *HWaddr)
   memset(&msg, 0, sizeof(msg));
   memcpy(&msg.IPaddr, IPaddr, sizeof(msg.IPaddr));
   msg.sockaddrlen = sockaddrlen;
-  msg.hwaddr.sll_ifindex = 1;
+  msg.hwaddr.sll_ifindex = 1; // TODO
   msg.hwaddr.sll_hatype = ETH_TYPE;
   msg.hwaddr.sll_halen = IF_HADDR;
 

@@ -193,16 +193,19 @@ send_arp_response(buffer_t recvbuffer, int pf_fd, struct hwa_info *vminfo,
 {
   buffer_t buffer;
 
-  memcpy(buffer.ethhead.desthwaddr, recvbuffer.ethhead.srchwaddr, IF_HADDR);
+  // New fill up.
+  memcpy(buffer.arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
+  buffer.arp.op = ARP_REPLY;
   memcpy(buffer.ethhead.srchwaddr, gmy_hw_addr, IF_HADDR);
-  buffer.ethhead.frame_type = FRAME_TYPE;
+
+  // Copy everything else.
+  memcpy(buffer.ethhead.desthwaddr, recvbuffer.ethhead.srchwaddr, IF_HADDR);
+  buffer.ethhead.frame_type = recvbuffer.ethhead.frame_type;
 
   buffer.arp.hard_type = recvbuffer.arp.hard_type;
   buffer.arp.proto_type = recvbuffer.arp.proto_type;
   buffer.arp.hard_size = recvbuffer.arp.hard_size;
   buffer.arp.proto_size = recvbuffer.arp.proto_size;
-  buffer.arp.op = ARP_REPLY;
-  memcpy(buffer.arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
   buffer.arp.senderipaddr = recvbuffer.arp.targetipaddr;
   memcpy(buffer.arp.targethwaddr, recvbuffer.arp.senderhwaddr, IF_HADDR);
   buffer.arp.targetipaddr = recvbuffer.arp.senderipaddr;
@@ -226,7 +229,7 @@ send_arp_req(msg_t msg, int accepted_fd, int pf_fd, struct hwa_info *vminfo, int
   buffer.arp.op = ARP_REQUEST;
   memcpy(buffer.arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
   buffer.arp.senderipaddr = gmy_ip_addr;
-  buffer.arp.targetipaddr = ((struct sockaddr_in *)&msg.IPaddr)->sin_addr.s_addr;
+  buffer.arp.targetipaddr = IP_ADDR(msg.IPaddr);
 
   send_pf_packet(pf_fd, vminfo, gbroadcast_hwaddr, &buffer);
 
@@ -279,7 +282,7 @@ recv_pf_packet(int pf_fd, struct hwa_info *vminfo, int ninterfaces,
       if (!(cache_entry = cache_already_exists_ip(arp.senderipaddr)))
         err_quit("Something wrong. No cache entry soon after it's insertion.\n");
 
-      send_reply_and_close_conn(cache_entry, &cache_entry->uds_fd);
+      send_reply_and_close_conn(cache_entry, arp, &cache_entry->uds_fd);
       break;
 
     default:
