@@ -23,7 +23,6 @@
 #include <arpa/inet.h>        // inet_pton() and inet_ntop()
 #include <sys/ioctl.h>        // macro ioctl is defined
 #include <bits/ioctls.h>      // defines values for argument "request" of ioctl.
-#include <net/if.h>           // struct ifreq
 
 // Includes for PF_PACKET
 //#include <sys/socket.h>

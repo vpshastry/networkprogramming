@@ -10,11 +10,7 @@ create_bind_pf_packet()
 {
   int s;
 
-  s = socket(AF_PACKET, SOCK_RAW, htons(USID_PROTO));
-  if (s == -1) {
-    fprintf (stderr, "PF_PACKET creatation failed");
-    exit(0);
-  }
+  s = Socket(AF_PACKET, SOCK_RAW, htons(USID_PROTO));
 
   return s;
 }
@@ -282,7 +278,7 @@ recv_pf_packet(int pf_fd, struct hwa_info *vminfo, int ninterfaces,
       if (!(cache_entry = cache_already_exists_ip(arp.senderipaddr)))
         err_quit("Something wrong. No cache entry soon after it's insertion.\n");
 
-      send_reply_and_close_conn(cache_entry, arp, &cache_entry->uds_fd);
+      send_reply_and_close_conn(cache_entry, &cache_entry->uds_fd);
       break;
 
     default:
