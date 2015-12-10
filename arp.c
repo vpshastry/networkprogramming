@@ -188,16 +188,13 @@ send_arp_response(buffer_t recvbuffer, int pf_fd, struct hwa_info *vminfo,
                   int ninterfaces)
 {
   buffer_t buffer;
+  struct hwa_info sending_vminfo;
 
   // New fill up.
   memcpy(buffer.arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
   buffer.arp.op = ARP_REPLY;
-  memcpy(buffer.ethhead.srchwaddr, gmy_hw_addr, IF_HADDR);
 
   // Copy everything else.
-  memcpy(buffer.ethhead.desthwaddr, recvbuffer.ethhead.srchwaddr, IF_HADDR);
-  buffer.ethhead.frame_type = recvbuffer.ethhead.frame_type;
-
   buffer.arp.hard_type = recvbuffer.arp.hard_type;
   buffer.arp.proto_type = recvbuffer.arp.proto_type;
   buffer.arp.hard_size = recvbuffer.arp.hard_size;
@@ -206,17 +203,15 @@ send_arp_response(buffer_t recvbuffer, int pf_fd, struct hwa_info *vminfo,
   memcpy(buffer.arp.targethwaddr, recvbuffer.arp.senderhwaddr, IF_HADDR);
   buffer.arp.targetipaddr = recvbuffer.arp.senderipaddr;
 
-  send_pf_packet(pf_fd, vminfo, gbroadcast_hwaddr, &buffer);
+  get_ifnametovminfo(vminfo, ninterfaces, INTERESTED_IF, &sending_vminfo);
+  send_pf_packet(pf_fd, sending_vminfo, gbroadcast_hwaddr, &buffer);
 }
 
 void
 send_arp_req(msg_t msg, int accepted_fd, int pf_fd, struct hwa_info *vminfo, int ninterfaces)
 {
   buffer_t buffer;
-
-  memcpy(buffer.ethhead.desthwaddr, gbroadcast_hwaddr, IF_HADDR);
-  memcpy(buffer.ethhead.srchwaddr, gmy_hw_addr, IF_HADDR);
-  buffer.ethhead.frame_type = FRAME_TYPE;
+  struct hwa_info sending_vminfo;
 
   buffer.arp.hard_type = ETH_TYPE;
   buffer.arp.proto_type = PROTO_TYPE;
@@ -227,7 +222,8 @@ send_arp_req(msg_t msg, int accepted_fd, int pf_fd, struct hwa_info *vminfo, int
   buffer.arp.senderipaddr = gmy_ip_addr;
   buffer.arp.targetipaddr = IP_ADDR(msg.IPaddr);
 
-  send_pf_packet(pf_fd, vminfo, gbroadcast_hwaddr, &buffer);
+  get_ifnametovminfo(vminfo, ninterfaces, INTERESTED_IF, &sending_vminfo);
+  send_pf_packet(pf_fd, sending_vminfo, gbroadcast_hwaddr, &buffer);
 
   append_to_cache(buffer.arp, accepted_fd);
 }
@@ -341,6 +337,9 @@ listen_on_fds(int pf_fd, int uds_fd, struct hwa_info *vminfo, int ninterfaces)
 void
 init_global_vars()
 {
+  if (ETH_FRAME_LEN < (14 +sizeof(buffer_t)))
+    err_quit("Buffer is bigger than ETH_FRAME_LEN\n");
+
   return;
 }
 

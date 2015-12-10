@@ -36,6 +36,8 @@
 #define ETH_SIZE 6
 #define PROTO_SIZE 4
 
+#define INTERESTED_IF "eth0"
+
 #define IP_ADDR(addr) (((struct sockaddr_in *)&(addr))->sin_addr.s_addr)
 #define DEBUG 1
 
@@ -119,6 +121,6 @@ typedef struct tofrom_arp_tour msg_t;
 int areq (struct sockaddr *IPaddr, socklen_t sockaddrlen,
           struct hwaddr *HWaddr);
 char * get_mac(char mac[IF_HADDR]);
-void send_pf_packet(int s, struct hwa_info *vminfo, unsigned char* dest_mac,
+void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
                     buffer_t *buffer);
 #endif
