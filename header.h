@@ -24,8 +24,13 @@
 
 #define MAX_IP_LEN 20
 
-#define YES 0
-#define NO 1
+// Let YES be 1 and NO be 0 as these represent logical yes no as well.
+// For unix style success and failure we can define SUCCESS = 0 and FAILURE = -1/1
+#define YES 1
+#define NO 0
+
+#define SUCCESS 0
+#define FAILURE -1
 
 #define USID_PROTO 147
 
