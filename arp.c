@@ -181,8 +181,6 @@ send_reply_and_close_conn(cache_t *cache_entry, int *fd)
   msg.sockaddrlen = sizeof(struct sockaddr);
   memcpy(&msg.hwaddr, &cache_entry->hwaddr, sizeof(hwaddr_t));
 
-  printf ("DEBUG: UDS FD: %d\n", *fd);
-
   Write(*fd, &msg, sizeof(msg_t));
   printf ("TRACE: Sending reply for the query on %s -> ",
           Sock_ntop_host((struct sockaddr *)&msg.IPaddr,
