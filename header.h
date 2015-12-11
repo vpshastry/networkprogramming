@@ -114,13 +114,13 @@ typedef struct buffer {
 }__attribute__((__packed__)) buffer_t;
 
 struct tofrom_arp_tour {
-  struct sockaddr IPaddr;
+  struct sockaddr_in IPaddr;
   socklen_t sockaddrlen;
   hwaddr_t hwaddr;
 };
 typedef struct tofrom_arp_tour msg_t;
 
-int areq(struct sockaddr *IPaddr, socklen_t sockaddrlen,
+int areq(struct sockaddr *IPaddress, socklen_t sockaddrlen,
           struct hwaddr *HWaddr);
 char * get_mac(char mac[IF_HADDR]);
 void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,

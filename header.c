@@ -30,39 +30,6 @@ create_connect_sun_path()
   return sockfd;
 }
 
-char *
-get_mac(char mac[IF_HADDR])
-{
-  int prflag = 0;
-  int i = 0;
-  char *ptr;
-  char tmp[10] = {0,};
-  static char macstr[30];
-  int curlen =0;
-
-  do {
-    if (mac[i] != '\0') {
-      prflag = 1;
-      break;
-    }
-  } while (++i < IF_HADDR);
-
-  if (prflag) {
-    memset(macstr, 0, sizeof(macstr));
-
-    ptr = mac;
-    i = IF_HADDR;
-    do {
-      memset(tmp, 0, sizeof(tmp));
-      sprintf(tmp, "%.2x%s", *ptr++ & 0xff, (i == 1) ? " " : ":");
-      strncat(macstr, tmp, sizeof(macstr)-curlen-1);
-      curlen += strlen(tmp);
-    } while (--i > 0);
-  }
-
-  return macstr;
-}
-
 /* 1. For TIMEOUT from now, 0 for cancel. */
 void
 mysetitimer(int waittime /* in micro seconds */)
@@ -77,31 +44,27 @@ mysetitimer(int waittime /* in micro seconds */)
 }
 
 int
-areq (struct sockaddr *IPaddr, socklen_t sockaddrlen, struct hwaddr *HWaddr)
+areq (struct sockaddr *IPaddress, socklen_t sockaddrlen, struct hwaddr *HWaddr)
 {
   int uds_fd = create_connect_sun_path();
   struct hwaddr hwaddr;
   msg_t msg;
-  struct sigaction sa;
   static int firsttimeonly = 1;
   char ipstr[MAX_IP_LEN];
+  struct sockaddr_in *IPaddr = (struct sockaddr_in *)IPaddress;
 
-  snprintf(ipstr, MAX_IP_LEN, "%s", Sock_ntop_host(IPaddr, sizeof(*IPaddr)));
+  snprintf(ipstr, MAX_IP_LEN, "%s", Sock_ntop_host((SA *)IPaddr,
+            sizeof(struct sockaddr_in)));
 
   if (firsttimeonly) {
     firsttimeonly = 0;
     /* Install timer_handler as the signal handler for SIGALRM. */
-    memset (&sa, 0, sizeof (sa));
-    sa.sa_handler = &sig_alrm;
-    sigaction (SIGALRM, &sa, NULL);
+    //Signal(SIGALRM, sig_alrm);
   }
 
-  memset(&msg, 0, sizeof(msg));
-  memcpy(&msg.IPaddr, IPaddr, sizeof(msg.IPaddr));
+  bzero(&msg, sizeof(msg));
+  memcpy(&msg.IPaddr, IPaddr, sockaddrlen);
   msg.sockaddrlen = sockaddrlen;
-  msg.hwaddr.sll_ifindex = if_nametoindex(INTERESTED_IF);
-  msg.hwaddr.sll_hatype = ETH_TYPE;
-  msg.hwaddr.sll_halen = IF_HADDR;
 
   Write(uds_fd, &msg, sizeof(msg));
 
@@ -109,16 +72,20 @@ areq (struct sockaddr *IPaddr, socklen_t sockaddrlen, struct hwaddr *HWaddr)
 
   mysetitimer(AREQ_TIMEOUT);
 
+  /*
   if (sigsetjmp(waitbuf, 1) != 0) {
     fprintf (stderr, "TRACE: Timeout on request hardware address for %s\n", ipstr);
     return -1;
   }
+  */
 
-  memset(&msg, 0, sizeof(msg));
-  Read(uds_fd, &hwaddr, sizeof(hwaddr));
+  bzero(&msg, sizeof(msg));
+  Read(uds_fd, &msg, sizeof(msg));
   mysetitimer(0);
 
-  printf("TRACE: Received hardware address(%s) for %s\n", get_mac(msg.hwaddr.sll_addr), ipstr);
+  printf("TRACE: Received hardware address(");
+  print_mac_adrr(msg.hwaddr.sll_addr);
+  printf(") for %s\n", ipstr);
 
   return 0;
 }
@@ -139,14 +106,17 @@ build_vminfos(struct hwa_info* vminfo)
   for (hwahead = hwa = Get_hw_addrs(), vm_count = 0; hwa != NULL; hwa = hwa->hwa_next) {
 
     if (strcmp(INTERESTED_IF, hwa->if_name)) {
-      sa = hwa->ip_addr;
-      gmy_ip_addr = ((struct sockaddr_in *)sa)->sin_addr.s_addr;
       //snprintf(gmy_ip_addr, MAX_IP_LEN, "%s", Sock_ntop_host(sa, sizeof(*sa)));
       //printf("MY IP = %s\n", my_ip_addr);
       if (DEBUG)
         fprintf (stdout, "Skipping %s\n", hwa->if_name);
 
       continue;
+    }
+
+    if (hwa->ip_alias != IP_ALIAS) {
+      sa = hwa->ip_addr;
+      gmy_ip_addr = ((struct sockaddr_in *)sa)->sin_addr.s_addr;
     }
 
     printf("%s :%s", hwa->if_name, ((hwa->ip_alias) == IP_ALIAS) ? " (alias)\n" : "\n");
