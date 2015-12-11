@@ -150,8 +150,8 @@ void
 print_arp(arp_t arp)
 {
   if (arp.op == ARP_REQUEST) {
-    printf ("TRACE: ARP REQUEST for MAC with\n\tHard type: %d\n\tProt type: %d\n\t"
-	    "Op: %s\n\tSender HWaddr: ", arp.hard_type, arp.proto_type,
+    printf ("TRACE: ARP REQUEST for MAC with\n\tHard type: %d\n\tProt type: %d\n"
+	    "Op: %s\nSender HWaddr: ", arp.hard_type, arp.proto_type,
 	    (arp.op == ARP_REQUEST)? "ARP_REQUEST": "ARP REPLY");
     print_mac_adrr(arp.senderhwaddr);
     printf ("\n\tSender IP: %s\n\tTarget IP: %s\n\t",
