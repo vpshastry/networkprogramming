@@ -43,15 +43,15 @@ print_cache()
   int i = 0;
   char str[INET_ADDRSTRLEN];
 
-  printf ("Cache entries.\n");
-  printf ("IP\t\tHW\n");
-  printf ("---------------------------------\n");
+  printf ("TRACE: Cache entries.\n\t");
+  printf ("IP\t\tHW\n\t");
+  printf ("---------------------------------\n\t");
   for (i = 0; i <= gcur_cache_len; ++i) {
     printf ("%s", Sock_ntop((SA *)&gcache[i].IPaddr,
             sizeof(struct sockaddr_in)));
     printf ("\t");
     print_mac_adrr(gcache[i].hwaddr.sll_addr);
-    printf ("\n");
+    printf ("\n\t");
   }
   printf ("---------------------------------\n");
 }
@@ -92,6 +92,9 @@ cache_already_exists_ip(unsigned long ip)
 void
 update_cache(cache_t *c, arp_t arp)
 {
+  printf ("TRACE: Updating entry in cache for %s\n",
+		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
+
   cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr,
                         c->hwaddr.sll_ifindex, c->uds_fd);
 
@@ -106,6 +109,9 @@ append_to_cache(char hwaddr[IF_HADDR], unsigned long ip, int ifidx, int uds_fd)
 
   cache_t *c = &gcache[++gcur_cache_len];
   bzero(c, sizeof(cache_t));
+
+  printf ("TRACE: Adding new entry in cache for %s\n",
+		    inet_ntoa(*(struct in_addr *)&ip));
 
   cache_copy_from_args(c, hwaddr, ip, ifidx, uds_fd);
 
@@ -154,8 +160,9 @@ print_arp(arp_t arp)
 	    "Op: %s\n\tSender HWaddr: ", arp.hard_type, arp.proto_type,
 	    (arp.op == ARP_REQUEST)? "ARP_REQUEST": "ARP REPLY");
     print_mac_adrr(arp.senderhwaddr);
-    printf ("\n\tSender IP: %s\n\tTarget IP: %s\n",
-		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr),
+    printf ("\n\tSender IP: %s",
+		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
+    printf ("\n\tTarget IP: %s\n",
 		    inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
 
   } else {

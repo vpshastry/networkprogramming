@@ -11,6 +11,18 @@ CFLAGS = ${FLAGS} -I${LINUX_STEVENS_BASE}/lib
 
 all: header.o readline.o prhwaddrs.o get_hw_addrs.o tour arp myclient
 
+install: all
+	./scripts/stop_app.sh tour
+	./scripts/stop_app.sh arp
+	~/cse533/deploy_app tour arp myclient
+
+run: all
+	./scripts/run_app.sh arp
+	./scripts/run_app.sh tour
+
+debug: install
+	~/cse533/deploy_app *.c *.h
+
 ## Packed
 
 myclient: myclient.o

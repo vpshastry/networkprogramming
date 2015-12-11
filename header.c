@@ -60,7 +60,7 @@ areq (struct sockaddr *IPaddress, socklen_t sockaddrlen, struct hwaddr *HWaddr)
   if (firsttimeonly) {
     firsttimeonly = 0;
     /* Install timer_handler as the signal handler for SIGALRM. */
-    //Signal(SIGALRM, sig_alrm);
+    Signal(SIGALRM, sig_alrm);
   }
 
   bzero(&msg, sizeof(msg));
@@ -71,18 +71,16 @@ areq (struct sockaddr *IPaddress, socklen_t sockaddrlen, struct hwaddr *HWaddr)
 
   printf("TRACE: Requesting hardware address for %s\n", ipstr);
 
-  //mysetitimer(AREQ_TIMEOUT);
+  mysetitimer(AREQ_TIMEOUT);
 
-  /*
   if (sigsetjmp(waitbuf, 1) != 0) {
     fprintf (stderr, "TRACE: Timeout on request hardware address for %s\n", ipstr);
     return -1;
   }
-  */
 
   bzero(&msg, sizeof(msg));
   Read(uds_fd, &msg, sizeof(msg));
-  //mysetitimer(0);
+  mysetitimer(0);
 
   printf("TRACE: Received hardware address(");
   print_mac_adrr(msg.hwaddr.sll_addr);
