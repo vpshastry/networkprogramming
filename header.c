@@ -294,3 +294,16 @@ get_ifnametovminfo(struct hwa_info *vminfo, int ninterfaces, char *find_if,
 
   printf("\n\nERROR: interface %s not found\n\n", find_if);
 }
+
+void
+print_mac_adrr(char mac_addr[6])
+{
+  int i = 0;
+  char* ptr;
+  i = IF_HADDR;
+  ptr = mac_addr;
+  do {
+      printf("%.2x:", *ptr++ & 0xff);
+  } while (--i > 0);
+}
+

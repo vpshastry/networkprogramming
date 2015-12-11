@@ -1,6 +1,7 @@
 #include "header.h"
 
-cache_t *gcache = NULL;
+cache_t gcache[CACHE_SIZE_GRAN];
+int gcur_cache_len = -1;
 extern unsigned long gmy_ip_addr;
 extern char gmy_hw_addr[IF_HADDR];
 char gbroadcast_hwaddr[IF_HADDR] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
@@ -40,16 +41,36 @@ create_listen_sun_path()
 // Cache management
 // ---------------------------------------------------------------
 void
-cache_copy_from_arp(cache_t *c, arp_t arp, int uds_fd)
+print_cache()
+{
+  int i = 0;
+  char str[INET_ADDRSTRLEN];
+
+  printf ("\nCache entries.\n");
+  printf ("IP\t\tHW\n");
+  printf ("---------------------------------\n");
+  for (i = 0; i <= gcur_cache_len; ++i) {
+    printf ("%s", Sock_ntop((SA *)&gcache[i].IPaddr, sizeof(struct sockaddr_in)));
+    printf ("\t");
+    print_mac_adrr(gcache[i].hwaddr.sll_addr);
+  }
+  printf ("\n---------------------------------\n");
+}
+
+void
+cache_copy_from_args(cache_t *c, char hwaddr[IF_HADDR], int ipaddr,
+                      int ifindex, int uds_fd)
 {
   if (uds_fd != -1) {
-    memcpy(c->hwaddr.sll_addr, arp.senderhwaddr, IF_HADDR);
-    c->hwaddr.sll_ifindex = 1;//TODO
-    c->hwaddr.sll_hatype = arp.hard_type;
+    memcpy(c->hwaddr.sll_addr, hwaddr, IF_HADDR);
+    c->hwaddr.sll_ifindex = ifindex;
+
+    c->hwaddr.sll_hatype = ETH_TYPE;
   }
 
   c->IPaddr.sin_family = AF_INET;
-  c->IPaddr.sin_addr.s_addr = arp.senderipaddr;
+
+  c->IPaddr.sin_addr.s_addr = ipaddr;
 
   c->uds_fd = uds_fd;
 }
@@ -57,15 +78,16 @@ cache_copy_from_arp(cache_t *c, arp_t arp, int uds_fd)
 cache_t *
 cache_already_exists_ip(unsigned long ip)
 {
-  cache_t *trav = NULL;
+  int i = 0;
 
-  for (trav = gcache; trav; trav = trav->next)
-    if (ip == ((struct sockaddr_in *)&trav->IPaddr)->sin_addr.s_addr)
-      return trav;
+  for (i = 0; i < gcur_cache_len; ++i)
+    if (ip == IP_ADDR(gcache[i].IPaddr))
+      return &gcache[i];
 
   return NULL;
 }
 
+/*
 cache_t *
 cache_already_exists_hw(char hwaddr[IF_HADDR], cache_t **save)
 {
@@ -98,26 +120,50 @@ cache_get_list_by_hw(char hwaddr[IF_HADDR])
 
   return newhead;
 }
+*/
 
 void
-update_cache(cache_t *cache_entry, arp_t arp)
+update_cache(cache_t *c, arp_t arp)
 {
-  cache_copy_from_arp(cache_entry, arp, cache_entry->uds_fd);
+  cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr, 1/* TODO */, c->uds_fd);
+
+  if (TRACE) print_cache();
 }
 
 void
 append_to_cache(arp_t arp, int uds_fd)
 {
-  cache_t *list_head;
+  if (gcur_cache_len > CACHE_SIZE_GRAN || gcur_cache_len < 0)
+    err_quit("So many IP addreses for 10 vms or problem with gcur_cachelen\n");
 
-  cache_t *newcache = Calloc(1, sizeof(cache_t));
+  cache_copy_from_args(&gcache[++gcur_cache_len], arp.senderhwaddr,
+                        arp.senderipaddr, 1/* TODO */, uds_fd);
 
-  cache_copy_from_arp(newcache, arp, uds_fd);
-
-  newcache->next = gcache;
-  gcache = newcache;
+  if (TRACE) print_cache();
 }
 
+void
+init_cache(struct hwa_info *vminfo, int ninterfaces)
+{
+  int i;
+  char str[INET_ADDRSTRLEN];
+
+  for (i = 0; i < ninterfaces; ++i) {
+    printf ("Initing for %s, IP: %s, MAC:", vminfo[i].if_name,
+              Inet_ntop(AF_INET,
+                &((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr, str, sizeof(struct sockaddr_in)));
+    print_mac_adrr(vminfo[i].if_haddr);
+    printf ("\n");
+
+    cache_copy_from_args(&gcache[++gcur_cache_len], vminfo[i].if_haddr,
+                          ((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr,
+                          vminfo[i].if_index, 0);
+  }
+
+  if (TRACE) print_cache();
+}
+
+/*
 void
 free_list(cache_t **head)
 {
@@ -139,6 +185,7 @@ listlen(cache_t *trav)
   for (i = 0; trav; trav = trav->next, ++i);
   return i;
 }
+*/
 
 // ------------ END cache management ---------------------------
 
@@ -148,7 +195,7 @@ is_it_for_me(arp_t arp, struct hwa_info *vminfo, int ninterfaces)
   int i;
 
   for (i = 0; i < ninterfaces; ++i)
-    if ((arp.targetipaddr == ((struct sockaddr_in *)&vminfo[i].ip_addr[0])->sin_addr.s_addr) &&
+    if ((arp.targetipaddr == IP_ADDR(vminfo[i].ip_addr)) &&
         !memcmp(arp.targethwaddr, vminfo[i].if_haddr, IF_HADDR))
       return 1;
 
@@ -349,9 +396,10 @@ main()
   struct hwa_info vminfo[50];
   int ninterfaces;
 
-  init_global_vars();
-
   ninterfaces = build_vminfos(vminfo);
+
+  init_global_vars();
+  init_cache(vminfo, ninterfaces);
 
   listen_on_fds(create_bind_pf_packet(), create_listen_sun_path(), vminfo, ninterfaces);
 

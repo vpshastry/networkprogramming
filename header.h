@@ -41,6 +41,8 @@
 #define IP_ADDR(addr) (((struct sockaddr_in *)&(addr))->sin_addr.s_addr)
 #define DEBUG 1
 
+#define CACHE_SIZE_GRAN 50
+
 #define MAX_IP_LEN 20
 
 #define USID_PROTO 4383
@@ -57,6 +59,8 @@
 #define SUCCESS 0
 #define FAILURE -1
 
+#define TRACE 1 // TODO: Make it zero before submitting.
+
 
 typedef struct  hwaddr {
   int sll_ifindex; /* Interface number */
@@ -71,8 +75,6 @@ typedef struct {
 } tour_list_node_t;
 
 struct cache {
-  struct cache *next;
-
   struct sockaddr_in IPaddr;
   hwaddr_t hwaddr;
 
@@ -118,9 +120,10 @@ struct tofrom_arp_tour {
 };
 typedef struct tofrom_arp_tour msg_t;
 
-int areq (struct sockaddr *IPaddr, socklen_t sockaddrlen,
+int areq(struct sockaddr *IPaddr, socklen_t sockaddrlen,
           struct hwaddr *HWaddr);
 char * get_mac(char mac[IF_HADDR]);
 void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
                     buffer_t *buffer);
+void print_mac_adrr(char mac_addr[6]);
 #endif
