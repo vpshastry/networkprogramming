@@ -19,8 +19,11 @@ install: all
 run: all
 	./scripts/run_app.sh arp
 	./scripts/run_app.sh tour
+stop:
+	./scripts/stop_app.sh tour
+	./scripts/stop_app.sh arp
 
-debug: install
+debug-install: install
 	~/cse533/deploy_app *.c *.h
 
 ## Packed
