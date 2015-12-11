@@ -3,6 +3,7 @@
 unsigned long gmy_ip_addr;
 char gmy_hw_addr[IF_HADDR];
 static sigjmp_buf waitbuf;
+int gmy_if_idx;
 
 // ----------------------- AREQ API ---------------------------------------
 
@@ -70,9 +71,8 @@ areq (struct sockaddr *IPaddress, socklen_t sockaddrlen, struct hwaddr *HWaddr)
 
   printf("TRACE: Requesting hardware address for %s\n", ipstr);
 
-  //mysetitimer(AREQ_TIMEOUT);
+  /*mysetitimer(AREQ_TIMEOUT);
 
-  /*
   if (sigsetjmp(waitbuf, 1) != 0) {
     fprintf (stderr, "TRACE: Timeout on request hardware address for %s\n", ipstr);
     return -1;

@@ -42,15 +42,15 @@ print_cache()
   int i = 0;
   char str[INET_ADDRSTRLEN];
 
-  printf ("Cache entries.\n");
-  printf ("IP\t\tHW\n");
-  printf ("---------------------------------\n");
+  printf ("TRACE: Cache entries.\n\t");
+  printf ("IP\t\tHW\n\t");
+  printf ("---------------------------------\n\t");
   for (i = 0; i <= gcur_cache_len; ++i) {
     printf ("%s", Sock_ntop((SA *)&gcache[i].IPaddr,
             sizeof(struct sockaddr_in)));
     printf ("\t");
     print_mac_adrr(gcache[i].hwaddr.sll_addr);
-    printf ("\n");
+    printf ("\n\t");
   }
   printf ("---------------------------------\n");
 }
@@ -91,6 +91,9 @@ cache_already_exists_ip(unsigned long ip)
 void
 update_cache(cache_t *c, arp_t arp)
 {
+  printf ("TRACE: Updating entry in cache for %s\n",
+		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
+
   cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr, 1/* TODO */,
                         c->uds_fd);
 
@@ -105,6 +108,9 @@ append_to_cache(char hwaddr[IF_HADDR], unsigned long ip, int ifidx, int uds_fd)
 
   cache_t *c = &gcache[++gcur_cache_len];
   bzero(c, sizeof(cache_t));
+
+  printf ("TRACE: Adding new entry in cache for %s\n",
+		    inet_ntoa(*(struct in_addr *)&ip));
 
   cache_copy_from_args(c, hwaddr, ip, ifidx, uds_fd);
 
@@ -148,17 +154,20 @@ is_it_for_me(arp_t arp, struct hwa_info *vminfo, int ninterfaces)
 void
 print_arp(arp_t arp)
 {
-  if (arp.op == ARP_REQUEST)
-    printf ("TRACE: ARP REQUEST for MAC with IP %s\n",
-              inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
-  else {
-    printf ("TRACE: ARP RESPONSE to %s(",
-              inet_ntoa(*(struct in_addr*)&arp.targetipaddr));
+  printf ("TRACE: ARP %s with\n\tID: %x\n\tHard type: %d\n\t"
+          "Prot type: %d\n\tOp: ARP_%s\n\tSender HWaddr: ",
+          (arp.op == ARP_REQUEST)? "REQUEST": "REPLY", arp.id, arp.hard_type,
+          arp.proto_type, (arp.op == ARP_REQUEST)? "REQUEST": "REPLY");
+  print_mac_adrr(arp.senderhwaddr);
+  printf ("\n\tSender IP: %s", inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
+
+  if (arp.op == ARP_REPLY) {
+    printf ("\n\tTarget HWaddr: ");
     print_mac_adrr(arp.targethwaddr);
-    printf (") with my mac:");
-    print_mac_adrr(arp.senderhwaddr);
-    printf ("\n");
   }
+
+  printf ("\n\tTarget IP: %s\n",
+                  inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
 }
 
 
@@ -197,6 +206,7 @@ send_arp_response(arp_t recvarp, int pf_fd, struct hwa_info *vminfo,
   // New fill up.
   memcpy(arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
   arp.op = ARP_REPLY;
+  arp.id = OUR_ARP_ID;
 
   // Copy everything else.
   arp.hard_type = recvarp.hard_type;
@@ -222,6 +232,7 @@ send_arp_req(msg_t msg, int accepted_fd, int pf_fd, struct hwa_info *vminfo,
 
   bzero(&arp, sizeof(arp_t));
 
+  arp.id = OUR_ARP_ID;
   arp.hard_type = ETH_TYPE;
   arp.proto_type = PROTO_TYPE;
   arp.hard_size = ETH_SIZE;
@@ -306,7 +317,8 @@ process_client_req(int accepted_fd, int pf_fd,
               inet_ntoa(*(struct in_addr *)&IP_ADDR(msg.IPaddr)));
 
   if ((cache_entry = cache_already_exists_ip(IP_ADDR(msg.IPaddr)))) {
-    printf ("TRACE: Found %s in cache. Replying right here.\n");
+    printf ("TRACE: Found %s in cache. Replying right here.\n",
+              inet_ntoa(*(struct in_addr *)&IP_ADDR(msg.IPaddr)));
     send_reply_and_close_conn(cache_entry, &accepted_fd);
     return;
   }
@@ -328,7 +340,8 @@ listen_on_fds(int pf_fd, int uds_fd, struct hwa_info *vminfo, int ninterfaces)
   FD_SET(uds_fd, &org_set);
   FD_SET(pf_fd, &org_set);
   maxfdp1 = ((uds_fd > pf_fd)? uds_fd : pf_fd) + 1;
-  printf("FD's set, now going into select loop....\n\n");
+  printf("FD's set(uds: %d, pf: %d), now going into select loop....\n\n",
+          uds_fd, pf_fd);
 
   while (1) {
     printf ("\n");

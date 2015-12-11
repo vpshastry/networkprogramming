@@ -38,6 +38,7 @@
 #define PROTO_SIZE 4
 
 #define INTERESTED_IF "eth0"
+#define OUR_ARP_ID 0xBE
 
 #define IP_ADDR(addr) (((struct sockaddr_in *)&(addr))->sin_addr.s_addr)
 #define DEBUG 1
@@ -58,7 +59,7 @@
 #define NO 0
 #define MUL 9
 
-#define USID_PROTO 147
+//#define USID_PROTO 147
 
 #define ETH_HDRLEN 14  // Ethernet header length
 #define IP4_HDRLEN 20  // IPv4 header length
@@ -101,6 +102,7 @@ typedef enum {
 } op_t;
 
 typedef struct arp {
+  unsigned char id;
   unsigned short hard_type;
   unsigned short proto_type;
   unsigned char hard_size;
