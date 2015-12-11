@@ -1,6 +1,6 @@
 #include "header.h"
 
-int rt, pg, pf_packet, multi;
+int rt, pg, pf_packet, multi_send, multi_recv;
 
 void get_ip_of_vm(char vmno_str[6], char* final_ip, int length){
 
@@ -69,6 +69,7 @@ void print_tour_list(tour_list_node_t* tour_list_node, int length) {
   printf("_________TOUR LIST_________\n");
   for (i = 0; i < length; i++) {
     if (tour_list_node[i].is_cur == YES) printf("CUR->");
+    else if (tour_list_node[i].is_cur == MUL) printf("Multicast Address:");
     printf("%s\n", tour_list_node[i].node_ip);
   }
   printf("___________END_________\n");
@@ -76,34 +77,89 @@ void print_tour_list(tour_list_node_t* tour_list_node, int length) {
 
 void make_list(int argc, char* argv[]) {
   
-  char vm_ip[MAX_IP_LEN], my_hostname[MAXLINE];
+  char vm_ip[MAX_IP_LEN], my_hostname[MAXLINE], str[MAXLINE];
+  char *token;
+  unsigned int mul_port;
+  struct sockaddr_in multicast_sockaddr;
+  socklen_t len;
   int i;
-  tour_list_node_t tour_list_node[argc];
+  tour_list_node_t tour_list_node[argc + 1];
   for (i = 1; i < argc; i++) {
     get_ip_of_vm(argv[i], vm_ip, MAX_IP_LEN);
     printf("%s: %s\n", argv[i], vm_ip);
-    strcpy(tour_list_node[i].node_ip, vm_ip);
-    tour_list_node[i].is_cur = NO;
+    strcpy(tour_list_node[i + 1].node_ip, vm_ip);
+    tour_list_node[i + 1].is_cur = NO;
   }
   gethostname(my_hostname, MAXLINE);
   printf("My hostname: %s\n", my_hostname);
   get_ip_of_vm(my_hostname, vm_ip, MAX_IP_LEN);
-  strcpy(tour_list_node[0].node_ip, vm_ip);
-  tour_list_node[0].is_cur = YES;
-  print_tour_list(tour_list_node, argc);
-  send_rt (tour_list_node, argc);
+  strcpy(tour_list_node[1].node_ip, vm_ip);
+  tour_list_node[1].is_cur = YES;
+  strcpy(tour_list_node[0].node_ip, MUL_GRP_IP);
+  strcat(tour_list_node[0].node_ip, ":");
+  sprintf(str, "%d", MUL_PORT);
+  strcat(tour_list_node[0].node_ip, str);
+  tour_list_node[0].is_cur = MUL;
+  print_tour_list(tour_list_node, argc + 1);
+
+  // Join multicast grp
+  bzero(&multicast_sockaddr, sizeof(multicast_sockaddr));
+  multicast_sockaddr.sin_family = AF_INET;
+  strcpy(vm_ip, tour_list_node[0].node_ip);
+  token = strtok(vm_ip, ":");
+  Inet_pton (AF_INET, token, &multicast_sockaddr.sin_addr.s_addr);
+  token = strtok(NULL, ":");
+  mul_port = atoi(token);
+  printf("mul_port: %d\n", mul_port);
+  multicast_sockaddr.sin_port = htons(mul_port);
+  printf("sock_ntop: %s\n", Sock_ntop((SA*)&multicast_sockaddr, sizeof(multicast_sockaddr)));
+  len = sizeof(multicast_sockaddr);
+  Mcast_join(multi_recv, (SA*)&multicast_sockaddr, len, NULL, 0);
+  printf("Mcast_join returned\n");
+  send_rt (tour_list_node, argc + 1);
 }
 
 void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
   int i, cur;
-  // go to cur
+  struct sockaddr_in multicast_sockaddr;
+  char vm_ip[MAX_IP_LEN];
+  char *token;
+  unsigned int mul_port;
+  socklen_t len;
+  char mul_msg[100], my_hostname[MAXLINE];
+
+  // Join multicast grp
+  bzero(&multicast_sockaddr, sizeof(multicast_sockaddr));
+  multicast_sockaddr.sin_family = AF_INET;
+  strcpy(vm_ip, tour_list_node[0].node_ip);
+  token = strtok(vm_ip, ":");
+  Inet_pton (AF_INET, token, &multicast_sockaddr.sin_addr.s_addr);
+  token = strtok(NULL, ":");
+  mul_port = atoi(token);
+  printf("mul_port: %d\n", mul_port);
+  multicast_sockaddr.sin_port = htons(mul_port);
+  printf("sock_ntop: %s\n", Sock_ntop((SA*)&multicast_sockaddr, sizeof(multicast_sockaddr)));
+  len = sizeof(multicast_sockaddr);
+  Mcast_join(multi_recv, (SA*)&multicast_sockaddr, len, NULL, 0);
+  printf("Mcast_join returned\n");
+
+  // go to cur and update it.
   for (i = 0; i < list_len; i++) {
     if (tour_list_node[i].is_cur == YES) {
       cur = i + 1;
       tour_list_node[i].is_cur = NO;
     }
   }
-  if (cur == list_len - 1) return;
+  if (cur == list_len - 1) {
+    // send msg to multicast grp.
+    printf("Sending a multicast_msg\n");
+    gethostname(my_hostname, sizeof(my_hostname));
+    sprintf(mul_msg, "<<<<< This is node %s. Tour has ended. Group memebers please identify yourselves.>>>>>", my_hostname);
+    mul_msg[strlen(mul_msg)] = 0;
+    printf("Node %s. Sending: %s\n", my_hostname, mul_msg);
+    Sendto(multi_send, mul_msg, strlen(mul_msg), 0, (SA*)&multicast_sockaddr, len);
+    return;
+  }
   else {
     // send to next
     tour_list_node[cur].is_cur = YES;
@@ -195,21 +251,37 @@ int main(int argc, char *argv[]) {
 
   struct ip ip_hdr;
   void *buf;
-  struct sockaddr_in recvd;
+  struct sockaddr_in recvd, recv_multi;
   struct hostent *hptr;
   const int on = 1;
-  int status, maxfdp1, n, list_len;
+  int status, maxfdp1, n, list_len, nready;
   fd_set cur_set, org_set;
   time_t ticks;
   socklen_t len;
   char str[INET_ADDRSTRLEN];
+  char mul_msg[100], my_hostname[MAXLINE];
+  struct timeval tv;
   tour_list_node_t* tour_list_node;
   rt = socket(AF_INET, SOCK_RAW, USID_PROTO);
   pg = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+  multi_send = socket(AF_INET, SOCK_DGRAM, 0);
+  multi_recv = socket(AF_INET, SOCK_DGRAM, 0);
   if (setsockopt(rt, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) < 0) {
     printf("setsockpot for rt socket error.\n");
     exit(0);
   }
+  Setsockopt(multi_send, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+  Setsockopt(multi_recv, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+  Setsockopt(rt, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+  Setsockopt(pg, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
+  // Bind the multi_recv socket
+  bzero(&recv_multi, sizeof(recv_multi));
+  recv_multi.sin_family = AF_INET;
+  recv_multi.sin_port = htons(MUL_PORT);
+  Inet_pton (AF_INET, MUL_GRP_IP, &recv_multi.sin_addr.s_addr);
+  Bind(multi_recv, (SA*)&recv_multi, sizeof(recv_multi));
+
   bzero(&recvd, sizeof(recvd));
   if (argc >= 2) {
     make_list(argc, argv);
@@ -218,7 +290,9 @@ int main(int argc, char *argv[]) {
   FD_ZERO(&cur_set);
   FD_SET(rt, &org_set);
   FD_SET(pg, &org_set);
-  maxfdp1 = rt > pg ? (rt + 1) : (pg + 1);
+  FD_SET(multi_recv, &org_set);
+  maxfdp1 = rt > pg ? (rt) : (pg);
+  maxfdp1 = multi_recv > maxfdp1 ? (multi_recv + 1) : (maxfdp1 + 1);
   for (; ;) {
     cur_set = org_set;
     Select(maxfdp1, &cur_set, NULL, NULL, NULL);
@@ -239,6 +313,39 @@ int main(int argc, char *argv[]) {
         print_tour_list(tour_list_node, list_len);
         process_recvd_tour_list(tour_list_node, list_len);
       }
+    }
+    if (FD_ISSET(multi_recv, &cur_set)) {
+      len = sizeof(recvd); // always initialize len
+      n = recvfrom(multi_recv, mul_msg, 100, 0, (SA*) &recvd, &len);
+      gethostname(my_hostname, sizeof(my_hostname));
+      printf("Node %s. Received %s\n", my_hostname, mul_msg);
+      // stop pinging
+      // send second/response multicast msg
+      sprintf(mul_msg, "<<<<<Node %s. I am a member of the group.>>>>>", my_hostname);
+      mul_msg[strlen(mul_msg)] = 0;
+      printf("Node %s. Sending: %s\n", my_hostname, mul_msg);
+      Sendto(multi_send, mul_msg, strlen(mul_msg), 0, (SA*)&recv_multi, len);
+      break;
+    }
+  }
+  FD_ZERO(&org_set);
+  FD_ZERO(&cur_set);
+  FD_SET(multi_recv, &org_set);
+  maxfdp1 = multi_recv + 1;
+  tv.tv_sec = 5;
+  tv.tv_usec = 0;
+  for (; ;) {
+    cur_set = org_set;
+    nready = Select(maxfdp1, &cur_set, NULL, NULL, &tv);
+    if (nready == 0) {
+      printf("5 seconds completed. Terminating Tour application. Goodbye!\n");
+      return;
+    }
+    if (FD_ISSET(multi_recv, &cur_set)) {
+      len = sizeof(recvd); // always initialize len
+      n = recvfrom(multi_recv, mul_msg, 100, 0, (SA*) &recvd, &len);
+      gethostname(my_hostname, sizeof(my_hostname));
+      printf("Node %s. Received %s\n", my_hostname, mul_msg);
     }
   }
   return 0;

@@ -26,12 +26,18 @@
 
 #define YES 0
 #define NO 1
+#define MUL 9
 
 #define USID_PROTO 147
 
 #define ETH_HDRLEN 14  // Ethernet header length
 #define IP4_HDRLEN 20  // IPv4 header length
 #define ICMP_HDRLEN 8  // ICMP header length for echo request, excludes data
+
+// Multicast related, used only by first node of the list, rest will recv
+// it as a part of the tour list.
+#define MUL_GRP_IP "239.255.1.7"
+#define MUL_PORT 40383
 
 typedef struct {
   char node_ip[MAX_IP_LEN];
