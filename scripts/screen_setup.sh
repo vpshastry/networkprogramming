@@ -24,4 +24,4 @@ do
   fi
 done
 printf "Done,  now you can join your screen with :\n"
-printf "$ screen -dr -S $SCREEN_NAME \n"
+printf " screen -dr -S $SCREEN_NAME \n"
