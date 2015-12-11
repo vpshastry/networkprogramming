@@ -125,6 +125,7 @@ void pinging() {
   char interface[MAXLINE];
   uint8_t src_mac[6];
   struct sockaddr_ll device;
+  char src_ip[MAX_IP_LEN], target[MAX_IP_LEN];
 
   sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL));
 
@@ -159,6 +160,21 @@ void pinging() {
     //exit (EXIT_FAILURE);
   }
   printf ("Index for interface %s is %i\n", interface, device.sll_ifindex);
+  // Set destination MAC address: you need to fill these out
+  dst_mac[0] = 0x00;
+  dst_mac[1] = 0x0c;
+  dst_mac[2] = 0x29;
+  dst_mac[3] = 0xd9;
+  dst_mac[4] = 0x08;
+  dst_mac[5] = 0xec;
+
+  // Source IPv4 address: you need to fill this out
+  strcpy (src_ip, "130.245.156.21");
+
+  // Destination URL or IPv4 address: you need to fill this out
+  strcpy (target, "130.245.156.22");
+
+  
 }
 
 void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
@@ -200,13 +216,13 @@ void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
     // send msg to multicast grp.
     printf("Sending a multicast_msg\n");
     gethostname(my_hostname, sizeof(my_hostname));
-    sprintf(mul_msg, "<<<<< This is node %s. Tour has ended. Group memebers please identify yourselves.>>>>>", my_hostname);
-    mul_msg[strlen(mul_msg)] = 0;
-    printf("Node %s. Sending: %s\n", my_hostname, mul_msg);
-    Sendto(multi_send, mul_msg, strlen(mul_msg), 0, (SA*)&multicast_sockaddr, len);
-    return;
+   sprintf(mul_msg, "<<<<< This is node %s. Tour has ended. Group memebers please identify yourselves.>>>>>", my_hostname);
+  mul_msg[strlen(mul_msg)] = 0;
+ printf("Node %s. Sending: %s\n", my_hostname, mul_msg);
+Sendto(multi_send, mul_msg, strlen(mul_msg), 0, (SA*)&multicast_sockaddr, len);
+eturn;
   }
-  else {
+ else {
     // send to next
     tour_list_node[cur].is_cur = YES;
     send_rt(tour_list_node, list_len);
