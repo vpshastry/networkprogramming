@@ -4,7 +4,6 @@ cache_t gcache[CACHE_SIZE_GRAN];
 int gcur_cache_len = -1;
 extern const unsigned long gmy_ip_addr;
 extern const char gmy_hw_addr[IF_HADDR];
-extern const int gmy_if_idx;
 const char gbroadcast_hwaddr[IF_HADDR] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 int
@@ -95,8 +94,8 @@ update_cache(cache_t *c, arp_t arp)
   printf ("TRACE: Updating entry in cache for %s\n",
 		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
 
-  cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr,
-                        c->hwaddr.sll_ifindex, c->uds_fd);
+  cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr, 1/* TODO */,
+                        c->uds_fd);
 
   if (TRACE) print_cache();
 }
