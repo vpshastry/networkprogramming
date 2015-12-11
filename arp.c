@@ -2,9 +2,9 @@
 
 cache_t gcache[CACHE_SIZE_GRAN];
 int gcur_cache_len = -1;
-extern unsigned long gmy_ip_addr;
-extern char gmy_hw_addr[IF_HADDR];
-char gbroadcast_hwaddr[IF_HADDR] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+extern const unsigned long gmy_ip_addr;
+extern const char gmy_hw_addr[IF_HADDR];
+const char gbroadcast_hwaddr[IF_HADDR] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 int
 create_bind_pf_packet()
@@ -46,7 +46,7 @@ print_cache()
   int i = 0;
   char str[INET_ADDRSTRLEN];
 
-  printf ("\nCache entries.\n");
+  printf ("Cache entries.\n");
   printf ("IP\t\tHW\n");
   printf ("---------------------------------\n");
   for (i = 0; i <= gcur_cache_len; ++i) {
@@ -191,6 +191,8 @@ send_arp_response(arp_t recvarp, int pf_fd, struct hwa_info *vminfo,
   arp_t arp;
   struct hwa_info sending_vminfo;
 
+  bzero(&arp, sizeof(arp_t));
+
   // New fill up.
   memcpy(arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
   arp.op = ARP_REPLY;
@@ -215,6 +217,8 @@ send_arp_req(msg_t msg, int accepted_fd, int pf_fd, struct hwa_info *vminfo, int
 {
   arp_t arp;
   struct hwa_info sending_vminfo;
+
+  bzero(&arp, sizeof(arp_t));
 
   arp.hard_type = ETH_TYPE;
   arp.proto_type = PROTO_TYPE;
@@ -250,16 +254,13 @@ recv_pf_packet(int pf_fd, struct hwa_info *vminfo, int ninterfaces,
 
   memcpy(&arp, buffer+14, sizeof(arp_t));
 
-  printf ("Received.\n");
   print_arp(arp);
 
   cache_entry = cache_already_exists_ip(arp.senderipaddr);
 
   switch(arp.op) {
     case ARP_REQUEST:
-      printf ("Received ARP request.\n");
       if (is_it_for_me(arp, vminfo, ninterfaces)) {
-        printf ("Request is for me\n");
         if (!cache_entry)
           append_to_cache(arp.senderhwaddr, arp.senderipaddr,
                           socket_address.sll_ifindex, 0);
@@ -269,24 +270,15 @@ recv_pf_packet(int pf_fd, struct hwa_info *vminfo, int ninterfaces,
         send_arp_response(arp, pf_fd, vminfo, ninterfaces);
 
       } else if (cache_entry) {
-        printf ("Request is NOT for me but updating\n");
         update_cache(cache_entry, arp);
-
-      } else {
-        printf ("Request is NOT for me\n");
       }
       break;
 
     case ARP_REPLY:
-      printf ("Received ARP Response.\n");
       if (!cache_entry)
-        append_to_cache(arp.senderhwaddr, arp.senderipaddr,
-                        socket_address.sll_ifindex, -1);
-      else
-        update_cache(cache_entry, arp);
+        err_quit("This should not be the case.\n");
 
-      if (!(cache_entry = cache_already_exists_ip(arp.senderipaddr)))
-        err_quit("Something wrong. No cache entry soon after it's insertion.\n");
+      update_cache(cache_entry, arp);
 
       send_reply_and_close_conn(cache_entry, &cache_entry->uds_fd);
       break;
@@ -307,7 +299,11 @@ process_client_req(int accepted_fd, int pf_fd,
 
   Read(accepted_fd, &msg, sizeof(msg));
 
+  printf ("TRACE: Accepted a new request for %s\n",
+              inet_ntoa(*(struct in_addr *)&IP_ADDR(msg.IPaddr)));
+
   if ((cache_entry = cache_already_exists_ip(IP_ADDR(msg.IPaddr)))) {
+    printf ("TRACE: Found %s in cache. Replying right here.\n");
     send_reply_and_close_conn(cache_entry, &accepted_fd);
     return;
   }
@@ -329,9 +325,11 @@ listen_on_fds(int pf_fd, int uds_fd, struct hwa_info *vminfo, int ninterfaces)
   FD_SET(uds_fd, &org_set);
   FD_SET(pf_fd, &org_set);
   maxfdp1 = ((uds_fd > pf_fd)? uds_fd : pf_fd) + 1;
-  printf("FD's set, now going into select loop....\n");
+  printf("FD's set, now going into select loop....\n\n");
 
   while (1) {
+    printf ("\n");
+
     cur_set = org_set;
     accepted_fd = -1;
 
@@ -339,12 +337,13 @@ listen_on_fds(int pf_fd, int uds_fd, struct hwa_info *vminfo, int ninterfaces)
 
     if (FD_ISSET(uds_fd, &cur_set)) {
       accepted_fd = Accept(uds_fd, NULL, 0);
-      printf ("Accepted a new client");
       process_client_req(accepted_fd, pf_fd, vminfo, ninterfaces);
     }
 
     if (FD_ISSET(pf_fd, &cur_set))
       recv_pf_packet(pf_fd, vminfo, ninterfaces, uds_fd);
+
+    printf ("\n");
   }
 }
 
@@ -355,7 +354,7 @@ init_global_vars()
     err_quit("ARP is bigger than ETH_FRAME_LEN\n");
 
   if (TRACE) {
-    printf ("my ip addr: %s, my hwaddr: ",
+    printf ("TRACE: my ip addr: %s, my hwaddr: ",
               inet_ntoa(*(struct in_addr *)&gmy_ip_addr));
     print_mac_adrr(gmy_hw_addr);
     printf ("\n");

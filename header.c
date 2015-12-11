@@ -162,7 +162,7 @@ build_vminfos(struct hwa_info* vminfo)
 }
 
 void
-send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
+send_pf_packet(int s, struct hwa_info vminfo, const unsigned char* dest_mac,
                 arp_t arp)
 {
   int k = 0, j = 0, prflag;
@@ -266,10 +266,10 @@ get_ifnametovminfo(struct hwa_info *vminfo, int ninterfaces, char *find_if,
 }
 
 void
-print_mac_adrr(char mac_addr[6])
+print_mac_adrr(const char mac_addr[6])
 {
   int i = 0;
-  char* ptr;
+  const char* ptr;
   i = IF_HADDR;
   ptr = mac_addr;
   do {

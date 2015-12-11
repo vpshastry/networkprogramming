@@ -112,7 +112,7 @@ typedef struct tofrom_arp_tour msg_t;
 int areq(struct sockaddr *IPaddress, socklen_t sockaddrlen,
           struct hwaddr *HWaddr);
 char * get_mac(char mac[IF_HADDR]);
-void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
-                    arp_t arp);
-void print_mac_adrr(char mac_addr[6]);
+void send_pf_packet(int s, struct hwa_info vminfo,
+                    const unsigned char* dest_mac, arp_t arp);
+void print_mac_adrr(const char mac_addr[6]);
 #endif
