@@ -117,6 +117,7 @@ build_vminfos(struct hwa_info* vminfo)
     if (hwa->ip_alias != IP_ALIAS) {
       sa = hwa->ip_addr;
       gmy_ip_addr = ((struct sockaddr_in *)sa)->sin_addr.s_addr;
+      memcpy(gmy_hw_addr, hwa->if_haddr, IF_HADDR);
     }
 
     printf("%s :%s", hwa->if_name, ((hwa->ip_alias) == IP_ALIAS) ? " (alias)\n" : "\n");
@@ -162,7 +163,7 @@ build_vminfos(struct hwa_info* vminfo)
 
 void
 send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
-                buffer_t *buf)
+                arp_t arp)
 {
   int k = 0, j = 0, prflag;
   char* ptr;
@@ -199,11 +200,6 @@ send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
     } while (--j > 0);
   }
 
-  memcpy((void*)buf->ethhead.desthwaddr, (void*)dest_mac, ETH_ALEN);
-  memcpy((void*)buf->ethhead.srchwaddr, (void*)src_mac, ETH_ALEN);
-  buf->ethhead.frame_type = FRAME_TYPE;
-  eh->h_proto = htons(USID_PROTO);
-
   /*other host MAC address*/
   //unsigned char dest_mac[6] = {0x00, 0x0c, 0x29, 0xd9, 0x08, 0xf6};
 
@@ -235,7 +231,11 @@ send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
   socket_address.sll_addr[7]  = 0x00;/*not used*/
 
 
-  memcpy(buffer, buf, sizeof(buffer_t));
+  memcpy(buffer +14, &arp, sizeof(arp_t));
+
+  memcpy((void*)buffer, (void*)dest_mac, ETH_ALEN);
+  memcpy((void*)(buffer+ETH_ALEN), (void*)src_mac, ETH_ALEN);
+  eh->h_proto = htons(USID_PROTO);
 
   /*set the frame header*/
 

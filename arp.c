@@ -140,7 +140,10 @@ append_to_cache(char hwaddr[IF_HADDR], unsigned long ip, int ifidx, int uds_fd)
   if (gcur_cache_len > CACHE_SIZE_GRAN || gcur_cache_len < 0)
     err_quit("So many IP addreses for 10 vms or problem with gcur_cachelen\n");
 
-  cache_copy_from_args(&gcache[++gcur_cache_len], hwaddr, ip, ifidx, uds_fd);
+  cache_t *c = &gcache[++gcur_cache_len];
+  bzero(c, sizeof(cache_t));
+
+  cache_copy_from_args(c, hwaddr, ip, ifidx, uds_fd);
 
   if (TRACE) print_cache();
 }
@@ -150,6 +153,7 @@ init_cache(struct hwa_info *vminfo, int ninterfaces)
 {
   int i;
   char str[INET_ADDRSTRLEN];
+  cache_t *c = NULL;
 
   for (i = 0; i < ninterfaces; ++i) {
     printf ("Initing for %s, IP: %s, MAC:", vminfo[i].if_name,
@@ -158,7 +162,10 @@ init_cache(struct hwa_info *vminfo, int ninterfaces)
     print_mac_adrr(vminfo[i].if_haddr);
     printf ("\n");
 
-    cache_copy_from_args(&gcache[++gcur_cache_len], vminfo[i].if_haddr,
+    c = &gcache[++gcur_cache_len];
+    bzero(c, sizeof(cache_t));
+
+    cache_copy_from_args(c, vminfo[i].if_haddr,
                           ((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr,
                           vminfo[i].if_index, 0);
   }
@@ -197,19 +204,32 @@ is_it_for_me(arp_t arp, struct hwa_info *vminfo, int ninterfaces)
 {
   int i;
 
-  for (i = 0; i < ninterfaces; ++i)
-    if ((arp.targetipaddr == IP_ADDR(vminfo[i].ip_addr)) &&
-        !memcmp(arp.targethwaddr, vminfo[i].if_haddr, IF_HADDR))
-      return 1;
+  for (i = 0; i < ninterfaces; ++i) {
+    printf ("Req IP: %s(%lu)", inet_ntoa(*(struct in_addr *)&arp.targetipaddr), (unsigned long)arp.targetipaddr);
+    printf ("\tCur IP: %s(%lu)", inet_ntoa(*(struct in_addr *)&((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr), (unsigned long)((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr);
+    printf ("\n");
 
+    if ((unsigned long)arp.targetipaddr == (unsigned long)((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr)
+      return 1;
+  }
+
+  printf ("Not in here\n");
   return 0;
 }
 
 void
-print_buffer_t(buffer_t buffer)
+print_arp(arp_t arp)
 {
-  printf ("TRACE: Requesting MAC for IP: %s\n",
-            inet_ntoa(*(struct in_addr *)&buffer.arp.targetipaddr));
+  if (arp.op == ARP_REQUEST)
+    printf ("TRACE: Requesting for MAC with IP %s\n",
+              inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
+  else {
+    printf ("TRACE: Responding to %s(", inet_ntoa(*(struct in_addr*)&arp.targetipaddr));
+    print_mac_adrr(arp.targethwaddr);
+    printf (") with my mac:");
+    print_mac_adrr(arp.senderhwaddr);
+    printf ("\n");
+  }
 }
 
 
@@ -236,49 +256,52 @@ send_reply_and_close_conn(cache_t *cache_entry, int *fd)
 }
 
 void
-send_arp_response(buffer_t recvbuffer, int pf_fd, struct hwa_info *vminfo,
+send_arp_response(arp_t recvarp, int pf_fd, struct hwa_info *vminfo,
                   int ninterfaces)
 {
-  buffer_t buffer;
+  arp_t arp;
   struct hwa_info sending_vminfo;
 
   // New fill up.
-  memcpy(buffer.arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
-  buffer.arp.op = ARP_REPLY;
+  memcpy(arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
+  arp.op = ARP_REPLY;
 
   // Copy everything else.
-  buffer.arp.hard_type = recvbuffer.arp.hard_type;
-  buffer.arp.proto_type = recvbuffer.arp.proto_type;
-  buffer.arp.hard_size = recvbuffer.arp.hard_size;
-  buffer.arp.proto_size = recvbuffer.arp.proto_size;
-  buffer.arp.senderipaddr = recvbuffer.arp.targetipaddr;
-  memcpy(buffer.arp.targethwaddr, recvbuffer.arp.senderhwaddr, IF_HADDR);
-  buffer.arp.targetipaddr = recvbuffer.arp.senderipaddr;
+  arp.hard_type = recvarp.hard_type;
+  arp.proto_type = recvarp.proto_type;
+  arp.hard_size = recvarp.hard_size;
+  arp.proto_size = recvarp.proto_size;
+  arp.senderipaddr = recvarp.targetipaddr;
+  memcpy(arp.targethwaddr, recvarp.senderhwaddr, IF_HADDR);
+  arp.targetipaddr = recvarp.senderipaddr;
+
+  print_arp(arp);
 
   get_ifnametovminfo(vminfo, ninterfaces, INTERESTED_IF, &sending_vminfo);
-  send_pf_packet(pf_fd, sending_vminfo, gbroadcast_hwaddr, &buffer);
+  send_pf_packet(pf_fd, sending_vminfo, recvarp.senderhwaddr, arp);
 }
 
 void
 send_arp_req(msg_t msg, int accepted_fd, int pf_fd, struct hwa_info *vminfo, int ninterfaces)
 {
-  buffer_t buffer;
+  arp_t arp;
   struct hwa_info sending_vminfo;
 
-  buffer.arp.hard_type = ETH_TYPE;
-  buffer.arp.proto_type = PROTO_TYPE;
-  buffer.arp.hard_size = ETH_SIZE;
-  buffer.arp.proto_size = PROTO_SIZE;
-  buffer.arp.op = ARP_REQUEST;
-  memcpy(buffer.arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
-  buffer.arp.senderipaddr = gmy_ip_addr;
-  buffer.arp.targetipaddr = IP_ADDR(msg.IPaddr);
+  arp.hard_type = ETH_TYPE;
+  arp.proto_type = PROTO_TYPE;
+  arp.hard_size = ETH_SIZE;
+  arp.proto_size = PROTO_SIZE;
+  arp.op = ARP_REQUEST;
+  memcpy(arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
+  arp.senderipaddr = gmy_ip_addr;
+  arp.targetipaddr = IP_ADDR(msg.IPaddr);
 
-  print_buffer_t(buffer);
+  print_arp(arp);
+
   get_ifnametovminfo(vminfo, ninterfaces, INTERESTED_IF, &sending_vminfo);
-  send_pf_packet(pf_fd, sending_vminfo, gbroadcast_hwaddr, &buffer);
+  send_pf_packet(pf_fd, sending_vminfo, gbroadcast_hwaddr, arp);
 
-  append_to_cache(buffer.arp.targethwaddr, buffer.arp.targetipaddr,
+  append_to_cache(arp.targethwaddr, arp.targetipaddr,
                   sending_vminfo.if_index, accepted_fd);
 }
 
@@ -289,38 +312,47 @@ recv_pf_packet(int pf_fd, struct hwa_info *vminfo, int ninterfaces,
   struct sockaddr_ll socket_address;
   socklen_t sock_len = sizeof(socket_address);
   /*buffer for ethernet frame*/
-  buffer_t *buffer = Calloc(1, sizeof(buffer_t));
+  char *buffer = Calloc(1, sizeof(ETH_FRAME_LEN));
   int length = 0; /*length of the received frame*/
   arp_t arp;
-  eth_header_t eth_head;
   cache_t *cache_entry = NULL;
 
   length = recvfrom(pf_fd, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, &sock_len);
 
-  memcpy(&eth_head, &buffer->ethhead, sizeof(eth_header_t));
-  memcpy(&arp, &buffer->arp, sizeof(arp_t));
+  memcpy(&arp, buffer+14, sizeof(arp_t));
 
-  print_buffer_t(*buffer);
+  printf ("Received.\n");
+  print_arp(arp);
 
   cache_entry = cache_already_exists_ip(arp.senderipaddr);
 
   switch(arp.op) {
     case ARP_REQUEST:
+      printf ("Received ARP request.\n");
       if (is_it_for_me(arp, vminfo, ninterfaces)) {
-        if (!cache_entry)
+        printf ("Request is for me\n");
+        if (!cache_entry) {
+          print_mac_adrr(arp.senderhwaddr);
+          printf ("\n");
           append_to_cache(arp.senderhwaddr, arp.senderipaddr,
-                          socket_address.sll_ifindex, -1);
+                          socket_address.sll_ifindex, 0);
+        }
         else
           update_cache(cache_entry, arp);
 
-        send_arp_response(*buffer, pf_fd, vminfo, ninterfaces);
+        send_arp_response(arp, pf_fd, vminfo, ninterfaces);
 
       } else if (cache_entry) {
+        printf ("Request is NOT for me but updating\n");
         update_cache(cache_entry, arp);
+
+      } else {
+        printf ("Request is NOT for me\n");
       }
       break;
 
     case ARP_REPLY:
+      printf ("Received ARP Response.\n");
       if (!cache_entry)
         append_to_cache(arp.senderhwaddr, arp.senderipaddr,
                         socket_address.sll_ifindex, -1);
@@ -393,12 +425,15 @@ listen_on_fds(int pf_fd, int uds_fd, struct hwa_info *vminfo, int ninterfaces)
 void
 init_global_vars()
 {
-  if (ETH_FRAME_LEN < (14 +sizeof(buffer_t)))
-    err_quit("Buffer is bigger than ETH_FRAME_LEN\n");
+  if (ETH_FRAME_LEN < (14 +sizeof(arp_t)))
+    err_quit("ARP is bigger than ETH_FRAME_LEN\n");
 
-  if (TRACE)
-    printf ("my ip addr%s\n",
+  if (TRACE) {
+    printf ("my ip addr: %s, my hwaddr: ",
               inet_ntoa(*(struct in_addr *)&gmy_ip_addr));
+    print_mac_adrr(gmy_hw_addr);
+    printf ("\n");
+  }
 
   return;
 }

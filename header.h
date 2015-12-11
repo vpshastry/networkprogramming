@@ -108,11 +108,6 @@ typedef struct arp {
   unsigned long targetipaddr;
 } __attribute__((__packed__)) arp_t;
 
-typedef struct buffer {
-  eth_header_t ethhead;
-  arp_t arp;
-}__attribute__((__packed__)) buffer_t;
-
 struct tofrom_arp_tour {
   struct sockaddr_in IPaddr;
   socklen_t sockaddrlen;
@@ -124,6 +119,6 @@ int areq(struct sockaddr *IPaddress, socklen_t sockaddrlen,
           struct hwaddr *HWaddr);
 char * get_mac(char mac[IF_HADDR]);
 void send_pf_packet(int s, struct hwa_info vminfo, unsigned char* dest_mac,
-                    buffer_t *buffer);
+                    arp_t arp);
 void print_mac_adrr(char mac_addr[6]);
 #endif
