@@ -4,6 +4,7 @@ cache_t gcache[CACHE_SIZE_GRAN];
 int gcur_cache_len = -1;
 extern const unsigned long gmy_ip_addr;
 extern const char gmy_hw_addr[IF_HADDR];
+extern const int gmy_if_idx;
 const char gbroadcast_hwaddr[IF_HADDR] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 int
@@ -91,8 +92,8 @@ cache_already_exists_ip(unsigned long ip)
 void
 update_cache(cache_t *c, arp_t arp)
 {
-  cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr, 1/* TODO */,
-                        c->uds_fd);
+  cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr,
+                        c->hwaddr.if_index, c->uds_fd);
 
   if (TRACE) print_cache();
 }
