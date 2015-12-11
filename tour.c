@@ -119,48 +119,6 @@ void make_list(int argc, char* argv[]) {
   send_rt (tour_list_node, argc + 1);
 }
 
-void pinging() {
-  int sd, i;
-  struct ifreq ifr;
-  char interface[MAXLINE];
-  uint8_t src_mac[6];
-  struct sockaddr_ll device;
-
-  sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL));
-
-
-  // Interface to send packet through.
-  strcpy (interface, "eth0");
-
-  // Use ioctl() to look up interface name and get its MAC address.
-  memset (&ifr, 0, sizeof (ifr));
-  snprintf (ifr.ifr_name, sizeof (ifr.ifr_name), "%s", interface);
-  if (ioctl (sd, SIOCGIFHWADDR, &ifr) < 0) {
-    perror ("ioctl() failed to get source MAC address ");
-    //return (EXIT_FAILURE);
-  }
-  close (sd);
-
-  // Copy source MAC address.
-  memcpy (src_mac, ifr.ifr_hwaddr.sa_data, 6);
-
-  // Report source MAC address to stdout.
-  printf ("MAC address for interface %s is ", interface);
-  for (i=0; i<5; i++) {
-    printf ("%02x:", src_mac[i]);
-  }
-  printf ("%02x\n", src_mac[5]);
-
-  // Find interface index from interface name and store index in
-  // struct sockaddr_ll device, which will be used as an argument of sendto().
-  memset (&device, 0, sizeof (device));
-  if ((device.sll_ifindex = if_nametoindex (interface)) == 0) {
-    perror ("if_nametoindex() failed to obtain interface index ");
-    //exit (EXIT_FAILURE);
-  }
-  printf ("Index for interface %s is %i\n", interface, device.sll_ifindex);
-}
-
 void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
   int i, cur;
   struct sockaddr_in multicast_sockaddr;
@@ -184,10 +142,6 @@ void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
   len = sizeof(multicast_sockaddr);
   Mcast_join(multi_recv, (SA*)&multicast_sockaddr, len, NULL, 0);
   printf("Mcast_join returned\n");
-
-
-  // start ICMP
-  pinging();
 
   // go to cur and update it.
   for (i = 0; i < list_len; i++) {
