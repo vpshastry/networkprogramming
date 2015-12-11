@@ -9,14 +9,9 @@ FLAGS = -g -O2
 
 CFLAGS = ${FLAGS} -I${LINUX_STEVENS_BASE}/lib
 
-all: header.o readline.o prhwaddrs.o get_hw_addrs.o tour arp myclient
+all: readline.o prhwaddrs.o get_hw_addrs.o header.o tour arp
 
 ## Packed
-
-myclient: myclient.o
-	${CC} ${FLAGS} -o myclient myclient.o readline.o header.o get_hw_addrs.o ${LIBS}
-myclient.o: myclient.c
-	${CC} ${CFLAGS} -c myclient.c header.h
 
 get_hw_addrs.o: get_hw_addrs.c
 	${CC} ${CFLAGS} -c get_hw_addrs.c
@@ -26,7 +21,7 @@ prhwaddrs.o: prhwaddrs.c
 ## End packed.
 
 header.o: header.h header.c
-	${CC} ${CFLAGS} -c header.c header.h
+	${CC} ${CFLAGS} -c header.c
 
 tour: tour.o readline.o header.o get_hw_addrs.o prhwaddrs.o
 	${CC} ${FLAGS} -o tour tour.o readline.o prhwaddrs.o get_hw_addrs.o header.o ${LIBS}
