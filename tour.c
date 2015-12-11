@@ -1,5 +1,7 @@
 #include "header.h"
 
+int rt, pg, pf_packet, multi;
+
 void get_ip_of_vm(char vmno_str[6], char* final_ip, int length){
 
   struct hostent *hptr;
@@ -30,6 +32,7 @@ void get_ip_of_vm(char vmno_str[6], char* final_ip, int length){
 
 // Computing the internet checksum (RFC 1071).
 // Note that the internet checksum does not preclude collisions.
+// Source : link given in assignment spec.
 uint16_t
 checksum (uint16_t *addr, int len)
 {
@@ -63,9 +66,12 @@ checksum (uint16_t *addr, int len)
 
 void print_tour_list(tour_list_node_t* tour_list_node, int length) {
   int i;
+  printf("_________TOUR LIST_________\n");
   for (i = 0; i < length; i++) {
+    if (tour_list_node[i].is_cur == YES) printf("CUR->");
     printf("%s\n", tour_list_node[i].node_ip);
   }
+  printf("___________END_________\n");
 }
 
 void make_list(int argc, char* argv[]) {
@@ -85,17 +91,47 @@ void make_list(int argc, char* argv[]) {
   strcpy(tour_list_node[0].node_ip, vm_ip);
   tour_list_node[0].is_cur = YES;
   print_tour_list(tour_list_node, argc);
-} 
+  send_rt (tour_list_node, argc);
+}
 
-send_rt(int rt, struct sockaddr_in dest) {
+void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
+  int i, cur;
+  // go to cur
+  for (i = 0; i < list_len; i++) {
+    if (tour_list_node[i].is_cur == YES) {
+      cur = i + 1;
+      tour_list_node[i].is_cur = NO;
+    }
+  }
+  if (cur == list_len - 1) return;
+  else {
+    // send to next
+    tour_list_node[cur].is_cur = YES;
+    send_rt(tour_list_node, list_len);
+  }
+}
+
+send_rt(tour_list_node_t* tour_list_node, int list_len) {
 
   struct ip ip_hdr;
   socklen_t len;
-  int status;
+  int status, i;
+  struct sockaddr_in dest;
+  void *buf;
+
+  // tour list related
+  tour_list_node_t cur_node;
+  tour_list_node_t dest_node;
+
+  // init operations
+  bzero(&dest, sizeof(dest));
+
   // make ip_header
   // IPv4 header length (4 bits): Number of 32-bit words in header = 5
-  ip_hdr.ip_hl = IP4_HDRLEN / sizeof (uint32_t);
+  ip_hdr.ip_hl = (IP4_HDRLEN / sizeof (uint32_t)); //+ sizeof(tour_list_node_t * list_len);
 
+  //print_tour_list(tour_list_node, list_len);
+  
   // Internet Protocol version (4 bits): IPv4
   ip_hdr.ip_v = 4;
 
@@ -103,7 +139,7 @@ send_rt(int rt, struct sockaddr_in dest) {
   ip_hdr.ip_tos = 0;
 
   // Total length of datagram (16 bits): IP header + data
-  ip_hdr.ip_len = htons (IP4_HDRLEN);
+  ip_hdr.ip_len = htons ((IP4_HDRLEN) + (sizeof(tour_list_node_t) * list_len));
 
   // ID sequence number (16 bits): unused, since single datagram
   ip_hdr.ip_id = htons (USID_PROTO);
@@ -116,14 +152,23 @@ send_rt(int rt, struct sockaddr_in dest) {
   // Transport layer protocol (8 bits): 1 for ICMP
   ip_hdr.ip_p = USID_PROTO;
 
+  // Get cur element from list: this should be me. And that should be
+  // the src addr.
+  for (i = 0; i < list_len; i++) {
+    if (tour_list_node[i].is_cur == YES) {
+      memcpy(&cur_node, &tour_list_node[i], sizeof(tour_list_node_t));
+      //TODO : make sure i+1 is valid and it is not end of list.
+      memcpy(&dest_node, &tour_list_node[i+1], sizeof(tour_list_node_t));
+    }
+  }
   // Source IPv4 address (32 bits)
-  if ((status = inet_pton (AF_INET, "130.245.156.21", &(ip_hdr.ip_src))) != 1) {
+  if ((status = inet_pton (AF_INET, cur_node.node_ip, &(ip_hdr.ip_src))) != 1) {
     fprintf (stderr, "inet_pton() failed.\nError message: %s", strerror (status));
     exit (EXIT_FAILURE);
   }
 
   // Destination IPv4 address (32 bits)
-  if ((status = inet_pton (AF_INET, "130.245.156.22", &(ip_hdr.ip_dst))) != 1) {
+  if ((status = inet_pton (AF_INET, dest_node.node_ip, &(ip_hdr.ip_dst))) != 1) {
     fprintf (stderr, "inet_pton() failed.\nError message: %s", strerror (status));
     exit (EXIT_FAILURE);
   }
@@ -131,30 +176,43 @@ send_rt(int rt, struct sockaddr_in dest) {
   // IPv4 header checksum (16 bits): set to 0 when calculating checksum
   ip_hdr.ip_sum = 0;
   ip_hdr.ip_sum = checksum ((uint16_t *) &ip_hdr, IP4_HDRLEN);
+
+  // build the dest sockaddr
+  dest.sin_family = AF_INET;
   memcpy(&dest.sin_addr.s_addr, &ip_hdr.ip_dst, sizeof(dest.sin_addr.s_addr));
   len = sizeof(dest);
-  Sendto(rt, &ip_hdr, sizeof(ip_hdr), 0, (SA*) &dest, len);
-  printf("Sent\n");
+
+  // Build data_ ip_hdr
+  buf = malloc(sizeof(ip_hdr) + (sizeof(tour_list_node_t) * list_len));
+  memcpy(buf, &ip_hdr, sizeof(ip_hdr));
+  memcpy(buf + sizeof(ip_hdr), tour_list_node, sizeof(tour_list_node_t) * list_len);
+  
+  Sendto(rt, buf, sizeof(ip_hdr) + (sizeof(tour_list_node_t) * list_len), 0, (SA*) &dest, len);
+  printf("Sent\n"); // DEBUG
 }
 
 int main(int argc, char *argv[]) {
-  int rt, pg, pf_packet, multi;
+
   struct ip ip_hdr;
-  struct sockaddr_in dest;
+  void *buf;
+  struct sockaddr_in recvd;
+  struct hostent *hptr;
   const int on = 1;
-  int status, maxfdp1, n;
+  int status, maxfdp1, n, list_len;
   fd_set cur_set, org_set;
+  time_t ticks;
+  socklen_t len;
+  char str[INET_ADDRSTRLEN];
+  tour_list_node_t* tour_list_node;
   rt = socket(AF_INET, SOCK_RAW, USID_PROTO);
   pg = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
   if (setsockopt(rt, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) < 0) {
     printf("setsockpot for rt socket error.\n");
     exit(0);
   }
-  bzero(&dest, sizeof(dest));
+  bzero(&recvd, sizeof(recvd));
   if (argc >= 2) {
-    dest.sin_family = AF_INET;
     make_list(argc, argv);
-    send_rt (rt, dest);
   }
   FD_ZERO(&org_set);
   FD_ZERO(&cur_set);
@@ -165,9 +223,22 @@ int main(int argc, char *argv[]) {
     cur_set = org_set;
     Select(maxfdp1, &cur_set, NULL, NULL, NULL);
     if (FD_ISSET(rt, &cur_set)) {
-      printf("Data recvd\n");
-      n = recvfrom(rt, &ip_hdr, sizeof(ip_hdr), 0, NULL, NULL);
-      printf("Recvd\n");
+      len = sizeof(recvd); // always initialize len
+      n = recvfrom(rt, &ip_hdr, sizeof(ip_hdr), MSG_PEEK, (SA*) &recvd, &len);
+      if (ntohs(ip_hdr.ip_id) == USID_PROTO) {
+        ticks = time(NULL);
+        hptr = gethostbyaddr (&recvd.sin_addr, sizeof(recvd.sin_addr), AF_INET);
+        printf("%.24s recieved source routing packet from %s\n", ctime(&ticks), hptr->h_name);
+        buf = malloc(ip_hdr.ip_len);
+        n = recvfrom(rt, buf, ip_hdr.ip_len, 0, (SA*) &recvd, &len);
+        memcpy(&ip_hdr, buf, sizeof(ip_hdr));
+        list_len = (ntohs(ip_hdr.ip_len) - sizeof(ip_hdr)) / sizeof(tour_list_node_t);
+        printf("tour_list_len = %d\n", list_len);
+        tour_list_node = malloc(sizeof(tour_list_node_t) * list_len);
+        memcpy(tour_list_node, buf + sizeof(ip_hdr), ntohs(ip_hdr.ip_len) - sizeof(ip_hdr));
+        print_tour_list(tour_list_node, list_len);
+        process_recvd_tour_list(tour_list_node, list_len);
+      }
     }
   }
   return 0;
