@@ -1,6 +1,7 @@
 #include "header.h"
+#include	"hw_addrs.h"
 
-void
+  void
 prhwaddrs()
 {
   struct hwa_info	*hwa, *hwahead;
