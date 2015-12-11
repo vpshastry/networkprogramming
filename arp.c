@@ -149,15 +149,25 @@ is_it_for_me(arp_t arp, struct hwa_info *vminfo, int ninterfaces)
 void
 print_arp(arp_t arp)
 {
-  if (arp.op == ARP_REQUEST)
-    printf ("TRACE: ARP REQUEST for MAC with IP %s\n",
-              inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
-  else {
-    printf ("TRACE: ARP RESPONSE to %s(", inet_ntoa(*(struct in_addr*)&arp.targetipaddr));
-    print_mac_adrr(arp.targethwaddr);
-    printf (") with my mac:");
+  if (arp.op == ARP_REQUEST) {
+    printf ("TRACE: ARP REQUEST for MAC with\n\tHard type: %d\n\tProt type: %d\n\t"
+	    "Op: %s\n\tSender HWaddr: ", arp.hard_type, arp.proto_type,
+	    (arp.op == ARP_REQUEST)? "ARP_REQUEST": "ARP REPLY");
     print_mac_adrr(arp.senderhwaddr);
-    printf ("\n");
+    printf ("\n\tSender IP: %s\n\tTarget IP: %s\n\t",
+		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr),
+		    inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
+
+  } else {
+    printf ("TRACE: ARP RESPONSE with\n\tHard type: %d\n\tProt type: %d\n\t"
+	    "Op: %s\n\tSender HWaddr: ", arp.hard_type, arp.proto_type,
+	    (arp.op == ARP_REQUEST)? "ARP_REQUEST": "ARP REPLY");
+    print_mac_adrr(arp.senderhwaddr);
+    printf ("\n\tSender IP: %s\n\tTarget HWaddr: ",
+		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
+    print_mac_adrr(arp.targethwaddr);
+    printf ("\n\tTarget IP: %s\n", 
+		    inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
   }
 }
 
