@@ -90,12 +90,6 @@ typedef enum {
   RARP_REPLY = 4
 } op_t;
 
-typedef struct eth_header {
-  char desthwaddr[IF_HADDR];
-  char srchwaddr[IF_HADDR];
-  unsigned short frame_type;
-} __attribute__((__packed__)) eth_header_t;
-
 typedef struct arp {
   unsigned short hard_type;
   unsigned short proto_type;

@@ -86,45 +86,10 @@ cache_already_exists_ip(unsigned long ip)
       return &gcache[i];
 
   if (TRACE)
-    printf ("Didn't find IP in cache for %s\n",
+    printf ("TRACE: Didn't find IP in cache for %s\n",
               inet_ntoa(*(struct in_addr *)&ip));
   return NULL;
 }
-
-/*
-cache_t *
-cache_already_exists_hw(char hwaddr[IF_HADDR], cache_t **save)
-{
-  cache_t *trav = NULL;
-
-  for (trav = (*save)? (*save)->next: gcache; trav; trav = trav->next)
-    if (!memcmp(trav->hwaddr.sll_addr, hwaddr, IF_HADDR)) {
-      *save = trav;
-      return trav;
-    }
-
-  return NULL;
-}
-
-cache_t *
-cache_get_list_by_hw(char hwaddr[IF_HADDR])
-{
-  cache_t *cache_entry = NULL;
-  cache_t *saveptr = NULL;
-  cache_t *newhead = NULL;
-  cache_t *tmp = NULL;
-
-  for (; (cache_entry = cache_already_exists_hw(hwaddr, &saveptr));) {
-    tmp = Calloc(1, sizeof(cache_t));
-    memcpy(tmp, cache_entry, sizeof(cache_t));
-
-    tmp->next = newhead;
-    newhead = tmp;
-  }
-
-  return newhead;
-}
-*/
 
 void
 update_cache(cache_t *c, arp_t arp)
@@ -156,12 +121,6 @@ init_cache(struct hwa_info *vminfo, int ninterfaces)
   cache_t *c = NULL;
 
   for (i = 0; i < ninterfaces; ++i) {
-    printf ("Initing for %s, IP: %s, MAC:", vminfo[i].if_name,
-              Inet_ntop(AF_INET,
-                &((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr, str, sizeof(struct sockaddr_in)));
-    print_mac_adrr(vminfo[i].if_haddr);
-    printf ("\n");
-
     c = &gcache[++gcur_cache_len];
     bzero(c, sizeof(cache_t));
 
@@ -173,30 +132,6 @@ init_cache(struct hwa_info *vminfo, int ninterfaces)
   if (TRACE) print_cache();
 }
 
-/*
-void
-free_list(cache_t **head)
-{
-  cache_t *next = NULL;
-  cache_t *trav = NULL;
-
-  for (trav = *head; trav; trav = next) {
-    next = trav->next;
-    free(trav);
-  }
-
-  *head = NULL;
-}
-
-int
-listlen(cache_t *trav)
-{
-  int i = 0;
-  for (i = 0; trav; trav = trav->next, ++i);
-  return i;
-}
-*/
-
 // ------------ END cache management ---------------------------
 
 int
@@ -204,16 +139,10 @@ is_it_for_me(arp_t arp, struct hwa_info *vminfo, int ninterfaces)
 {
   int i;
 
-  for (i = 0; i < ninterfaces; ++i) {
-    printf ("Req IP: %s(%lu)", inet_ntoa(*(struct in_addr *)&arp.targetipaddr), (unsigned long)arp.targetipaddr);
-    printf ("\tCur IP: %s(%lu)", inet_ntoa(*(struct in_addr *)&((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr), (unsigned long)((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr);
-    printf ("\n");
-
+  for (i = 0; i < ninterfaces; ++i)
     if ((unsigned long)arp.targetipaddr == (unsigned long)((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr)
       return 1;
-  }
 
-  printf ("Not in here\n");
   return 0;
 }
 
@@ -221,10 +150,10 @@ void
 print_arp(arp_t arp)
 {
   if (arp.op == ARP_REQUEST)
-    printf ("TRACE: Requesting for MAC with IP %s\n",
+    printf ("TRACE: ARP REQUEST for MAC with IP %s\n",
               inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
   else {
-    printf ("TRACE: Responding to %s(", inet_ntoa(*(struct in_addr*)&arp.targetipaddr));
+    printf ("TRACE: ARP RESPONSE to %s(", inet_ntoa(*(struct in_addr*)&arp.targetipaddr));
     print_mac_adrr(arp.targethwaddr);
     printf (") with my mac:");
     print_mac_adrr(arp.senderhwaddr);
@@ -312,7 +241,7 @@ recv_pf_packet(int pf_fd, struct hwa_info *vminfo, int ninterfaces,
   struct sockaddr_ll socket_address;
   socklen_t sock_len = sizeof(socket_address);
   /*buffer for ethernet frame*/
-  char *buffer = Calloc(1, sizeof(ETH_FRAME_LEN));
+  char buffer[ETH_FRAME_LEN];
   int length = 0; /*length of the received frame*/
   arp_t arp;
   cache_t *cache_entry = NULL;
@@ -331,12 +260,9 @@ recv_pf_packet(int pf_fd, struct hwa_info *vminfo, int ninterfaces,
       printf ("Received ARP request.\n");
       if (is_it_for_me(arp, vminfo, ninterfaces)) {
         printf ("Request is for me\n");
-        if (!cache_entry) {
-          print_mac_adrr(arp.senderhwaddr);
-          printf ("\n");
+        if (!cache_entry)
           append_to_cache(arp.senderhwaddr, arp.senderipaddr,
                           socket_address.sll_ifindex, 0);
-        }
         else
           update_cache(cache_entry, arp);
 
@@ -413,7 +339,7 @@ listen_on_fds(int pf_fd, int uds_fd, struct hwa_info *vminfo, int ninterfaces)
 
     if (FD_ISSET(uds_fd, &cur_set)) {
       accepted_fd = Accept(uds_fd, NULL, 0);
-
+      printf ("Accepted a new client");
       process_client_req(accepted_fd, pf_fd, vminfo, ninterfaces);
     }
 
