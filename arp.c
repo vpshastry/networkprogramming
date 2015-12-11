@@ -155,27 +155,20 @@ is_it_for_me(arp_t arp, struct hwa_info *vminfo, int ninterfaces)
 void
 print_arp(arp_t arp)
 {
-  if (arp.op == ARP_REQUEST) {
-    printf ("TRACE: ARP REQUEST for MAC with\n\tHard type: %d\n\tProt type: %d\n\t"
-	    "Op: %s\n\tSender HWaddr: ", arp.hard_type, arp.proto_type,
-	    (arp.op == ARP_REQUEST)? "ARP_REQUEST": "ARP REPLY");
-    print_mac_adrr(arp.senderhwaddr);
-    printf ("\n\tSender IP: %s",
-		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
-    printf ("\n\tTarget IP: %s\n",
-		    inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
+  printf ("TRACE: ARP %s with\n\tID: %x\n\tHard type: %d\n\t"
+          "Prot type: %d\n\tOp: ARP_%s\n\tSender HWaddr: ",
+          (arp.op == ARP_REQUEST)? "REQUEST": "REPLY", arp.id, arp.hard_type,
+          arp.proto_type, (arp.op == ARP_REQUEST)? "REQUEST": "REPLY");
+  print_mac_adrr(arp.senderhwaddr);
+  printf ("\n\tSender IP: %s", inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
 
-  } else {
-    printf ("TRACE: ARP RESPONSE with\n\tHard type: %d\n\tProt type: %d\n\t"
-	    "Op: %s\n\tSender HWaddr: ", arp.hard_type, arp.proto_type,
-	    (arp.op == ARP_REQUEST)? "ARP_REQUEST": "ARP REPLY");
-    print_mac_adrr(arp.senderhwaddr);
-    printf ("\n\tSender IP: %s\n\tTarget HWaddr: ",
-		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
+  if (arp.op == ARP_REPLY) {
+    printf ("\n\tTarget HWaddr: ");
     print_mac_adrr(arp.targethwaddr);
-    printf ("\n\tTarget IP: %s\n",
-		    inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
   }
+
+  printf ("\n\tTarget IP: %s\n",
+                  inet_ntoa(*(struct in_addr *)&arp.targetipaddr));
 }
 
 
@@ -188,6 +181,8 @@ send_reply_and_close_conn(cache_t *cache_entry, int *fd)
   memcpy(&msg.IPaddr, &cache_entry->IPaddr, sizeof(struct sockaddr));
   msg.sockaddrlen = sizeof(struct sockaddr);
   memcpy(&msg.hwaddr, &cache_entry->hwaddr, sizeof(hwaddr_t));
+
+  printf ("DEBUG: UDS FD: %d\n", *fd);
 
   Write(*fd, &msg, sizeof(msg_t));
   printf ("TRACE: Sending reply for the query on %s -> ",
@@ -214,6 +209,7 @@ send_arp_response(arp_t recvarp, int pf_fd, struct hwa_info *vminfo,
   // New fill up.
   memcpy(arp.senderhwaddr, gmy_hw_addr, IF_HADDR);
   arp.op = ARP_REPLY;
+  arp.id = OUR_ARP_ID;
 
   // Copy everything else.
   arp.hard_type = recvarp.hard_type;
@@ -239,6 +235,7 @@ send_arp_req(msg_t msg, int accepted_fd, int pf_fd, struct hwa_info *vminfo,
 
   bzero(&arp, sizeof(arp_t));
 
+  arp.id = OUR_ARP_ID;
   arp.hard_type = ETH_TYPE;
   arp.proto_type = PROTO_TYPE;
   arp.hard_size = ETH_SIZE;
@@ -346,7 +343,8 @@ listen_on_fds(int pf_fd, int uds_fd, struct hwa_info *vminfo, int ninterfaces)
   FD_SET(uds_fd, &org_set);
   FD_SET(pf_fd, &org_set);
   maxfdp1 = ((uds_fd > pf_fd)? uds_fd : pf_fd) + 1;
-  printf("FD's set, now going into select loop....\n\n");
+  printf("FD's set(uds: %d, pf: %d), now going into select loop....\n\n",
+          uds_fd, pf_fd);
 
   while (1) {
     printf ("\n");

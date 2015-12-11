@@ -23,7 +23,7 @@ stop:
 	./scripts/stop_app.sh tour
 	./scripts/stop_app.sh arp
 
-debug-install: install
+debug-install:
 	~/cse533/deploy_app *.c *.h
 
 ## Packed
