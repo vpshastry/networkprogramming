@@ -46,7 +46,7 @@
 
 #define MAX_IP_LEN 20
 
-//#define USID_PROTO 4383
+#define USID_PROTO 4383
 
 #define ARP_SUNPATH "/tmp/ARP_SUNPATH_51476.sock"
 #define UDS_BACKLOG 20
@@ -58,7 +58,7 @@
 #define NO 0
 #define MUL 9
 
-#define USID_PROTO 147
+//#define USID_PROTO 147
 
 #define ETH_HDRLEN 14  // Ethernet header length
 #define IP4_HDRLEN 20  // IPv4 header length
