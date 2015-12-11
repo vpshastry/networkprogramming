@@ -29,6 +29,7 @@
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
+#include <netinet/ip.h>       // struct ip and IP_MAXPACKET (which is 65535)
 
 #define FRAME_TYPE 0x0806
 #define PROTO_TYPE 0x0800
@@ -55,9 +56,18 @@
 // For unix style success and failure we can define SUCCESS = 0 and FAILURE = -1/1.
 #define YES 1
 #define NO 0
+#define MUL 9
 
-#define SUCCESS 0
-#define FAILURE -1
+#define USID_PROTO 147
+
+#define ETH_HDRLEN 14  // Ethernet header length
+#define IP4_HDRLEN 20  // IPv4 header length
+#define ICMP_HDRLEN 8  // ICMP header length for echo request, excludes data
+
+// Multicast related, used only by first node of the list, rest will recv
+// it as a part of the tour list.
+#define MUL_GRP_IP "239.255.1.7"
+#define MUL_PORT 40383
 
 #define TRACE 1 // TODO: Make it zero before submitting.
 
