@@ -46,7 +46,7 @@
 
 #define MAX_IP_LEN 20
 
-#define USID_PROTO 4383
+//#define USID_PROTO 4383
 
 #define ARP_SUNPATH "/tmp/ARP_SUNPATH_51476.sock"
 #define UDS_BACKLOG 20

@@ -346,7 +346,9 @@ int main(int argc, char *argv[]) {
     Select(maxfdp1, &cur_set, NULL, NULL, NULL);
     if (FD_ISSET(rt, &cur_set)) {
       len = sizeof(recvd); // always initialize len
+
       n = recvfrom(rt, &ip_hdr, sizeof(ip_hdr), MSG_PEEK, (SA*) &recvd, &len);
+
       if (ntohs(ip_hdr.ip_id) == USID_PROTO) {
         ticks = time(NULL);
         hptr = gethostbyaddr (&recvd.sin_addr, sizeof(recvd.sin_addr), AF_INET);
@@ -362,6 +364,7 @@ int main(int argc, char *argv[]) {
         process_recvd_tour_list(tour_list_node, list_len);
       }
     }
+
     if (FD_ISSET(multi_recv, &cur_set)) {
       len = sizeof(recvd); // always initialize len
       n = recvfrom(multi_recv, mul_msg, 100, 0, (SA*) &recvd, &len);
@@ -376,19 +379,23 @@ int main(int argc, char *argv[]) {
       break;
     }
   }
+
   FD_ZERO(&org_set);
   FD_ZERO(&cur_set);
   FD_SET(multi_recv, &org_set);
   maxfdp1 = multi_recv + 1;
   tv.tv_sec = 5;
   tv.tv_usec = 0;
+
   for (; ;) {
     cur_set = org_set;
     nready = Select(maxfdp1, &cur_set, NULL, NULL, &tv);
+
     if (nready == 0) {
       printf("5 seconds completed. Terminating Tour application. Goodbye!\n");
       return;
     }
+
     if (FD_ISSET(multi_recv, &cur_set)) {
       len = sizeof(recvd); // always initialize len
       n = recvfrom(multi_recv, mul_msg, 100, 0, (SA*) &recvd, &len);

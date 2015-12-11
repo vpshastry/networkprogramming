@@ -3,6 +3,7 @@
 unsigned long gmy_ip_addr;
 char gmy_hw_addr[IF_HADDR];
 static sigjmp_buf waitbuf;
+int gmy_if_idx;
 
 // ----------------------- AREQ API ---------------------------------------
 

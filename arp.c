@@ -93,7 +93,7 @@ void
 update_cache(cache_t *c, arp_t arp)
 {
   cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr,
-                        c->hwaddr.if_index, c->uds_fd);
+                        c->hwaddr.sll_ifindex, c->uds_fd);
 
   if (TRACE) print_cache();
 }
@@ -307,7 +307,8 @@ process_client_req(int accepted_fd, int pf_fd,
               inet_ntoa(*(struct in_addr *)&IP_ADDR(msg.IPaddr)));
 
   if ((cache_entry = cache_already_exists_ip(IP_ADDR(msg.IPaddr)))) {
-    printf ("TRACE: Found %s in cache. Replying right here.\n");
+    printf ("TRACE: Found %s in cache. Replying right here.\n",
+              inet_ntoa(*(struct in_addr *)&IP_ADDR(msg.IPaddr)));
     send_reply_and_close_conn(cache_entry, &accepted_fd);
     return;
   }
