@@ -76,7 +76,7 @@ void print_tour_list(tour_list_node_t* tour_list_node, int length) {
 }
 
 void make_list(int argc, char* argv[]) {
-  
+
   char vm_ip[MAX_IP_LEN], my_hostname[MAXLINE], str[MAXLINE];
   char *token;
   unsigned int mul_port;
@@ -119,6 +119,50 @@ void make_list(int argc, char* argv[]) {
   send_rt (tour_list_node, argc + 1);
 }
 
+void
+pinging()
+{
+  int sd, i;
+  struct ifreq ifr;
+  char interface[MAXLINE];
+  uint8_t src_mac[6];
+  struct sockaddr_ll device;
+
+  sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL));
+
+
+  // Interface to send packet through.
+  strcpy (interface, INTERESTED_IF);
+
+  // Use ioctl() to look up interface name and get its MAC address.
+  memset (&ifr, 0, sizeof (ifr));
+  snprintf (ifr.ifr_name, sizeof (ifr.ifr_name), "%s", interface);
+  if (ioctl (sd, SIOCGIFHWADDR, &ifr) < 0) {
+    perror ("ioctl() failed to get source MAC address ");
+    //return (EXIT_FAILURE);
+  }
+  close (sd);
+
+  // Copy source MAC address.
+  memcpy (src_mac, ifr.ifr_hwaddr.sa_data, 6);
+
+  // Report source MAC address to stdout.
+  printf ("MAC address for interface %s is ", interface);
+  for (i=0; i<5; i++) {
+    printf ("%02x:", src_mac[i]);
+  }
+  printf ("%02x\n", src_mac[5]);
+
+  // Find interface index from interface name and store index in
+  // struct sockaddr_ll device, which will be used as an argument of sendto().
+  memset (&device, 0, sizeof (device));
+  if ((device.sll_ifindex = if_nametoindex (interface)) == 0) {
+    perror ("if_nametoindex() failed to obtain interface index ");
+    //exit (EXIT_FAILURE);
+  }
+  printf ("Index for interface %s is %i\n", interface, device.sll_ifindex);
+}
+
 void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
   int i, cur;
   struct sockaddr_in multicast_sockaddr;
@@ -142,6 +186,10 @@ void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
   len = sizeof(multicast_sockaddr);
   Mcast_join(multi_recv, (SA*)&multicast_sockaddr, len, NULL, 0);
   printf("Mcast_join returned\n");
+
+
+  // start ICMP
+  pinging();
 
   // go to cur and update it.
   for (i = 0; i < list_len; i++) {
@@ -187,7 +235,7 @@ send_rt(tour_list_node_t* tour_list_node, int list_len) {
   ip_hdr.ip_hl = (IP4_HDRLEN / sizeof (uint32_t)); //+ sizeof(tour_list_node_t * list_len);
 
   //print_tour_list(tour_list_node, list_len);
-  
+
   // Internet Protocol version (4 bits): IPv4
   ip_hdr.ip_v = 4;
 
@@ -200,7 +248,7 @@ send_rt(tour_list_node_t* tour_list_node, int list_len) {
   // ID sequence number (16 bits): unused, since single datagram
   ip_hdr.ip_id = htons (USID_PROTO);
 
-  ip_hdr.ip_off = 0; 
+  ip_hdr.ip_off = 0;
 
   // Time-to-Live (8 bits): default to maximum value
   ip_hdr.ip_ttl = 255;
@@ -242,7 +290,7 @@ send_rt(tour_list_node_t* tour_list_node, int list_len) {
   buf = malloc(sizeof(ip_hdr) + (sizeof(tour_list_node_t) * list_len));
   memcpy(buf, &ip_hdr, sizeof(ip_hdr));
   memcpy(buf + sizeof(ip_hdr), tour_list_node, sizeof(tour_list_node_t) * list_len);
-  
+
   Sendto(rt, buf, sizeof(ip_hdr) + (sizeof(tour_list_node_t) * list_len), 0, (SA*) &dest, len);
   printf("Sent\n"); // DEBUG
 }
@@ -298,7 +346,9 @@ int main(int argc, char *argv[]) {
     Select(maxfdp1, &cur_set, NULL, NULL, NULL);
     if (FD_ISSET(rt, &cur_set)) {
       len = sizeof(recvd); // always initialize len
+
       n = recvfrom(rt, &ip_hdr, sizeof(ip_hdr), MSG_PEEK, (SA*) &recvd, &len);
+
       if (ntohs(ip_hdr.ip_id) == USID_PROTO) {
         ticks = time(NULL);
         hptr = gethostbyaddr (&recvd.sin_addr, sizeof(recvd.sin_addr), AF_INET);
@@ -314,6 +364,7 @@ int main(int argc, char *argv[]) {
         process_recvd_tour_list(tour_list_node, list_len);
       }
     }
+
     if (FD_ISSET(multi_recv, &cur_set)) {
       len = sizeof(recvd); // always initialize len
       n = recvfrom(multi_recv, mul_msg, 100, 0, (SA*) &recvd, &len);
@@ -328,19 +379,23 @@ int main(int argc, char *argv[]) {
       break;
     }
   }
+
   FD_ZERO(&org_set);
   FD_ZERO(&cur_set);
   FD_SET(multi_recv, &org_set);
   maxfdp1 = multi_recv + 1;
   tv.tv_sec = 5;
   tv.tv_usec = 0;
+
   for (; ;) {
     cur_set = org_set;
     nready = Select(maxfdp1, &cur_set, NULL, NULL, &tv);
+
     if (nready == 0) {
       printf("5 seconds completed. Terminating Tour application. Goodbye!\n");
       return;
     }
+
     if (FD_ISSET(multi_recv, &cur_set)) {
       len = sizeof(recvd); // always initialize len
       n = recvfrom(multi_recv, mul_msg, 100, 0, (SA*) &recvd, &len);

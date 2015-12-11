@@ -3,6 +3,7 @@
 unsigned long gmy_ip_addr;
 char gmy_hw_addr[IF_HADDR];
 static sigjmp_buf waitbuf;
+int gmy_if_idx;
 
 // ----------------------- AREQ API ---------------------------------------
 
@@ -118,6 +119,7 @@ build_vminfos(struct hwa_info* vminfo)
       sa = hwa->ip_addr;
       gmy_ip_addr = ((struct sockaddr_in *)sa)->sin_addr.s_addr;
       memcpy(gmy_hw_addr, hwa->if_haddr, IF_HADDR);
+      gmy_if_idx = hwa->if_index;
     }
 
     printf("%s :%s", hwa->if_name, ((hwa->ip_alias) == IP_ALIAS) ? " (alias)\n" : "\n");

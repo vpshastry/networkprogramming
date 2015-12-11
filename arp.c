@@ -4,16 +4,13 @@ cache_t gcache[CACHE_SIZE_GRAN];
 int gcur_cache_len = -1;
 extern const unsigned long gmy_ip_addr;
 extern const char gmy_hw_addr[IF_HADDR];
+extern const int gmy_if_idx;
 const char gbroadcast_hwaddr[IF_HADDR] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 int
 create_bind_pf_packet()
 {
-  int s;
-
-  s = Socket(AF_PACKET, SOCK_RAW, htons(USID_PROTO));
-
-  return s;
+  return Socket(AF_PACKET, SOCK_RAW, htons(USID_PROTO));
 }
 
 int
@@ -50,7 +47,8 @@ print_cache()
   printf ("IP\t\tHW\n");
   printf ("---------------------------------\n");
   for (i = 0; i <= gcur_cache_len; ++i) {
-    printf ("%s", Sock_ntop((SA *)&gcache[i].IPaddr, sizeof(struct sockaddr_in)));
+    printf ("%s", Sock_ntop((SA *)&gcache[i].IPaddr,
+            sizeof(struct sockaddr_in)));
     printf ("\t");
     print_mac_adrr(gcache[i].hwaddr.sll_addr);
     printf ("\n");
@@ -94,7 +92,8 @@ cache_already_exists_ip(unsigned long ip)
 void
 update_cache(cache_t *c, arp_t arp)
 {
-  cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr, 1/* TODO */, c->uds_fd);
+  cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr,
+                        c->hwaddr.sll_ifindex, c->uds_fd);
 
   if (TRACE) print_cache();
 }
@@ -140,7 +139,8 @@ is_it_for_me(arp_t arp, struct hwa_info *vminfo, int ninterfaces)
   int i;
 
   for (i = 0; i < ninterfaces; ++i)
-    if ((unsigned long)arp.targetipaddr == (unsigned long)((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr)
+    if ((unsigned long)arp.targetipaddr ==
+          (unsigned long)((struct sockaddr_in *)vminfo[i].ip_addr)->sin_addr.s_addr)
       return 1;
 
   return 0;
@@ -184,7 +184,8 @@ send_reply_and_close_conn(cache_t *cache_entry, int *fd)
 
   Write(*fd, &msg, sizeof(msg_t));
   printf ("TRACE: Sending reply for the query on %s -> ",
-          Sock_ntop_host((struct sockaddr *)&msg.IPaddr, sizeof(struct sockaddr)));
+          Sock_ntop_host((struct sockaddr *)&msg.IPaddr,
+                          sizeof(struct sockaddr)));
   print_mac_adrr(msg.hwaddr.sll_addr);
   printf ("\n");
 
@@ -223,7 +224,8 @@ send_arp_response(arp_t recvarp, int pf_fd, struct hwa_info *vminfo,
 }
 
 void
-send_arp_req(msg_t msg, int accepted_fd, int pf_fd, struct hwa_info *vminfo, int ninterfaces)
+send_arp_req(msg_t msg, int accepted_fd, int pf_fd, struct hwa_info *vminfo,
+              int ninterfaces)
 {
   arp_t arp;
   struct hwa_info sending_vminfo;
@@ -260,7 +262,8 @@ recv_pf_packet(int pf_fd, struct hwa_info *vminfo, int ninterfaces,
   arp_t arp;
   cache_t *cache_entry = NULL;
 
-  length = recvfrom(pf_fd, buffer, ETH_FRAME_LEN, 0, (struct sockaddr*)&socket_address, &sock_len);
+  length = recvfrom(pf_fd, buffer, ETH_FRAME_LEN, 0,
+                    (struct sockaddr*)&socket_address, &sock_len);
 
   memcpy(&arp, buffer+14, sizeof(arp_t));
 
@@ -313,7 +316,8 @@ process_client_req(int accepted_fd, int pf_fd,
               inet_ntoa(*(struct in_addr *)&IP_ADDR(msg.IPaddr)));
 
   if ((cache_entry = cache_already_exists_ip(IP_ADDR(msg.IPaddr)))) {
-    printf ("TRACE: Found %s in cache. Replying right here.\n");
+    printf ("TRACE: Found %s in cache. Replying right here.\n",
+              inet_ntoa(*(struct in_addr *)&IP_ADDR(msg.IPaddr)));
     send_reply_and_close_conn(cache_entry, &accepted_fd);
     return;
   }
@@ -384,7 +388,8 @@ main()
   init_global_vars();
   init_cache(vminfo, ninterfaces);
 
-  listen_on_fds(create_bind_pf_packet(), create_listen_sun_path(), vminfo, ninterfaces);
+  listen_on_fds(create_bind_pf_packet(), create_listen_sun_path(), vminfo,
+                ninterfaces);
 
   return 0;
 }
