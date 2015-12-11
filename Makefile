@@ -46,5 +46,5 @@ readline.o: ${LINUX_STEVENS_BASE}/threads/readline.c
 
 clean:
 	rm tour tour.o arp arp.o readline.o header.o \
-	    prhwaddrs.o get_hw_addrs.o header.h.gch
+	    prhwaddrs.o get_hw_addrs.o header.h.gch myclient.o myclient
 
