@@ -1,17 +1,8 @@
 README
 Network Programming Fall 2015, Assignment 2 - Stony Brook University.
-Authors: <Aashray Arora. SBU ID: 109940382, NETID: aaarora> and <Varun Shastry. SBU ID: 109951476, NETID: vshastry>
-
-Included files:
-arp.c
-get_hw_addrs.c
-header.c
-header.h
-hw_addrs.h
-Makefile
-prhwaddrs.c
-Readme
-tour.c
+Authors:
+<Aashray Arora. SBU ID: 109940382, NETID: aaarora>
+<Varun Shastry. SBU ID: 109951476, NETID: vshastry>
 
 ------------------
 User Documentation
@@ -28,6 +19,12 @@ Run the tour using the tour executatble as shown below:
 
 ./tour
 
+Command used to bundle the files:
+> tar -zcvf submission.tar.gz *.[ch] Makefile Readme
+
+Command to be used to un-bundle it:
+> tar -zxvf submission.tar.gz
+
 ---------------------
 System Documentation
 ---------------------
@@ -41,7 +38,8 @@ ARP
   ID. And starts listening on these.
 2. Upon request through the areq API, it requests the HWaddr for given IP addr.
 3. For this IPaddr it builds an ARP request, adds an incomplete cache entry and
-  broadcasts it in the eth0 interface.
+  broadcasts it in the eth0 interface unless there is already an entry for the
+  requested IP address.
 4. When it receives a PF Packet it does the below jobs based on below cases.
   i. If it is a ARP Request message for self, adds the sender details in the
     cache and replies with the self's hardware address as unicast message to
@@ -50,10 +48,29 @@ ARP
     sender's IP, updates the cache entry.
   iii. If it is a ARP Response message, it updates the incomplete entry in the
     cache.
-5. It handles the cache in a table with IPaddr and HWaddr.
+5. It handles the cache in a table of structure with IPaddr and HWaddr.
+6. ARP ID: 0xBE is used for recognizing our packets.
 
 
 ----
 Tour
 ----
+1. The tour binary takes the input from command line and converts all the names
+  to their IP addresses using gethostbyname. Then builds the chain and prepends
+  it's own address.
+2. It uses an extra flag in the structure to identify it self in the chain of
+  tour list.
+3. It then sends the tour list as the payload to the next node in the list.
+4. The receiver of the tour list gets the sender node's IP, makes an 'areq' ARP
+  API call to get the Hardware address of the sender (future target).
+5. Then sends ping request to the sender every 1 second by waiting in the
+  select loop with timeout for 1 second.
+6. Finally as the specification dictates, the last node in the tour multicasts
+  the 'end-of-the-tour' message. Everybody stops after printing corresponding
+  messages.
 
+A. Extra field is_cur is used in the structure of the tour list and everynode
+  sets it to the next nodes entry before sending it.
+B. Select with timeout mechanism is used to wait and send the ping packets
+  every second and simultaneously handle the incoming packets.
+C. The pinging function in the tour.c takes care of pinging every second.
