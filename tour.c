@@ -2,6 +2,13 @@
 
 int rt, pg, pf_packet, multi_send, multi_recv;
 
+typedef struct {
+ char hostname[MAXLINE];
+} ping_list_t;
+
+ping_list_t ping_list[500];
+int ping_list_len = 0;
+
 void get_ip_of_vm(char vmno_str[6], char* final_ip, int length){
 
   struct hostent *hptr;
@@ -190,6 +197,7 @@ pinging()
   struct icmp icmphdr, *recv_icmphdr;
   struct sockaddr from;
   socklen_t fromlen;
+  char my_hostname[MAXLINE];
 
   // areq API call vars
   struct sockaddr_in needmacof = { .sin_family = AF_INET, };
@@ -198,293 +206,309 @@ pinging()
   struct timeval wait, t1, t2;
   struct timezone tz;
   double dt;
+  int node;
+
+  printf("pinging\n");
+
+  if (ping_list_len == 0) return;
+
+  for (node = 0; node < ping_list_len; node++) {
+
+    printf("In for loop for pinging\n");
+
+    sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL));
 
 
-  sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL));
+    // Interface to send packet through.
+    strcpy (interface, INTERESTED_IF);
 
+    // Use ioctl() to look up interface name and get its MAC address.
+    memset (&ifr, 0, sizeof (ifr));
+    snprintf (ifr.ifr_name, sizeof (ifr.ifr_name), "%s", interface);
+    if (ioctl (sd, SIOCGIFHWADDR, &ifr) < 0) {
+      perror ("ioctl() failed to get source MAC address ");
+      //return (EXIT_FAILURE);
+    }
+    close (sd);
 
-  // Interface to send packet through.
-  strcpy (interface, INTERESTED_IF);
+    // Copy source MAC address.
+    memcpy (src_mac, ifr.ifr_hwaddr.sa_data, 6);
 
-  // Use ioctl() to look up interface name and get its MAC address.
-  memset (&ifr, 0, sizeof (ifr));
-  snprintf (ifr.ifr_name, sizeof (ifr.ifr_name), "%s", interface);
-  if (ioctl (sd, SIOCGIFHWADDR, &ifr) < 0) {
-    perror ("ioctl() failed to get source MAC address ");
-    //return (EXIT_FAILURE);
-  }
-  close (sd);
+    // Report source MAC address to stdout.
+    printf ("MAC address for interface %s is ", interface);
+    for (i=0; i<5; i++) {
+      printf ("%02x:", src_mac[i]);
+    }
+    printf ("%02x\n", src_mac[5]);
 
-  // Copy source MAC address.
-  memcpy (src_mac, ifr.ifr_hwaddr.sa_data, 6);
+    // Find interface index from interface name and store index in
+    // struct sockaddr_ll device, which will be used as an argument of sendto().
+    memset (&device, 0, sizeof (device));
+    if ((device.sll_ifindex = if_nametoindex (interface)) == 0) {
+      perror ("if_nametoindex() failed to obtain interface index ");
+      //exit (EXIT_FAILURE);
+    }
+    printf ("Index for interface %s is %i\n", interface, device.sll_ifindex);
 
-  // Report source MAC address to stdout.
-  printf ("MAC address for interface %s is ", interface);
-  for (i=0; i<5; i++) {
-    printf ("%02x:", src_mac[i]);
-  }
-  printf ("%02x\n", src_mac[5]);
+    // Source IPv4 address: you need to fill this out
+    //strcpy (src_ip, );
+    gethostname(my_hostname, sizeof(my_hostname));
+    get_ip_of_vm(my_hostname, src_ip, INET_ADDRSTRLEN);
+    printf("src_ip: %s\n", src_ip);
+    // Destination URL or IPv4 address: you need to fill this out
+    get_ip_of_vm(ping_list[node].hostname, target, INET_ADDRSTRLEN);
+    //strcpy (target, "130.245.156.21");
+    printf("target_ip:%s\n", target);
 
-  // Find interface index from interface name and store index in
-  // struct sockaddr_ll device, which will be used as an argument of sendto().
-  memset (&device, 0, sizeof (device));
-  if ((device.sll_ifindex = if_nametoindex (interface)) == 0) {
-    perror ("if_nametoindex() failed to obtain interface index ");
-    //exit (EXIT_FAILURE);
-  }
-  printf ("Index for interface %s is %i\n", interface, device.sll_ifindex);
+    Inet_pton(AF_INET, target, &needmacof.sin_addr);
+    areq((struct sockaddr *)&needmacof, sizeof(struct sockaddr_in), &hwaddr);
 
-  // Source IPv4 address: you need to fill this out
-  strcpy (src_ip, "130.245.156.22");
+    // Set destination MAC address: you need to fill these out
+    memcpy(dst_mac, hwaddr.sll_addr, IF_HADDR);
 
-  // Destination URL or IPv4 address: you need to fill this out
-  strcpy (target, "130.245.156.21");
+    // Fill out hints for getaddrinfo().
+    memset (&hints, 0, sizeof (struct addrinfo));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = hints.ai_flags | AI_CANONNAME;
 
-  Inet_pton(AF_INET, target, &needmacof.sin_addr);
-  areq((struct sockaddr *)&needmacof, sizeof(struct sockaddr_in), &hwaddr);
+    // Resolve target using getaddrinfo().
+    if ((status = getaddrinfo (target, NULL, &hints, &res)) != 0) {
+      fprintf (stderr, "getaddrinfo() failed: %s\n", gai_strerror (status));
+      exit (EXIT_FAILURE);
+    }
+    ipv4 = (struct sockaddr_in *) res->ai_addr;
+    tmp = &(ipv4->sin_addr);
+    if (inet_ntop (AF_INET, tmp, dst_ip, INET_ADDRSTRLEN) == NULL) {
+      status = errno;
+      fprintf (stderr, "inet_ntop() failed.\nError message: %s", strerror (status));
+      //exit (EXIT_FAILURE);
+    }
+    freeaddrinfo (res);
 
-  // Set destination MAC address: you need to fill these out
-  memcpy(dst_mac, hwaddr.sll_addr, IF_HADDR);
+    printf("freeaddrinfo called\n");
+    // Fill out sockaddr_ll.
+    device.sll_family = AF_PACKET;
+    memcpy (device.sll_addr, src_mac, 6);
+    device.sll_halen = 6;
 
-  // Fill out hints for getaddrinfo().
-  memset (&hints, 0, sizeof (struct addrinfo));
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = hints.ai_flags | AI_CANONNAME;
+    // ICMP data
+    datalen = 4;
+    data[0] = 'T';
+    data[1] = 'e';
+    data[2] = 's';
+    data[3] = 't';
 
-  // Resolve target using getaddrinfo().
-  if ((status = getaddrinfo (target, NULL, &hints, &res)) != 0) {
-    fprintf (stderr, "getaddrinfo() failed: %s\n", gai_strerror (status));
-    exit (EXIT_FAILURE);
-  }
-  ipv4 = (struct sockaddr_in *) res->ai_addr;
-  tmp = &(ipv4->sin_addr);
-  if (inet_ntop (AF_INET, tmp, dst_ip, INET_ADDRSTRLEN) == NULL) {
-    status = errno;
-    fprintf (stderr, "inet_ntop() failed.\nError message: %s", strerror (status));
-    //exit (EXIT_FAILURE);
-  }
-  freeaddrinfo (res);
+    // IPv4 header
 
-  printf("freeaddrinfo called\n");
-  // Fill out sockaddr_ll.
-  device.sll_family = AF_PACKET;
-  memcpy (device.sll_addr, src_mac, 6);
-  device.sll_halen = 6;
+    // IPv4 header length (4 bits): Number of 32-bit words in header = 5
+    iphdr.ip_hl = IP4_HDRLEN / sizeof (uint32_t);
 
-  // ICMP data
-  datalen = 4;
-  data[0] = 'T';
-  data[1] = 'e';
-  data[2] = 's';
-  data[3] = 't';
+    // Internet Protocol version (4 bits): IPv4
+    iphdr.ip_v = 4;
 
-  // IPv4 header
+    // Type of service (8 bits)
+    iphdr.ip_tos = 0;
 
-  // IPv4 header length (4 bits): Number of 32-bit words in header = 5
-  iphdr.ip_hl = IP4_HDRLEN / sizeof (uint32_t);
+    // Total length of datagram (16 bits): IP header + ICMP header + ICMP data
+    iphdr.ip_len = htons (IP4_HDRLEN + ICMP_HDRLEN + datalen);
 
-  // Internet Protocol version (4 bits): IPv4
-  iphdr.ip_v = 4;
+    // ID sequence number (16 bits): unused, since single datagram
+    iphdr.ip_id = htons (0);
 
-  // Type of service (8 bits)
-  iphdr.ip_tos = 0;
+    // Flags, and Fragmentation offset (3, 13 bits): 0 since single datagram
 
-  // Total length of datagram (16 bits): IP header + ICMP header + ICMP data
-  iphdr.ip_len = htons (IP4_HDRLEN + ICMP_HDRLEN + datalen);
+    // Zero (1 bit)
+    ip_flags[0] = 0;
 
-  // ID sequence number (16 bits): unused, since single datagram
-  iphdr.ip_id = htons (0);
+    // Do not fragment flag (1 bit)
+    ip_flags[1] = 0;
 
-  // Flags, and Fragmentation offset (3, 13 bits): 0 since single datagram
+    // More fragments following flag (1 bit)
+    ip_flags[2] = 0;
 
-  // Zero (1 bit)
-  ip_flags[0] = 0;
+    // Fragmentation offset (13 bits)
+    ip_flags[3] = 0;
 
-  // Do not fragment flag (1 bit)
-  ip_flags[1] = 0;
+    iphdr.ip_off = htons ((ip_flags[0] << 15)
+                        + (ip_flags[1] << 14)
+                        + (ip_flags[2] << 13)
+                        +  ip_flags[3]);
 
-  // More fragments following flag (1 bit)
-  ip_flags[2] = 0;
+    // Time-to-Live (8 bits): default to maximum value
+    iphdr.ip_ttl = 255;
 
-  // Fragmentation offset (13 bits)
-  ip_flags[3] = 0;
+    // Transport layer protocol (8 bits): 1 for ICMP
+    iphdr.ip_p = IPPROTO_ICMP;
 
-  iphdr.ip_off = htons ((ip_flags[0] << 15)
-                      + (ip_flags[1] << 14)
-                      + (ip_flags[2] << 13)
-                      +  ip_flags[3]);
-
-  // Time-to-Live (8 bits): default to maximum value
-  iphdr.ip_ttl = 255;
-
-  // Transport layer protocol (8 bits): 1 for ICMP
-  iphdr.ip_p = IPPROTO_ICMP;
-
-  // Source IPv4 address (32 bits)
-  if ((status = inet_pton (AF_INET, src_ip, &(iphdr.ip_src))) != 1) {
-    fprintf (stderr, "inet_pton() failed.\nError message: %s", strerror (status));
-    exit (EXIT_FAILURE);
-  }
-
-  // Destination IPv4 address (32 bits)
-  if ((status = inet_pton (AF_INET, dst_ip, &(iphdr.ip_dst))) != 1) {
-    fprintf (stderr, "inet_pton() failed.\nError message: %s", strerror (status));
-    exit (EXIT_FAILURE);
-  }
-
-  // IPv4 header checksum (16 bits): set to 0 when calculating checksum
-  iphdr.ip_sum = 0;
-  iphdr.ip_sum = checksum ((uint16_t *) &iphdr, IP4_HDRLEN);
-
-  printf("IP header done\n");
-  // ICMP header
-
-  // Message Type (8 bits): echo request
-  icmphdr.icmp_type = ICMP_ECHO;
-
-  // Message Code (8 bits): echo request
-  icmphdr.icmp_code = 0;
-
-  // Identifier (16 bits): usually pid of sending process - pick a number
-  icmphdr.icmp_id = htons (1000);
-
-  // Sequence Number (16 bits): starts at 0
-  icmphdr.icmp_seq = htons (0);
-
-  // ICMP header checksum (16 bits): set to 0 when calculating checksum
-  icmphdr.icmp_cksum = icmp4_checksum (icmphdr, data, datalen);
-
-  // Fill out ethernet frame header.
-
-  // Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + ICMP header + ICMP data)
-  frame_length = 6 + 6 + 2 + IP4_HDRLEN + ICMP_HDRLEN + datalen;
-
-  // Destination and Source MAC addresses
-  memcpy (ether_frame, dst_mac, 6);
-  memcpy (ether_frame + 6, src_mac, 6);
-
-  // Next is ethernet type code (ETH_P_IP for IPv4).
-  // http://www.iana.org/assignments/ethernet-numbers
-  ether_frame[12] = ETH_P_IP / 256;
-  ether_frame[13] = ETH_P_IP % 256;
-
-  // Next is ethernet frame data (IPv4 header + ICMP header + ICMP data).
-
-  // IPv4 header
-  memcpy (ether_frame + ETH_HDRLEN, &iphdr, IP4_HDRLEN);
-
-  // ICMP header
-  memcpy (ether_frame + ETH_HDRLEN + IP4_HDRLEN, &icmphdr, ICMP_HDRLEN);
-
-  // ICMP data
-  memcpy (ether_frame + ETH_HDRLEN + IP4_HDRLEN + ICMP_HDRLEN, data, datalen);
-
-  // Submit request for a raw socket descriptor.
-  if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
-    perror ("socket() failed ");
-    exit (EXIT_FAILURE);
-  }
-
-  // Submit request for a raw socket descriptor to receive packets.
-  if ((recvsd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
-    perror ("socket() failed to obtain a receive socket descriptor ");
-    exit (EXIT_FAILURE);
-  }
-
-  // Set maximum number of tries to ping remote host before giving up.
-  trylim = 3;
-  trycount = 0;
-
-  // Cast recv_iphdr as pointer to IPv4 header within received ethernet frame.
-  recv_iphdr = (struct ip *) (recv_ether_frame + ETH_HDRLEN);
-
-  // Case recv_icmphdr as pointer to ICMP header within received ethernet frame.
-  recv_icmphdr = (struct icmp *) (recv_ether_frame + ETH_HDRLEN + IP4_HDRLEN);
-
-  done = 0;
-  for (;;) {
-
-    // SEND
-
-    // Send ethernet frame to socket.
-    if ((bytes = sendto (sd, ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
-      perror ("sendto() failed ");
+    // Source IPv4 address (32 bits)
+    if ((status = inet_pton (AF_INET, src_ip, &(iphdr.ip_src))) != 1) {
+      fprintf (stderr, "inet_pton() failed.\nError message: %s", strerror (status));
       exit (EXIT_FAILURE);
     }
 
-    // Start timer.
-    (void) gettimeofday (&t1, &tz);
+    // Destination IPv4 address (32 bits)
+    if ((status = inet_pton (AF_INET, dst_ip, &(iphdr.ip_dst))) != 1) {
+      fprintf (stderr, "inet_pton() failed.\nError message: %s", strerror (status));
+      exit (EXIT_FAILURE);
+    }
 
-    // Set time for the socket to timeout and give up waiting for a reply.
-    timeout = 2;
-    wait.tv_sec  = timeout;
-    wait.tv_usec = 0;
-    setsockopt (recvsd, SOL_SOCKET, SO_RCVTIMEO, (char *) &wait, sizeof (struct timeval));
+    // IPv4 header checksum (16 bits): set to 0 when calculating checksum
+    iphdr.ip_sum = 0;
+    iphdr.ip_sum = checksum ((uint16_t *) &iphdr, IP4_HDRLEN);
 
-    // Listen for incoming ethernet frame from socket recvsd.
-    // We expect an ICMP ethernet frame of the form:
-    //     MAC (6 bytes) + MAC (6 bytes) + ethernet type (2 bytes)
-    //     + ethernet data (IPv4 header + ICMP header)
-    // Keep at it for 'timeout' seconds, or until we get an ICMP reply.
+    printf("IP header done\n");
+    // ICMP header
 
-    // RECEIVE LOOP
+    // Message Type (8 bits): echo request
+    icmphdr.icmp_type = ICMP_ECHO;
+
+    // Message Code (8 bits): echo request
+    icmphdr.icmp_code = 0;
+
+    // Identifier (16 bits): usually pid of sending process - pick a number
+    icmphdr.icmp_id = htons (1000);
+
+    // Sequence Number (16 bits): starts at 0
+    icmphdr.icmp_seq = htons (0);
+
+    // ICMP header checksum (16 bits): set to 0 when calculating checksum
+    icmphdr.icmp_cksum = icmp4_checksum (icmphdr, data, datalen);
+
+    // Fill out ethernet frame header.
+
+    // Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + ICMP header + ICMP data)
+    frame_length = 6 + 6 + 2 + IP4_HDRLEN + ICMP_HDRLEN + datalen;
+
+    // Destination and Source MAC addresses
+    memcpy (ether_frame, dst_mac, 6);
+    memcpy (ether_frame + 6, src_mac, 6);
+
+    // Next is ethernet type code (ETH_P_IP for IPv4).
+    // http://www.iana.org/assignments/ethernet-numbers
+    ether_frame[12] = ETH_P_IP / 256;
+    ether_frame[13] = ETH_P_IP % 256;
+
+    // Next is ethernet frame data (IPv4 header + ICMP header + ICMP data).
+
+    // IPv4 header
+    memcpy (ether_frame + ETH_HDRLEN, &iphdr, IP4_HDRLEN);
+
+    // ICMP header
+    memcpy (ether_frame + ETH_HDRLEN + IP4_HDRLEN, &icmphdr, ICMP_HDRLEN);
+
+    // ICMP data
+    memcpy (ether_frame + ETH_HDRLEN + IP4_HDRLEN + ICMP_HDRLEN, data, datalen);
+
+    // Submit request for a raw socket descriptor.
+    if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+      perror ("socket() failed ");
+      exit (EXIT_FAILURE);
+    }
+
+    // Submit request for a raw socket descriptor to receive packets.
+    if ((recvsd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+      perror ("socket() failed to obtain a receive socket descriptor ");
+      exit (EXIT_FAILURE);
+    }
+
+    // Set maximum number of tries to ping remote host before giving up.
+    trylim = 3;
+    trycount = 0;
+
+    // Cast recv_iphdr as pointer to IPv4 header within received ethernet frame.
+    recv_iphdr = (struct ip *) (recv_ether_frame + ETH_HDRLEN);
+
+    // Case recv_icmphdr as pointer to ICMP header within received ethernet frame.
+    recv_icmphdr = (struct icmp *) (recv_ether_frame + ETH_HDRLEN + IP4_HDRLEN);
+
+    done = 0;
     for (;;) {
 
-      memset (recv_ether_frame, 0, IP_MAXPACKET * sizeof (uint8_t));
-      memset (&from, 0, sizeof (from));
-      fromlen = sizeof (from);
-      if ((bytes = recvfrom (recvsd, recv_ether_frame, IP_MAXPACKET, 0, (struct sockaddr *) &from, &fromlen)) < 0) {
+      // SEND
 
-        status = errno;
-
-        // Deal with error conditions first.
-        if (status == EAGAIN) {  // EAGAIN = 11
-          printf ("No reply within %i seconds.\n", timeout);
-          trycount++;
-          break;  // Break out of Receive loop.
-        } else if (status == EINTR) {  // EINTR = 4
-          continue;  // Something weird happened, but let's keep listening.
-        } else {
-          perror ("recvfrom() failed ");
-          exit (EXIT_FAILURE);
-        }
-      }  // End of error handling conditionals.
-
-      // Check for an IP ethernet frame, carrying ICMP echo reply. If not, ignore and keep listening.
-      if ((((recv_ether_frame[12] << 8) + recv_ether_frame[13]) == ETH_P_IP) &&
-         (recv_iphdr->ip_p == IPPROTO_ICMP) && (recv_icmphdr->icmp_type == ICMP_ECHOREPLY) && (recv_icmphdr->icmp_code == 0)) {
-
-        // Stop timer and calculate how long it took to get a reply.
-        (void) gettimeofday (&t2, &tz);
-        dt = (double) (t2.tv_sec - t1.tv_sec) * 1000.0 + (double) (t2.tv_usec - t1.tv_usec) / 1000.0;
-
-        // Extract source IP address from received ethernet frame.
-        if (inet_ntop (AF_INET, &(recv_iphdr->ip_src.s_addr), rec_ip, INET_ADDRSTRLEN) == NULL) {
-          status = errno;
-          fprintf (stderr, "inet_ntop() failed.\nError message: %s", strerror (status));
-          exit (EXIT_FAILURE);
-        }
-
-        // Report source IPv4 address and time for reply.
-        printf ("%s  %g ms (%i bytes received)\n", rec_ip, dt, bytes);
-        done = 1;
-        break;  // Break out of Receive loop.
-      }  // End if IP ethernet frame carrying ICMP_ECHOREPLY
-    }  // End of Receive loop.
-
-    // The 'done' flag was set because an echo reply was received; break out of send loop.
-    if (done == 1) {
-      break;  // Break out of Send loop.
-    }
-
-    // We ran out of tries, so let's give up.
-    if (trycount == trylim) {
-      printf ("Recognized no echo replies from remote host after %i tries.\n", trylim);
+      // Send ethernet frame to socket.
+      if ((bytes = sendto (sd, ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
+        perror ("sendto() failed ");
+        exit (EXIT_FAILURE);
+      }
       break;
-    }
+      /*
+      // Start timer.
+      (void) gettimeofday (&t1, &tz);
 
-  }  // End of Send loop.
+      // Set time for the socket to timeout and give up waiting for a reply.
+      timeout = 2;
+      wait.tv_sec  = timeout;
+      wait.tv_usec = 0;
+      setsockopt (recvsd, SOL_SOCKET, SO_RCVTIMEO, (char *) &wait, sizeof (struct timeval));
+
+      // Listen for incoming ethernet frame from socket recvsd.
+      // We expect an ICMP ethernet frame of the form:
+      //     MAC (6 bytes) + MAC (6 bytes) + ethernet type (2 bytes)
+      //     + ethernet data (IPv4 header + ICMP header)
+      // Keep at it for 'timeout' seconds, or until we get an ICMP reply.
+
+      // RECEIVE LOOP
+      for (;;) {
+
+        memset (recv_ether_frame, 0, IP_MAXPACKET * sizeof (uint8_t));
+        memset (&from, 0, sizeof (from));
+        fromlen = sizeof (from);
+        if ((bytes = recvfrom (recvsd, recv_ether_frame, IP_MAXPACKET, 0, (struct sockaddr *) &from, &fromlen)) < 0) {
+
+          status = errno;
+
+          // Deal with error conditions first.
+          if (status == EAGAIN) {  // EAGAIN = 11
+            printf ("No reply within %i seconds.\n", timeout);
+            trycount++;
+            break;  // Break out of Receive loop.
+          } else if (status == EINTR) {  // EINTR = 4
+            continue;  // Something weird happened, but let's keep listening.
+          } else {
+            perror ("recvfrom() failed ");
+            exit (EXIT_FAILURE);
+          }
+        }  // End of error handling conditionals.
+
+        // Check for an IP ethernet frame, carrying ICMP echo reply. If not, ignore and keep listening.
+        if ((((recv_ether_frame[12] << 8) + recv_ether_frame[13]) == ETH_P_IP) &&
+           (recv_iphdr->ip_p == IPPROTO_ICMP) && (recv_icmphdr->icmp_type == ICMP_ECHOREPLY) && (recv_icmphdr->icmp_code == 0)) {
+
+          // Stop timer and calculate how long it took to get a reply.
+          (void) gettimeofday (&t2, &tz);
+          dt = (double) (t2.tv_sec - t1.tv_sec) * 1000.0 + (double) (t2.tv_usec - t1.tv_usec) / 1000.0;
+
+          // Extract source IP address from received ethernet frame.
+          if (inet_ntop (AF_INET, &(recv_iphdr->ip_src.s_addr), rec_ip, INET_ADDRSTRLEN) == NULL) {
+            status = errno;
+            fprintf (stderr, "inet_ntop() failed.\nError message: %s", strerror (status));
+            exit (EXIT_FAILURE);
+          }
+
+          // Report source IPv4 address and time for reply.
+          printf ("%s  %g ms (%i bytes received)\n", rec_ip, dt, bytes);
+          done = 1;
+          break;  // Break out of Receive loop.
+        }  // End if IP ethernet frame carrying ICMP_ECHOREPLY
+      }  // End of Receive loop.
+
+      // The 'done' flag was set because an echo reply was received; break out of send loop.
+      if (done == 1) {
+        break;  // Break out of Send loop.
+      }
+
+      // We ran out of tries, so let's give up.
+      if (trycount == trylim) {
+        printf ("Recognized no echo replies from remote host after %i tries.\n", trylim);
+        break;
+      } */
+
+    }  // End of Send loop.
+
+  }
+  printf("Done pinging\n");
 
 }
 
@@ -514,7 +538,7 @@ void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
 
 
   // start ICMP
-  pinging();
+  //pinging();
 
   // go to cur and update it.
   for (i = 0; i < list_len; i++) {
@@ -525,12 +549,12 @@ void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
   }
   if (cur == list_len - 1) {
     // send msg to multicast grp.
-    printf("Sending a multicast_msg\n");
+    /*printf("Sending a multicast_msg\n");
     gethostname(my_hostname, sizeof(my_hostname));
     sprintf(mul_msg, "<<<<< This is node %s. Tour has ended. Group memebers please identify yourselves.>>>>>", my_hostname);
     mul_msg[strlen(mul_msg)] = 0;
     printf("Node %s. Sending: %s\n", my_hostname, mul_msg);
-    Sendto(multi_send, mul_msg, strlen(mul_msg), 0, (SA*)&multicast_sockaddr, len);
+    Sendto(multi_send, mul_msg, strlen(mul_msg), 0, (SA*)&multicast_sockaddr, len);*/
     return;
   }
   else {
@@ -620,6 +644,19 @@ send_rt(tour_list_node_t* tour_list_node, int list_len) {
   printf("Sent\n"); // DEBUG
 }
 
+void add_host_to_ping_list(char* name) {
+  printf("Add_host\n");
+  int i;
+  for (i = 0; i < ping_list_len; i++) {
+    if (strcmp(name, ping_list[i].hostname) == 0) {
+      return;
+    } 
+  }
+  printf("Adding host\n");
+  ping_list_len++;
+  strcpy(ping_list[ping_list_len - 1].hostname, name);
+}
+
 int main(int argc, char *argv[]) {
 
   struct ip ip_hdr;
@@ -666,9 +703,19 @@ int main(int argc, char *argv[]) {
   FD_SET(multi_recv, &org_set);
   maxfdp1 = rt > pg ? (rt) : (pg);
   maxfdp1 = multi_recv > maxfdp1 ? (multi_recv + 1) : (maxfdp1 + 1);
+  
+
+  
   for (; ;) {
     cur_set = org_set;
-    Select(maxfdp1, &cur_set, NULL, NULL, NULL);
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    printf("waiting in select\n");
+    nready = Select(maxfdp1, &cur_set, NULL, NULL, &tv);
+    if (nready == 0) {
+      //printf("---Time_to_ping---\n");
+      pinging();
+    }
     if (FD_ISSET(rt, &cur_set)) {
       len = sizeof(recvd); // always initialize len
 
@@ -687,10 +734,11 @@ int main(int argc, char *argv[]) {
         memcpy(tour_list_node, buf + sizeof(ip_hdr), ntohs(ip_hdr.ip_len) - sizeof(ip_hdr));
         print_tour_list(tour_list_node, list_len);
         process_recvd_tour_list(tour_list_node, list_len);
+        add_host_to_ping_list(hptr->h_name);
       }
     }
 
-    if (FD_ISSET(multi_recv, &cur_set)) {
+    /*if (FD_ISSET(multi_recv, &cur_set)) {
       len = sizeof(recvd); // always initialize len
       n = recvfrom(multi_recv, mul_msg, 100, 0, (SA*) &recvd, &len);
       gethostname(my_hostname, sizeof(my_hostname));
@@ -702,9 +750,9 @@ int main(int argc, char *argv[]) {
       printf("Node %s. Sending: %s\n", my_hostname, mul_msg);
       Sendto(multi_send, mul_msg, strlen(mul_msg), 0, (SA*)&recv_multi, len);
       break;
-    }
+    }*/
   }
-
+  printf("outside_first_select\n");
   FD_ZERO(&org_set);
   FD_ZERO(&cur_set);
   FD_SET(multi_recv, &org_set);
