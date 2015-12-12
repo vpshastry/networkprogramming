@@ -129,4 +129,5 @@ char * get_mac(char mac[IF_HADDR]);
 void send_pf_packet(int s, struct hwa_info vminfo,
                     const unsigned char* dest_mac, arp_t arp);
 void print_mac_adrr(const char mac_addr[6]);
+void copy_mac_addr(char *dst, char src[IF_HADDR]);
 #endif

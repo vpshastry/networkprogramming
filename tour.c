@@ -191,6 +191,10 @@ pinging()
   struct sockaddr from;
   socklen_t fromlen;
 
+  // areq API call vars
+  struct sockaddr_in needmacof = { .sin_family = AF_INET, };
+  struct hwaddr hwaddr;
+
   struct timeval wait, t1, t2;
   struct timezone tz;
   double dt;
@@ -229,13 +233,6 @@ pinging()
     //exit (EXIT_FAILURE);
   }
   printf ("Index for interface %s is %i\n", interface, device.sll_ifindex);
-  // Set destination MAC address: you need to fill these out
-  dst_mac[0] = 0x00;
-  dst_mac[1] = 0x0c;
-  dst_mac[2] = 0x29;
-  dst_mac[3] = 0x49;
-  dst_mac[4] = 0x3f;
-  dst_mac[5] = 0x5b;
 
   // Source IPv4 address: you need to fill this out
   strcpy (src_ip, "130.245.156.22");
@@ -243,7 +240,12 @@ pinging()
   // Destination URL or IPv4 address: you need to fill this out
   strcpy (target, "130.245.156.21");
 
-  
+  Inet_pton(AF_INET, target, &needmacof.sin_addr);
+  areq((struct sockaddr *)&needmacof, sizeof(struct sockaddr_in), &hwaddr);
+
+  // Set destination MAC address: you need to fill these out
+  memcpy(dst_mac, hwaddr.sll_addr, IF_HADDR);
+
   // Fill out hints for getaddrinfo().
   memset (&hints, 0, sizeof (struct addrinfo));
   hints.ai_family = AF_INET;
@@ -264,7 +266,7 @@ pinging()
   }
   freeaddrinfo (res);
 
-  printf("freeaddrinfo called\n"); 
+  printf("freeaddrinfo called\n");
   // Fill out sockaddr_ll.
   device.sll_family = AF_PACKET;
   memcpy (device.sll_addr, src_mac, 6);
@@ -416,7 +418,7 @@ pinging()
 
     // Set time for the socket to timeout and give up waiting for a reply.
     timeout = 2;
-    wait.tv_sec  = timeout;  
+    wait.tv_sec  = timeout;
     wait.tv_usec = 0;
     setsockopt (recvsd, SOL_SOCKET, SO_RCVTIMEO, (char *) &wait, sizeof (struct timeval));
 

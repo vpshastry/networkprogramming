@@ -87,6 +87,8 @@ areq (struct sockaddr *IPaddress, socklen_t sockaddrlen, struct hwaddr *HWaddr)
   print_mac_adrr(msg.hwaddr.sll_addr);
   printf(") for %s\n", ipstr);
 
+  memcpy(HWaddr, &msg.hwaddr, sizeof(msg.hwaddr));
+
   return 0;
 }
 //-------------------------- END AREQ API ----------------------------------
@@ -277,3 +279,27 @@ print_mac_adrr(const char mac_addr[6])
   } while (--i > 0);
 }
 
+void
+copy_mac_addr(char *dst, char src[IF_HADDR])
+{
+  int k = 0;
+  int j = 0;
+  int prflag = 0;
+  char* ptr;
+
+  do {
+    if (src[j] != '\0') {
+      prflag = 1;
+      break;
+    }
+  } while (++j < IF_HADDR);
+
+  if (prflag) {
+    ptr = src;
+    j = IF_HADDR;
+    do {
+      dst[k] = *ptr++ & 0xff;
+      k++;
+    } while (--j > 0);
+  }
+}
