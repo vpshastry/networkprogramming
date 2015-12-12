@@ -1,0 +1,59 @@
+README
+Network Programming Fall 2015, Assignment 2 - Stony Brook University.
+Authors: <Aashray Arora. SBU ID: 109940382, NETID: aaarora> and <Varun Shastry. SBU ID: 109951476, NETID: vshastry>
+
+Included files:
+arp.c
+get_hw_addrs.c
+header.c
+header.h
+hw_addrs.h
+Makefile
+prhwaddrs.c
+Readme
+tour.c
+
+------------------
+User Documentation
+------------------
+All the source files can be compiled using the "make" command.
+The Makefile uses the required libraries and compiles the programs.
+Just to be safe, do a make clean before another make.
+
+Run the arp process using the arp executable:
+
+./arp
+
+Run the tour using the tour executatble as shown below:
+
+./tour
+
+---------------------
+System Documentation
+---------------------
+There are two parts to this system ARP and Tour.
+
+---
+ARP
+---
+1. It creates two sockets, one Unix Domain Socket on
+  "/tmp/ARP_SUNPATH_51476.sock" and other PF Packet socket with 4383 protocol
+  ID. And starts listening on these.
+2. Upon request through the areq API, it requests the HWaddr for given IP addr.
+3. For this IPaddr it builds an ARP request, adds an incomplete cache entry and
+  broadcasts it in the eth0 interface.
+4. When it receives a PF Packet it does the below jobs based on below cases.
+  i. If it is a ARP Request message for self, adds the sender details in the
+    cache and replies with the self's hardware address as unicast message to
+    the sender.
+  ii. If it is an ARP Request message but not for self but has an entry for the
+    sender's IP, updates the cache entry.
+  iii. If it is a ARP Response message, it updates the incomplete entry in the
+    cache.
+5. It handles the cache in a table with IPaddr and HWaddr.
+
+
+----
+Tour
+----
+
