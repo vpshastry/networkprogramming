@@ -53,7 +53,7 @@
 
 #define ARP_SUNPATH "/tmp/ARP_SUNPATH_51476.sock"
 #define UDS_BACKLOG 20
-#define AREQ_TIMEOUT 5000000 /* 5 seconds */
+#define AREQ_TIMEOUT 5 /* 5 seconds */
 
 // Let YES be 1 and NO be 0 as these represent logical yes no as well.
 // For unix style success and failure we can define SUCCESS = 0 and FAILURE = -1/1.

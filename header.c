@@ -53,35 +53,37 @@ areq (struct sockaddr *IPaddress, socklen_t sockaddrlen, struct hwaddr *HWaddr)
   static int firsttimeonly = 1;
   char ipstr[MAX_IP_LEN];
   struct sockaddr_in *IPaddr = (struct sockaddr_in *)IPaddress;
+  struct sigaction sa;
 
-  snprintf(ipstr, MAX_IP_LEN, "%s", Sock_ntop_host((SA *)IPaddr,
-            sizeof(struct sockaddr_in)));
+  snprintf(ipstr, MAX_IP_LEN, "%s", Sock_ntop_host(IPaddress, sockaddrlen));
 
   if (firsttimeonly) {
     firsttimeonly = 0;
-    /* Install timer_handler as the signal handler for SIGALRM. */
-    //Signal(SIGALRM, sig_alrm);
+    /* Install timer_handler as the signal handler for SIGVTALRM. */
+    memset (&sa, 0, sizeof (sa));
+    sa.sa_handler = &sig_alrm;
+    sigaction (SIGALRM, &sa, NULL);
   }
 
   bzero(&msg, sizeof(msg));
-  memcpy(&msg.IPaddr, IPaddr, sockaddrlen);
+  memcpy(&msg.IPaddr, IPaddr, sizeof(struct sockaddr_in));
   msg.sockaddrlen = sockaddrlen;
 
   Write(uds_fd, &msg, sizeof(msg));
 
   printf("TRACE: Requesting hardware address for %s\n", ipstr);
 
-  /*mysetitimer(AREQ_TIMEOUT);
+  mysetitimer(AREQ_TIMEOUT);
 
   if (sigsetjmp(waitbuf, 1) != 0) {
     fprintf (stderr, "TRACE: Timeout on request hardware address for %s\n", ipstr);
+    mysetitimer(0);
     return -1;
   }
-  */
 
   bzero(&msg, sizeof(msg));
   Read(uds_fd, &msg, sizeof(msg));
-  //mysetitimer(0);
+  mysetitimer(0);
 
   printf("TRACE: Received hardware address: ");
   print_mac_adrr(msg.hwaddr.sll_addr);
@@ -92,7 +94,6 @@ areq (struct sockaddr *IPaddress, socklen_t sockaddrlen, struct hwaddr *HWaddr)
   return 0;
 }
 //-------------------------- END AREQ API ----------------------------------
-//
 
 int
 build_vminfos(struct hwa_info* vminfo)
