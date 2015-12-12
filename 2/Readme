@@ -1,6 +1,5 @@
 README
 Network Programming Fall 2015, Assignment 2 - Stony Brook University.
-Authors: <Aashray Arora. SBU ID: 109940382, NETID: aaarora> and <Varun Shastry. SBU ID: 109951476, NETID: vshastry>
 
 Included:
 All header files(.h)
@@ -66,7 +65,7 @@ Server goes into Select and waits for clients and forks a new child for each new
 -------
 Client
 -------
- Starts up and read input form client.in. Gets interface information in a similar way as mentioned in detailed in server part, and tells if server is local or not. And uses 
+ Starts up and read input form client.in. Gets interface information in a similar way as mentioned in detailed in server part, and tells if server is local or not. And uses
  MSG_DO_NOT_ROUTE option if needed, as does server.
  Client Sends a filename to server. This is backup by re-try incase we do not get a response.
  Client then recvs data puts it in its buffer, a seperate thread reads buffer with the distribution time mentioned in spec. (producer/ Consumer model)

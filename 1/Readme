@@ -1,7 +1,5 @@
 Course: CSE 533 - Network Programming
 Assignment 1
-Submitted by: Varun Shastry
-SBU ID: 109951476
 
 Description:
 The program creates a inetd like application and an echo server. This
