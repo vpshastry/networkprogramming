@@ -94,8 +94,7 @@ update_cache(cache_t *c, arp_t arp)
   printf ("TRACE: Updating entry in cache for %s\n",
 		    inet_ntoa(*(struct in_addr *)&arp.senderipaddr));
 
-  cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr, 1/* TODO */,
-                        c->uds_fd);
+  cache_copy_from_args(c, arp.senderhwaddr, arp.senderipaddr, 1, c->uds_fd);
 
   if (TRACE) print_cache();
 }

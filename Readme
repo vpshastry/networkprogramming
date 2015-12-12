@@ -62,7 +62,7 @@ Tour
   tour list.
 3. It then sends the tour list as the payload to the next node in the list.
 4. The receiver of the tour list gets the sender node's IP, makes an 'areq' ARP
-  API call to get the Hardware address of the sender.
+  API call to get the Hardware address of the sender (future target).
 5. Then sends ping request to the sender every 1 second by waiting in the
   select loop with timeout for 1 second.
 6. Finally as the specification dictates, the last node in the tour multicasts
@@ -73,3 +73,4 @@ A. Extra field is_cur is used in the structure of the tour list and everynode
   sets it to the next nodes entry before sending it.
 B. Select with timeout mechanism is used to wait and send the ping packets
   every second and simultaneously handle the incoming packets.
+C. The pinging function in the tour.c takes care of pinging every second.
