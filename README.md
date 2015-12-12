@@ -1,1 +1,1 @@
-Avoid empty commit
+NP Assignments
