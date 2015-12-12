@@ -72,7 +72,7 @@
 #define MUL_GRP_IP "239.255.1.7"
 #define MUL_PORT 40383
 
-#define TRACE 1 // TODO: Make it zero before submitting.
+#define TRACE 1
 
 
 typedef struct  hwaddr {
