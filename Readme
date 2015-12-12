@@ -28,6 +28,12 @@ Run the tour using the tour executatble as shown below:
 
 ./tour
 
+Command used to bundle the files:
+> tar -cvf submission.tar *.[ch] Makefile Readme
+
+Command to be used to un-bundle it:
+> tar -xf submission.tar
+
 ---------------------
 System Documentation
 ---------------------
