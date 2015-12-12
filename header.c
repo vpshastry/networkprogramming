@@ -83,9 +83,9 @@ areq (struct sockaddr *IPaddress, socklen_t sockaddrlen, struct hwaddr *HWaddr)
   Read(uds_fd, &msg, sizeof(msg));
   //mysetitimer(0);
 
-  printf("TRACE: Received hardware address(");
+  printf("TRACE: Received hardware address: ");
   print_mac_adrr(msg.hwaddr.sll_addr);
-  printf(") for %s\n", ipstr);
+  printf(" for %s\n", ipstr);
 
   memcpy(HWaddr, &msg.hwaddr, sizeof(msg.hwaddr));
 
