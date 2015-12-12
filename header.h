@@ -30,6 +30,7 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 #include <netinet/ip.h>       // struct ip and IP_MAXPACKET (which is 65535)
+#include <netinet/ip_icmp.h>  // struct icmp, ICMP_ECHO
 
 #define FRAME_TYPE 0x0806
 #define PROTO_TYPE 0x0800
@@ -48,6 +49,7 @@
 #define MAX_IP_LEN 20
 
 #define USID_PROTO 4383
+#define USID_PROTO2 147
 
 #define ARP_SUNPATH "/tmp/ARP_SUNPATH_51476.sock"
 #define UDS_BACKLOG 20
