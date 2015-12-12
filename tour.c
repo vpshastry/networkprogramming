@@ -1,6 +1,6 @@
 #include "header.h"
 
-int rt, pg, pf_packet, multi_send, multi_recv, joined_multi = NO;
+int rt, pg, pf_packet, multi_send, multi_recv, joined_multi = NO, list_ended = NO, started_ping = NO;
 
 typedef struct {
  char hostname[MAXLINE];
@@ -147,12 +147,12 @@ void make_list(int argc, char* argv[]) {
   tour_list_node_t tour_list_node[argc + 1];
   for (i = 1; i < argc; i++) {
     get_ip_of_vm(argv[i], vm_ip, MAX_IP_LEN);
-    printf("%s: %s\n", argv[i], vm_ip);
+    //printf("%s: %s\n", argv[i], vm_ip);
     strcpy(tour_list_node[i + 1].node_ip, vm_ip);
     tour_list_node[i + 1].is_cur = NO;
   }
   gethostname(my_hostname, MAXLINE);
-  printf("My hostname: %s\n", my_hostname);
+  //printf("My hostname: %s\n", my_hostname);
   get_ip_of_vm(my_hostname, vm_ip, MAX_IP_LEN);
   strcpy(tour_list_node[1].node_ip, vm_ip);
   tour_list_node[1].is_cur = YES;
@@ -172,12 +172,12 @@ void make_list(int argc, char* argv[]) {
   Inet_pton (AF_INET, token, &multicast_sockaddr.sin_addr.s_addr);
   token = strtok(NULL, ":");
   mul_port = atoi(token);
-  printf("mul_port: %d\n", mul_port);
+  //printf("mul_port: %d\n", mul_port);
   multicast_sockaddr.sin_port = htons(mul_port);
-  printf("sock_ntop: %s\n", Sock_ntop((SA*)&multicast_sockaddr, sizeof(multicast_sockaddr)));
+  //printf("sock_ntop: %s\n", Sock_ntop((SA*)&multicast_sockaddr, sizeof(multicast_sockaddr)));
   len = sizeof(multicast_sockaddr);
   Mcast_join(multi_recv, (SA*)&multicast_sockaddr, len, NULL, 0);
-  printf("Mcast_join returned\n");
+  //printf("Mcast_join returned\n");
   send_rt (tour_list_node, argc + 1);
 }
 
@@ -215,7 +215,7 @@ pinging()
 
   for (node = 0; node < ping_list_len; node++) {
 
-
+    started_ping = YES;
     sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL));
 
 
@@ -235,11 +235,11 @@ pinging()
     memcpy (src_mac, ifr.ifr_hwaddr.sa_data, 6);
 
     // Report source MAC address to stdout.
-    printf ("MAC address for interface %s is ", interface);
+    /*printf ("MAC address for interface %s is ", interface);
     for (i=0; i<5; i++) {
       printf ("%02x:", src_mac[i]);
     }
-    printf ("%02x\n", src_mac[5]);
+    printf ("%02x\n", src_mac[5]);*/
 
     // Find interface index from interface name and store index in
     // struct sockaddr_ll device, which will be used as an argument of sendto().
@@ -248,17 +248,17 @@ pinging()
       perror ("if_nametoindex() failed to obtain interface index ");
       //exit (EXIT_FAILURE);
     }
-    printf ("Index for interface %s is %i\n", interface, device.sll_ifindex);
+    //printf ("Index for interface %s is %i\n", interface, device.sll_ifindex);
 
     // Source IPv4 address: you need to fill this out
     //strcpy (src_ip, );
     gethostname(my_hostname, sizeof(my_hostname));
     get_ip_of_vm(my_hostname, src_ip, INET_ADDRSTRLEN);
-    printf("src_ip: %s\n", src_ip);
+    //printf("src_ip: %s\n", src_ip);
     // Destination URL or IPv4 address: you need to fill this out
     get_ip_of_vm(ping_list[node].hostname, target, INET_ADDRSTRLEN);
     //strcpy (target, "130.245.156.21");
-    printf("target_ip:%s\n", target);
+    //printf("target_ip:%s\n", target);
 
     Inet_pton(AF_INET, target, &needmacof.sin_addr);
     areq((struct sockaddr *)&needmacof, sizeof(struct sockaddr_in), &hwaddr);
@@ -286,7 +286,6 @@ pinging()
     }
     freeaddrinfo (res);
 
-    printf("freeaddrinfo called\n");
     // Fill out sockaddr_ll.
     device.sll_family = AF_PACKET;
     memcpy (device.sll_addr, src_mac, 6);
@@ -357,7 +356,6 @@ pinging()
     iphdr.ip_sum = 0;
     iphdr.ip_sum = checksum ((uint16_t *) &iphdr, IP4_HDRLEN);
 
-    printf("IP header done\n");
     // ICMP header
 
     // Message Type (8 bits): echo request
@@ -529,12 +527,12 @@ void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
     Inet_pton (AF_INET, token, &multicast_sockaddr.sin_addr.s_addr);
     token = strtok(NULL, ":");
     mul_port = atoi(token);
-    printf("mul_port: %d\n", mul_port);
+    //printf("mul_port: %d\n", mul_port);
     multicast_sockaddr.sin_port = htons(mul_port);
-    printf("sock_ntop: %s\n", Sock_ntop((SA*)&multicast_sockaddr, sizeof(multicast_sockaddr)));
+    //printf("sock_ntop: %s\n", Sock_ntop((SA*)&multicast_sockaddr, sizeof(multicast_sockaddr)));
     len = sizeof(multicast_sockaddr);
     Mcast_join(multi_recv, (SA*)&multicast_sockaddr, len, NULL, 0);
-    printf("Mcast_join returned\n");
+    //printf("Mcast_join returned\n");
     joined_multi = YES;
   }
 
@@ -548,14 +546,15 @@ void process_recvd_tour_list(tour_list_node_t* tour_list_node, int list_len) {
     }
   }
   if (cur == list_len - 1) {
+    list_ended = YES;
     // send msg to multicast grp.
-    printf("Sending a multicast_msg\n");
+    /*printf("Sending a multicast_msg\n");
     gethostname(my_hostname, sizeof(my_hostname));
     sprintf(mul_msg, "<<<<< This is node %s. Tour has ended. Group memebers please identify yourselves.>>>>>", my_hostname);
     mul_msg[strlen(mul_msg)] = 0;
     printf("Node %s. Sending: %s\n", my_hostname, mul_msg);
     Sendto(multi_send, mul_msg, strlen(mul_msg), 0, (SA*)&multicast_sockaddr, len);
-    return;
+    return;*/
   }
   else {
     // send to next
@@ -610,7 +609,6 @@ send_rt(tour_list_node_t* tour_list_node, int list_len) {
   for (i = 0; i < list_len; i++) {
     if (tour_list_node[i].is_cur == YES) {
       memcpy(&cur_node, &tour_list_node[i], sizeof(tour_list_node_t));
-      //TODO : make sure i+1 is valid and it is not end of list.
       memcpy(&dest_node, &tour_list_node[i+1], sizeof(tour_list_node_t));
     }
   }
@@ -641,7 +639,7 @@ send_rt(tour_list_node_t* tour_list_node, int list_len) {
   memcpy(buf + sizeof(ip_hdr), tour_list_node, sizeof(tour_list_node_t) * list_len);
 
   Sendto(rt, buf, sizeof(ip_hdr) + (sizeof(tour_list_node_t) * list_len), 0, (SA*) &dest, len);
-  printf("Sent\n"); // DEBUG
+  //printf("Sent\n"); // DEBUG
 }
 
 void add_host_to_ping_list(char* name) {
@@ -674,6 +672,8 @@ int main(int argc, char *argv[]) {
   socklen_t fromlen;
   char rec_ip[INET_ADDRSTRLEN];
 
+  struct sockaddr_in multicast_sockaddr;
+
   uint8_t recv_ether_frame[IP_MAXPACKET];
   struct icmp *recv_icmphdr;
   struct icmp icmphdr;
@@ -681,6 +681,7 @@ int main(int argc, char *argv[]) {
   double dt;
   struct timeval wait, t1, t2;
   struct timezone tz;
+  int echo_count = 0;
 
   tour_list_node_t* tour_list_node;
   rt = socket(AF_INET, SOCK_RAW, USID_PROTO2);
@@ -752,7 +753,7 @@ int main(int argc, char *argv[]) {
         n = recvfrom(rt, buf, ip_hdr.ip_len, 0, (SA*) &recvd, &len);
         memcpy(&ip_hdr, buf, sizeof(ip_hdr));
         list_len = (ntohs(ip_hdr.ip_len) - sizeof(ip_hdr)) / sizeof(tour_list_node_t);
-        printf("tour_list_len = %d\n", list_len);
+        //printf("tour_list_len = %d\n", list_len);
         tour_list_node = malloc(sizeof(tour_list_node_t) * list_len);
         memcpy(tour_list_node, buf + sizeof(ip_hdr), ntohs(ip_hdr.ip_len) - sizeof(ip_hdr));
         //print_tour_list(tour_list_node, list_len);
@@ -775,7 +776,6 @@ int main(int argc, char *argv[]) {
       break;
     }
     if (FD_ISSET(pg, &cur_set)) {
-      printf("Something in pg\n"); 
       // Cast recv_iphdr as pointer to IPv4 header within received ethernet frame.
       //recv_iphdr = (struct ip *) (recv_ether_frame + ETH_HDRLEN);
 
@@ -796,6 +796,15 @@ int main(int argc, char *argv[]) {
       hptr = gethostbyaddr (&recvd.sin_addr, sizeof(recvd.sin_addr), AF_INET);
       if (icmphdr.icmp_type == ICMP_ECHOREPLY) {
         printf("<icmp/ping response>%d bytes from %s\n", bytes, hptr->h_name);
+        if (started_ping == YES)echo_count++;
+        if (echo_count >= 5 && list_ended == YES) { 
+          //printf("Sending a multicast_msg\n");
+          gethostname(my_hostname, sizeof(my_hostname));
+          sprintf(mul_msg, "<<<<< This is node %s. Tour has ended. Group memebers please identify yourselves.>>>>>", my_hostname);
+          mul_msg[strlen(mul_msg)] = 0;
+          printf("Node %s. Sending: %s\n", my_hostname, mul_msg);
+          Sendto(multi_send, mul_msg, strlen(mul_msg), 0, (SA*)&recv_multi, len);
+        }
       }
         //printf("Recived ping response from %s");
         // Check for an IP ethernet frame, carrying ICMP echo reply. If not, ignore and keep listening.
@@ -822,7 +831,6 @@ int main(int argc, char *argv[]) {
 
     }
   }
-  printf("outside_first_select\n");
   FD_ZERO(&org_set);
   FD_ZERO(&cur_set);
   FD_SET(multi_recv, &org_set);
