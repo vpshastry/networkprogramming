@@ -233,9 +233,9 @@ pinging()
   dst_mac[0] = 0x00;
   dst_mac[1] = 0x0c;
   dst_mac[2] = 0x29;
-  dst_mac[3] = 0xd9;
-  dst_mac[4] = 0x08;
-  dst_mac[5] = 0xec;
+  dst_mac[3] = 0x49;
+  dst_mac[4] = 0x3f;
+  dst_mac[5] = 0x5b;
 
   // Source IPv4 address: you need to fill this out
   strcpy (src_ip, "130.245.156.22");
